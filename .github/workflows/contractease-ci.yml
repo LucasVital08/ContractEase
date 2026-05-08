@@ -1,0 +1,41 @@
+name: ContractEase CI
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'apps/contractease/**'
+  pull_request:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'apps/contractease/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./apps/contractease
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: './apps/contractease/package-lock.json'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Lint
+      run: npm run lint
+      
+    - name: Type Check
+      run: npx tsc --noEmit
+      
+    - name: Build
+      run: npm run build
