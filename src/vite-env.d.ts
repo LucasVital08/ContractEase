@@ -9,7 +9,9 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-declare module 'react' {
+import React from 'react';
+
+declare global {
   namespace JSX {
     interface IntrinsicElements {
       'iconify-icon': React.DetailedHTMLProps<

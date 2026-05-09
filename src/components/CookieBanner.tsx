@@ -36,7 +36,7 @@ export function CookieBanner() {
         >
           <div className="flex gap-3">
             <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
-              <iconify-icon icon="solar:cookie-bold" class="text-2xl text-emerald-500" />
+              <iconify-icon icon="ph:cookie-duotone" class="text-2xl text-emerald-500" />
             </div>
             <div>
               <h3 className="text-white font-bold text-sm mb-1">Privacidade & Cookies (LGPD)</h3>

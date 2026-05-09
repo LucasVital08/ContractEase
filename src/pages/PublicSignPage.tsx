@@ -7,6 +7,8 @@ import { useNotificationStore } from '@/stores';
 import { isAllowed, setAllowed, requestAccess, signTransaction } from '@stellar/freighter-api';
 import { validateCPF, formatCPF } from '@/utils/validators';
 import { generateContractHash, serializeContract, anchorOnStellar } from '@/services/stellar';
+import { OTPModal } from '@/components/OTPModal';
+import { api } from '@/services/api';
 
 export default function PublicSignPage() {
   const { contractId, partyId } = useParams<{ contractId: string; partyId: string }>();
@@ -29,6 +31,7 @@ export default function PublicSignPage() {
   const [signed, setSigned] = useState(false);
   const [livenessStatus, setLivenessStatus] = useState<'none' | 'scanning' | 'passed'>('none');
   const [showLivenessModal, setShowLivenessModal] = useState(false);
+  const [isOTPModalOpen, setIsOTPModalOpen] = useState(false);
   
   // IP and Geo Mocks
   const [clientIp, setClientIp] = useState<string>('');
@@ -146,30 +149,33 @@ export default function PublicSignPage() {
       return;
     }
 
+    if (signatureMode === 'draw' && sigCanvas.current?.isEmpty()) {
+      notify({ type: 'error', title: 'Por favor, forneça sua assinatura.' });
+      return;
+    }
+    
+    if (signatureMode === 'type' && !typedSignature.trim()) {
+      notify({ type: 'error', title: 'Por favor, digite seu nome.' });
+      return;
+    }
+    
+    if (signatureMode === 'upload' && !uploadedImage) {
+      notify({ type: 'error', title: 'Faça upload de uma imagem.' });
+      return;
+    }
+    
+    if (signatureMode === 'freighter' && !freighterConnected) {
+      notify({ type: 'error', title: 'Conecte sua carteira Freighter primeiro.' });
+      return;
+    }
+
     let signatureImage = '';
     if (signatureMode === 'draw') {
-      if (sigCanvas.current?.isEmpty()) {
-        notify({ type: 'error', title: 'Por favor, forneça sua assinatura.' });
-        return;
-      }
       signatureImage = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png') || '';
     } else if (signatureMode === 'type') {
-      if (!typedSignature.trim()) {
-        notify({ type: 'error', title: 'Por favor, digite seu nome.' });
-        return;
-      }
       signatureImage = typedSignature;
     } else if (signatureMode === 'upload') {
-      if (!uploadedImage) {
-        notify({ type: 'error', title: 'Faça upload de uma imagem.' });
-        return;
-      }
-      signatureImage = uploadedImage;
-    } else if (signatureMode === 'freighter') {
-      if (!freighterConnected) {
-        notify({ type: 'error', title: 'Conecte sua carteira Freighter primeiro.' });
-        return;
-      }
+      signatureImage = uploadedImage!;
     }
 
     setIsSubmitting(true);
@@ -448,9 +454,9 @@ export default function PublicSignPage() {
               </p>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
-    </div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

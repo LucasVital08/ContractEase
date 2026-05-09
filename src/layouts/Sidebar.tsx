@@ -1,7 +1,11 @@
-import { NavLink } from 'react-router-dom';
-import { useUIStore, useAuthStore } from '@/stores';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useUIStore, useAuthStore, useNotificationStore } from '@/stores';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import { api } from '@/services/api';
+
+const WorkspaceSetupWizard = lazy(() => import('@/components/WorkspaceSetupWizard'));
+const WorkspaceSettingsModal = lazy(() => import('@/components/WorkspaceSettingsModal'));
 
 const NAV_ITEMS = [
   // Business Items
@@ -24,10 +28,85 @@ const ADMIN_ITEMS = [
 
 export default function Sidebar() {
   const { sidebarCollapsed, toggleCollapse } = useUIStore();
-  const { user, organization, activeProfile } = useAuthStore();
+  const { user, organization, activeProfile, switchOrganization } = useAuthStore();
+  const addNotification = useNotificationStore(state => state.add);
+  const navigate = useNavigate();
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const [showCreateFlow, setShowCreateFlow] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [allOrgs, setAllOrgs] = useState<any[]>([]);
+  const [setupWizardOrg, setSetupWizardOrg] = useState<{ id: string; name: string; type: 'business' | 'team' } | null>(null);
+  const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Load all user workspaces
+  useEffect(() => {
+    api.organization.listMyOrganizations().then(setAllOrgs).catch(() => {});
+  }, [organization?.id]);
+
+  const handleCreateWorkspace = async (type: string) => {
+    if (isCreating) return;
+    setIsCreating(true);
+    try {
+      const newOrg = await api.organization.create({ 
+        name: type === 'business' ? 'Minha Empresa' : 'Minha Equipe',
+        type: type as 'business' | 'team',
+      });
+      setShowCreateFlow(false);
+      setIsWorkspaceOpen(false);
+
+      // Switch context to new org
+      switchOrganization({
+        id: newOrg.id,
+        name: newOrg.name,
+        plan: 'free',
+        createdAt: newOrg.created_at,
+      });
+
+      // Update profile on Supabase
+      const { supabase } = await import('@/lib/supabase');
+      await supabase.from('profiles').update({ organization_id: newOrg.id }).eq('id', user!.id);
+
+      // Refresh list
+      const orgs = await api.organization.listMyOrganizations();
+      setAllOrgs(orgs);
+
+      // Open setup wizard
+      setSetupWizardOrg({ id: newOrg.id, name: newOrg.name, type: type as 'business' | 'team' });
+    } catch (error: any) {
+      console.error('Erro ao criar workspace:', error);
+      addNotification({ type: 'error', title: 'Erro ao criar workspace', message: error.message });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleSwitchOrg = async (org: any) => {
+    switchOrganization({
+      id: org.id,
+      name: org.name,
+      plan: 'free',
+      createdAt: org.created_at,
+    });
+    // Persist the switch to Supabase
+    const { supabase } = await import('@/lib/supabase');
+    await supabase.from('profiles').update({ organization_id: org.id }).eq('id', user!.id);
+    setIsWorkspaceOpen(false);
+    addNotification({ type: 'info', title: `Workspace: ${org.name}` });
+  };
+
+  const handleSwitchToPersonal = async () => {
+    switchOrganization({
+      id: 'personal',
+      name: 'Espaço Pessoal',
+      plan: (user?.plan ?? 'free') as any,
+      createdAt: user?.createdAt ?? '',
+    });
+    const { supabase } = await import('@/lib/supabase');
+    await supabase.from('profiles').update({ organization_id: null }).eq('id', user!.id);
+    setIsWorkspaceOpen(false);
+    addNotification({ type: 'info', title: 'Voltou ao Espaço Pessoal' });
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -40,6 +119,7 @@ export default function Sidebar() {
   }, []);
 
   return (
+    <>
     <motion.aside
       animate={{ width: sidebarCollapsed ? 72 : 260 }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -65,9 +145,9 @@ export default function Sidebar() {
       {!sidebarCollapsed && organization && (
         <div className="px-3 pt-4 mb-2 relative" ref={dropdownRef}>
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest px-2 mb-2">Área de Trabalho</p>
-          <button 
+          <div 
             onClick={() => setIsWorkspaceOpen(!isWorkspaceOpen)}
-            className={`w-full flex items-center gap-3 p-2 rounded-xl border transition-all group ${
+            className={`w-full flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer group ${
               isWorkspaceOpen ? 'bg-white/10 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/10'
             }`}
           >
@@ -78,11 +158,18 @@ export default function Sidebar() {
               <p className="text-xs font-bold text-white truncate">{organization.name}</p>
               <p className="text-[10px] text-emerald-500 font-bold uppercase">{organization.plan}</p>
             </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowWorkspaceSettings(true); }}
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-neutral-500 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
+              title="Configurações do Workspace"
+            >
+              <iconify-icon icon="solar:settings-bold" class="text-sm" />
+            </button>
             <iconify-icon 
               icon="solar:alt-arrow-down-bold" 
               class={`text-neutral-500 transition-transform duration-300 ${isWorkspaceOpen ? 'rotate-180 text-white' : 'group-hover:text-white'}`} 
             />
-          </button>
+          </div>
 
           <AnimatePresence>
             {isWorkspaceOpen && (
@@ -92,17 +179,46 @@ export default function Sidebar() {
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 className="absolute left-3 right-3 top-full mt-2 bg-neutral-900 border border-white/10 rounded-2xl p-2 premium-shadow z-50"
               >
-                <div className="space-y-1">
-                  <div className="p-2 flex items-center gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                      {organization.name.charAt(0)}
+                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                  {/* Espaço Pessoal */}
+                  <button
+                    onClick={handleSwitchToPersonal}
+                    className={`w-full p-2 flex items-center gap-3 rounded-xl transition-all ${
+                      organization.id === 'personal' ? 'bg-emerald-500/10 border border-emerald-500/20' : 'hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-neutral-700 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                      <iconify-icon icon="solar:user-bold" class="text-sm" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-white truncate">{organization.name}</p>
-                      <p className="text-[10px] text-emerald-500 font-bold uppercase">Ativo</p>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-xs font-bold text-white truncate">Espaço Pessoal</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase">{user?.plan || 'free'}</p>
                     </div>
-                    <iconify-icon icon="solar:check-circle-bold" class="text-emerald-500" />
-                  </div>
+                    {organization.id === 'personal' && <iconify-icon icon="solar:check-circle-bold" class="text-emerald-500" />}
+                  </button>
+
+                  {/* All real workspaces */}
+                  {allOrgs.map(org => (
+                    <button
+                      key={org.id}
+                      onClick={() => handleSwitchOrg(org)}
+                      className={`w-full p-2 flex items-center gap-3 rounded-xl transition-all ${
+                        organization.id === org.id ? 'bg-emerald-500/10 border border-emerald-500/20' : 'hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xs shrink-0 overflow-hidden">
+                        {org.logo_url ? (
+                          <img src={org.logo_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          org.name.charAt(0)
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-xs font-bold text-white truncate">{org.name}</p>
+                      </div>
+                      {organization.id === org.id && <iconify-icon icon="solar:check-circle-bold" class="text-emerald-500" />}
+                    </button>
+                  ))}
                 </div>
 
                 <div className="mt-2 pt-2 border-t border-white/5">
@@ -159,7 +275,7 @@ export default function Sidebar() {
 
               <div className="space-y-4">
                 <button 
-                  onClick={() => setShowCreateFlow(false)}
+                  onClick={() => handleCreateWorkspace('business')}
                   className="w-full p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group text-left flex items-start gap-4"
                 >
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-black transition-all">
@@ -172,7 +288,7 @@ export default function Sidebar() {
                 </button>
 
                 <button 
-                  onClick={() => setShowCreateFlow(false)}
+                  onClick={() => handleCreateWorkspace('team')}
                   className="w-full p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group text-left flex items-start gap-4"
                 >
                   <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0 group-hover:bg-blue-500 group-hover:text-black transition-all">
@@ -263,5 +379,32 @@ export default function Sidebar() {
 
       </div>
     </motion.aside>
+
+    {/* Setup Wizard (rendered outside aside as overlay) */}
+    {setupWizardOrg && (
+      <Suspense fallback={null}>
+        <WorkspaceSetupWizard
+          orgId={setupWizardOrg.id}
+          orgName={setupWizardOrg.name}
+          type={setupWizardOrg.type}
+          onComplete={() => {
+            setSetupWizardOrg(null);
+            // Refresh org list and reload current org data
+            api.organization.listMyOrganizations().then(setAllOrgs).catch(() => {});
+            // Reload page to reflect new org name in the store
+            window.location.reload();
+          }}
+          onClose={() => setSetupWizardOrg(null)}
+        />
+      </Suspense>
+    )}
+
+    {/* Workspace Settings Modal */}
+    {showWorkspaceSettings && (
+      <Suspense fallback={null}>
+        <WorkspaceSettingsModal onClose={() => setShowWorkspaceSettings(false)} />
+      </Suspense>
+    )}
+    </>
   );
 }

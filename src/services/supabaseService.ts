@@ -114,6 +114,73 @@ export const authService = {
     await supabase.auth.signOut();
   },
 
+  signInWithOtp: async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({ 
+      email,
+      options: {
+        shouldCreateUser: false,
+      }
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  verifyOtp: async (email: string, token: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email'
+    });
+    if (error) throw new Error(error.message);
+    if (!data.user || !data.session) throw new Error('Falha na verificação do código.');
+
+    // Processar perfil e organização
+    const profile = await authService.getProfile(data.user.id);
+    let organization: any = {
+      id: 'personal',
+      name: 'Espaço Pessoal',
+      plan: (profile?.plan ?? 'free') as any,
+      createdAt: data.user.created_at,
+    };
+
+    if (profile?.organization_id && profile.organization_id !== 'personal') {
+       const { data: orgData } = await supabase
+         .from('organizations')
+         .select('*')
+         .eq('id', profile.organization_id)
+         .single();
+       
+       if (orgData) {
+         organization = {
+           id: orgData.id,
+           name: orgData.name,
+           plan: (orgData.plan ?? profile.plan ?? 'free') as any,
+           createdAt: orgData.created_at,
+         };
+       }
+    }
+
+    return {
+      user: {
+        id: data.user.id,
+        name: profile?.name ?? email.split('@')[0],
+        email: data.user.email!,
+        role: (profile?.role ?? 'user') as any,
+        avatar: profile?.avatar_url ?? undefined,
+        organizationId: profile?.organization_id ?? 'personal',
+        createdAt: data.user.created_at,
+        credits: profile?.credits ?? 0,
+        plan: (profile?.plan ?? 'free') as any,
+      },
+      organization,
+      token: data.session.access_token,
+    };
+  },
+
+  reauthenticate: async () => {
+    const { error } = await supabase.auth.reauthenticate();
+    if (error) throw new Error(error.message);
+  },
+
   getSession: async () => {
     const { data } = await supabase.auth.getSession();
     return data.session;
@@ -138,6 +205,74 @@ export const authService = {
     if (error) throw new Error(error.message);
     return data;
   },
+
+  uploadAvatar: async (userId: string, file: File) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file);
+
+    if (uploadError) throw new Error(uploadError.message);
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  },
+
+  mfa: {
+    enroll: async () => {
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
+      if (error) throw error;
+      return data;
+    },
+    challenge: async (factorId: string) => {
+      const { data, error } = await supabase.auth.mfa.challenge({ factorId });
+      if (error) throw error;
+      return data;
+    },
+    verify: async (factorId: string, challengeId: string, code: string) => {
+      const { data, error } = await supabase.auth.mfa.verify({ factorId, challengeId, code });
+      if (error) throw error;
+      return data;
+    },
+    listFactors: async () => {
+      const { data, error } = await supabase.auth.mfa.listFactors();
+      if (error) throw error;
+      return data;
+    },
+    unenroll: async (factorId: string) => {
+      const { data, error } = await supabase.auth.mfa.unenroll({ factorId });
+      if (error) throw error;
+      return data;
+    },
+  },
+
+  otp: {
+    generate: async ({ userId, email, purpose }: { userId?: string; email?: string; purpose: string }) => {
+      const { data, error } = await supabase.rpc('generate_otp', { 
+        p_user_id: userId || null, 
+        p_email: email || null,
+        p_purpose: purpose 
+      });
+      if (error) throw error;
+      return data;
+    },
+    verify: async ({ userId, email, code, purpose }: { userId?: string; email?: string; code: string; purpose: string }) => {
+      const { data, error } = await supabase.rpc('verify_otp', { 
+        p_user_id: userId || null, 
+        p_email: email || null,
+        p_code: code, 
+        p_purpose: purpose 
+      });
+      if (error) throw error;
+      return data;
+    }
+  }
 };
 
 // ─── Helpers: DB row <-> Frontend type mapping ───────────────
@@ -234,12 +369,18 @@ function mapDbToContract(row: DbContract): Contract {
 
 // ─── Contracts ───────────────────────────────────────────────
 export const contractsService = {
-  list: async (): Promise<Contract[]> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const { data, error } = await supabase
+  list: async (orgId?: string): Promise<Contract[]> => {
+    let query = supabase
       .from('contracts')
-      .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)')
-      .order('created_at', { ascending: false });
+      .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)');
+    
+    if (orgId && orgId !== 'personal') {
+      query = query.eq('organization_id', orgId);
+    } else {
+      query = query.is('organization_id', null);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return (data as DbContract[]).map(mapDbToContract);
   },
@@ -254,7 +395,7 @@ export const contractsService = {
     return mapDbToContract(data as DbContract);
   },
 
-  create: async (draft: ContractDraft): Promise<Contract> => {
+  create: async (draft: ContractDraft, orgId?: string): Promise<Contract> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Não autenticado');
 
@@ -269,6 +410,7 @@ export const contractsService = {
         expires_at: draft.expiresAt || null,
         signature_order: draft.signatureOrder ?? 'parallel',
         owner_id: session.user.id,
+        organization_id: (orgId && orgId !== 'personal') ? orgId : null
       })
       .select()
       .single();
@@ -358,18 +500,22 @@ export const contractsService = {
 
 // ─── Folders ─────────────────────────────────────────────────
 export const foldersService = {
-  list: async () => {
-    const { data, error } = await supabase
-      .from('folders')
-      .select('*')
-      .order('name');
+  list: async (orgId?: string) => {
+    let query = supabase.from('folders').select('*');
+    
+    if (orgId && orgId !== 'personal') {
+      query = query.eq('organization_id', orgId);
+    } else {
+      query = query.is('organization_id', null);
+    }
+
+    const { data, error } = await query.order('name');
     if (error) throw error;
     return data;
   },
 
-  create: async (name: string, color: string) => {
+  create: async (name: string, color: string, orgId?: string) => {
     const { data: { session } } = await supabase.auth.getSession();
-    const { data: profile } = await supabase.from('profiles').select('organization_id').single();
     
     const { data, error } = await supabase
       .from('folders')
@@ -377,7 +523,7 @@ export const foldersService = {
         name,
         color,
         owner_id: session?.user.id,
-        organization_id: profile?.organization_id !== 'personal' ? profile?.organization_id : null
+        organization_id: (orgId && orgId !== 'personal') ? orgId : null
       })
       .select()
       .single();
@@ -392,53 +538,73 @@ export const foldersService = {
   }
 };
 
-// ─── AI (kept as mock — will plug into OpenAI/Claude later) ──
+// ─── AI (Gemini via Edge Function) ───────────────────────────
 export const aiService = {
-  generateContract: async (prompt: string): Promise<Partial<Contract>> => {
-    await new Promise((r) => setTimeout(r, 2500));
-    return {
-      title: 'Contrato Gerado por IA',
-      description: `Gerado a partir do prompt: "${prompt}"`,
-      type: 'service',
-      clauses: [
-        { id: `cls_${Date.now()}_1`, title: 'Objeto', content: 'O presente contrato tem por objeto a prestação de serviços descritos no prompt.', order: 1 },
-        { id: `cls_${Date.now()}_2`, title: 'Obrigações', content: 'As partes se comprometem a cumprir com as obrigações estipuladas com zelo e confidencialidade.', order: 2 },
-        { id: `cls_${Date.now()}_3`, title: 'Foro', content: 'Fica eleito o foro da comarca da capital para dirimir quaisquer dúvidas.', order: 3 },
-      ],
-    };
-  },
-  rewriteClause: async (content: string, style: 'simplify' | 'formal'): Promise<string> => {
-    await new Promise((r) => setTimeout(r, 1500));
-    if (style === 'simplify') {
-      return `(Legal Design) ${content.substring(0, 50)}... Em resumo: as partes concordam com os termos de forma clara e objetiva.`;
+  analyzeContract: async (contract: any) => {
+    const { data, error } = await supabase.functions.invoke('ai-agent', {
+      body: { 
+        action: 'analyze', 
+        contractContent: JSON.stringify(contract.clauses || contract) 
+      }
+    });
+    if (error) throw error;
+    try {
+      // O Gemini as vezes retorna blocos markdown tipo ```json ... ```
+      const cleanedText = data.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleanedText);
+    } catch(e) {
+      console.error('Failed to parse AI response', data.text);
+      return { score: 80, summary: "Análise concluída, mas falhou ao extrair os dados estruturados.", risks: [] };
     }
-    return `(Formal/Juridiquês) Fica convencionado e acordado, de forma irrevogável e irretratável, sob as penas da lei, que: ${content}`;
+  },
+  chat: async (contract: any, message: string) => {
+    const { data, error } = await supabase.functions.invoke('ai-agent', {
+      body: { 
+        action: 'chat', 
+        contractContent: JSON.stringify(contract.clauses || contract),
+        userMessage: message 
+      }
+    });
+    if (error) throw error;
+    return data.text;
   },
   translateClause: async (content: string, targetLang: 'PT' | 'EN' | 'ES'): Promise<string> => {
-    await new Promise((r) => setTimeout(r, 1500));
-    const labels = { PT: 'Português', EN: 'Inglês', ES: 'Espanhol' };
-    return `[Tradução para ${labels[targetLang]}] ${content.substring(0, 100)}... (Traduzido com rigor jurídico)`;
+    const { data, error } = await supabase.functions.invoke('ai-agent', {
+      body: { 
+        action: 'chat', 
+        contractContent: content,
+        userMessage: `Traduza o seguinte texto jurídico para ${targetLang}. Responda APENAS com a tradução e nada mais.`
+      }
+    });
+    if (error) throw error;
+    return data.text;
   },
-  generateSummary: async (contract: any): Promise<string> => {
-    await new Promise((r) => setTimeout(r, 2000));
-    return `Este contrato de ${contract.type} estabelece obrigações claras entre as partes. Em resumo: você está contratando um serviço pelo prazo estipulado, com garantias de confidencialidade e regras de rescisão padrão.`;
-  },
-  detectAbusiveClauses: async (clauses: any[]): Promise<{ clauseId: string; risk: string; reason: string }[]> => {
-    await new Promise((r) => setTimeout(r, 2000));
-    // Simulate finding a risk in the first clause
-    if (clauses.length > 0) {
-      return [{
-        clauseId: clauses[0].id,
-        risk: 'HIGH',
-        reason: 'A multa rescisória de 50% é considerada abusiva pelo CDC em contratos de prestação de serviços padrão.'
-      }];
+  // Mantidos como mocks os demais métodos por retrocompatibilidade se usados em outro lugar
+  generateContract: async (prompt: string): Promise<Partial<Contract>> => {
+    const { data, error } = await supabase.functions.invoke('ai-agent', {
+      body: { action: 'generate', prompt }
+    });
+    if (error) throw error;
+    try {
+      const cleanedText = data.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleanedText);
+    } catch(e) {
+      console.error('Failed to parse AI generate response', data.text);
+      throw new Error("Falha ao estruturar o contrato gerado pela IA.", { cause: e });
     }
-    return [];
   },
-  calculateHealthScore: async (contract: any): Promise<number> => {
-    await new Promise((r) => setTimeout(r, 1500));
-    return 85; // Mock score
-  }
+  getDashboardInsights: async (contracts: any[]): Promise<string> => {
+    // Mandamos uma versão simplificada para a IA (economiza tokens)
+    const summaryList = contracts.map(c => ({ title: c.title, status: c.status, expiresAt: c.expiresAt }));
+    const { data, error } = await supabase.functions.invoke('ai-agent', {
+      body: { action: 'dashboard_insights', contracts: summaryList }
+    });
+    if (error) throw error;
+    return data.text;
+  },
+  calculateHealthScore: async (contract: any): Promise<number> => 85,
+  detectAbusiveClauses: async (clauses: any[]) => [],
+  generateSummary: async (contract: any): Promise<string> => "Resumo do contrato."
 };
 
 // ─── Organizations & Team ──────────────────────────────────
@@ -446,11 +612,41 @@ export const organizationService = {
   get: async (orgId: string) => {
     const { data, error } = await supabase
       .from('organizations')
-      .select('*, organization_members(*, profiles(*))')
+      .select('*, organization_members(*, profiles(id, name))')
       .eq('id', orgId)
       .single();
     if (error) throw error;
     return data;
+  },
+
+  listMyOrganizations: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data: ownedOrgs } = await supabase
+      .from('organizations')
+      .select('id, name, logo_url, created_at')
+      .eq('owner_id', user.id);
+
+    const { data: memberships } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id);
+
+    const memberOrgIds = (memberships || [])
+      .map(m => m.organization_id)
+      .filter(id => !(ownedOrgs || []).some(o => o.id === id));
+
+    let memberOrgs: any[] = [];
+    if (memberOrgIds.length > 0) {
+      const { data } = await supabase
+        .from('organizations')
+        .select('id, name, logo_url, created_at')
+        .in('id', memberOrgIds);
+      memberOrgs = data || [];
+    }
+
+    return [...(ownedOrgs || []), ...memberOrgs];
   },
 
   update: async (orgId: string, updates: any) => {
@@ -466,21 +662,81 @@ export const organizationService = {
 
   getMyOrganization: async () => {
     const { data: profile } = await supabase.from('profiles').select('organization_id').single();
-    if (!profile?.organization_id) return null;
+    if (!profile?.organization_id || profile.organization_id === 'personal') return null;
     return organizationService.get(profile.organization_id);
   },
 
-  inviteMember: async (email: string, role: string, orgId: string) => {
-    const { data: profile } = await supabase.from('profiles').select('id').eq('email', email).single();
-    if (!profile) throw new Error('Usuário não encontrado com este e-mail.');
+  create: async (payload: { name: string; tax_id?: string; type?: 'business' | 'team' }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não autenticado.');
 
-    const { data, error } = await supabase
-      .from('organization_members')
-      .insert({ organization_id: orgId, user_id: profile.id, role })
+    const { data: orgData, error: orgError } = await supabase
+      .from('organizations')
+      .insert({ 
+        name: payload.name, 
+        cnpj: payload.tax_id || null, 
+        owner_id: user.id,
+        type: payload.type || 'business'
+      })
       .select()
       .single();
-    if (error) throw error;
-    return data;
+    if (orgError) throw orgError;
+
+    await supabase.from('profiles').update({ organization_id: orgData.id }).eq('id', user.id);
+    
+    await supabase.from('organization_members').insert({
+      organization_id: orgData.id,
+      user_id: user.id,
+      role: 'owner'
+    });
+
+    return orgData;
+  },
+
+  inviteMember: async (email: string, role: string, orgId: string) => {
+    const { data: funcData, error: funcError } = await supabase.functions.invoke('invite-member', {
+      body: { email, role, orgId }
+    });
+
+    if (funcError) {
+      console.warn("Edge function 'invite-member' failed. Using fallback local insert.", funcError);
+      const { data: profile } = await supabase.from('profiles').select('id').eq('email', email).single();
+      if (!profile) throw new Error('Usuário não encontrado com este e-mail para inserção direta.');
+
+      const { data, error } = await supabase
+        .from('organization_members')
+        .insert({ organization_id: orgId, user_id: profile.id, role })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+    
+    return funcData;
+  },
+
+  uploadLogo: async (orgId: string, file: File) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${orgId}-${Date.now()}.${fileExt}`;
+    const filePath = `logos/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('brand-kits')
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('brand-kits')
+      .getPublicUrl(filePath);
+
+    const { error: updateError } = await supabase
+      .from('organizations')
+      .update({ logo_url: publicUrl })
+      .eq('id', orgId);
+
+    if (updateError) throw updateError;
+    return publicUrl;
   },
 
   removeMember: async (memberId: string) => {
@@ -545,6 +801,26 @@ export const analyticsService = {
   }
 };
 
+// ─── User Settings (persisted in profiles.settings JSONB) ──────
+export const userSettingsService = {
+  get: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return {};
+    const { data } = await supabase.from('profiles').select('settings').eq('id', user.id).single();
+    return data?.settings || {};
+  },
+  save: async (settings: Record<string, any>) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Não autenticado');
+    // Merge with existing settings
+    const { data: current } = await supabase.from('profiles').select('settings').eq('id', user.id).single();
+    const merged = { ...(current?.settings || {}), ...settings };
+    const { error } = await supabase.from('profiles').update({ settings: merged }).eq('id', user.id);
+    if (error) throw error;
+    return merged;
+  },
+};
+
 // ─── Unified API export (drop-in replacement) ────────────────
 export const api = {
   auth: authService,
@@ -554,4 +830,5 @@ export const api = {
   templates: templateService,
   analytics: analyticsService,
   folders: foldersService,
+  settings: userSettingsService,
 };

@@ -17,6 +17,7 @@ interface AuthStore {
   setLoading: (loading: boolean) => void;
   updateUser: (data: Partial<User>) => void;
   setActiveProfile: (profile: 'business' | 'developer') => void;
+  switchOrganization: (org: Organization) => void;
   initialize: () => Promise<void>;
 }
 
@@ -46,6 +47,13 @@ export const useAuthStore = create<AuthStore>()(
         })),
 
       setActiveProfile: (activeProfile) => set({ activeProfile }),
+
+      switchOrganization: (org) => {
+        set((state) => ({
+          organization: org,
+          user: state.user ? { ...state.user, organizationId: org.id } : null,
+        }));
+      },
 
       initialize: async () => {
         if (get().initialized) return;

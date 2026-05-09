@@ -147,7 +147,7 @@ export default function Topbar() {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }} 
                 animate={{ opacity: 1, y: 0, scale: 1 }} 
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 top-full mt-2 w-64 glass-panel rounded-2xl premium-shadow overflow-hidden z-50 p-2 border border-white/10 shadow-2xl"
+                className="absolute right-0 top-full mt-2 w-64 bg-neutral-950/95 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden z-50 p-2 border border-white/10"
               >
                 <div className="p-3 mb-2 border-b border-white/5">
                   <p className="text-xs font-bold text-white">{user?.name}</p>
@@ -171,13 +171,7 @@ export default function Topbar() {
                     <iconify-icon icon="solar:user-circle-bold" /> Perfil & Conta
                   </Link>
                   
-                  <Link 
-                    to="/compliance" 
-                    onClick={() => setShowProfile(false)}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-neutral-400 hover:text-white hover:bg-white/5 transition-all text-left"
-                  >
-                    <iconify-icon icon="solar:shield-keyhole-bold" /> Segurança (Passkeys)
-                  </Link>
+
 
                   <div className="h-px bg-white/5 my-2" />
 

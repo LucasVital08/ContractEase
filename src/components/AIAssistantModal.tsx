@@ -12,10 +12,11 @@ export function AIAssistantModal({ contract, onClose }: AIAssistantModalProps) {
   const [activeTab, setActiveTab] = useState<'summary' | 'risk' | 'chat'>('summary');
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
-    { role: 'ai', text: 'Olá! Sou seu assistente jurídico. Como posso ajudar com este documento?' }
+    { role: 'ai', text: 'Olá! Sou seu assistente jurídico com IA. Posso analisar cláusulas, identificar riscos ou traduzir termos deste contrato. Como posso ajudar?' }
   ]);
   const [healthScore, setHealthScore] = useState<number | null>(null);
-  const [abusiveClauses, setAbusiveClauses] = useState<{ clauseId: string; risk: string; reason: string }[]>([]);
+  const [abusiveClauses, setAbusiveClauses] = useState<{ clauseId?: string; risk?: string; reason: string }[]>([]);
+  const [summary, setSummary] = useState<string>('');
   const [translation, setTranslation] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
 
@@ -23,12 +24,12 @@ export function AIAssistantModal({ contract, onClose }: AIAssistantModalProps) {
     const initAnalysis = async () => {
       setAnalyzing(true);
       try {
-        const [score, risks] = await Promise.all([
-          api.ai.calculateHealthScore(contract),
-          api.ai.detectAbusiveClauses(contract.clauses)
-        ]);
-        setHealthScore(score);
-        setAbusiveClauses(risks);
+        const result = await api.ai.analyzeContract(contract);
+        setHealthScore(result.score || 80);
+        setSummary(result.summary || 'Análise concluída.');
+        setAbusiveClauses(result.risks || []);
+      } catch (err) {
+        console.error(err);
       } finally {
         setAnalyzing(false);
       }
@@ -48,20 +49,21 @@ export function AIAssistantModal({ contract, onClose }: AIAssistantModalProps) {
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
     
-    setMessages(prev => [...prev, { role: 'user', text: chatInput }]);
+    const userMsg = chatInput;
+    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setChatInput('');
     
-    // Simulate AI response
-    setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        role: 'ai', 
-        text: 'Baseado no documento atual, parece que as obrigações estão bem definidas. Mas recomendo revisar a cláusula de rescisão para maior clareza.' 
-      }]);
-    }, 1000);
+    try {
+      const response = await api.ai.chat(contract, userMsg);
+      setMessages(prev => [...prev, { role: 'ai', text: response }]);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'ai', text: 'Desculpe, ocorreu um erro ao consultar a IA. Tente novamente mais tarde.' }]);
+    }
   };
 
   return (
@@ -139,8 +141,8 @@ export function AIAssistantModal({ contract, onClose }: AIAssistantModalProps) {
                     <h4 className="text-fuchsia-400 font-bold mb-2 flex items-center gap-2">
                       <iconify-icon icon="solar:document-add-bold" /> Resumo Executivo
                     </h4>
-                    <p className="text-sm text-neutral-300 leading-relaxed">
-                      Este documento é identificado como um(a) <strong>{contract.type}</strong>. Ele envolve {contract.parties.length} partes signatárias e contém {contract.clauses.length} cláusulas primárias. O objetivo principal parece ser estabelecer obrigações de prestação de serviços e confidencialidade.
+                    <p className="text-sm text-neutral-300 leading-relaxed whitespace-pre-wrap">
+                      {summary || `Este documento é identificado como um(a) <strong>${contract.type}</strong>. Ele envolve ${contract.parties.length} partes signatárias e contém ${contract.clauses.length} cláusulas primárias.`}
                     </p>
                   </div>
 
@@ -149,7 +151,7 @@ export function AIAssistantModal({ contract, onClose }: AIAssistantModalProps) {
                       <iconify-icon icon="solar:user-bold" /> Versão para Leigos (TL;DR)
                     </h4>
                     <p className="text-xs text-neutral-400 leading-relaxed italic">
-                      "Você está concordando em prestar os serviços técnicos descritos, recebendo em dia, e mantendo segredo sobre os dados da empresa. Se quiser sair, precisa avisar com 30 dias de antecedência."
+                      A análise da IA forneceu um resumo executivo cobrindo todos os pontos técnicos. Certifique-se de preencher as variáveis e checar as cláusulas na aba de Risco.
                     </p>
                   </div>
 

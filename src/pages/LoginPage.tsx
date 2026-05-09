@@ -3,13 +3,19 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuthStore, useNotificationStore } from '@/stores';
 import { api } from '@/services/api';
+import { OTPModal } from '@/components/OTPModal';
+import { TwoFactorVerifyModal } from '@/components/TwoFactorVerifyModal';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isOTPModalOpen, setIsOTPModalOpen] = useState(false);
+  const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
+  const [pendingLogin, setPendingLogin] = useState<{ user: any; organization: any; factorId: string } | null>(null);
   const login = useAuthStore((s) => s.login);
+  const notify = useNotificationStore(s => s.add);
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -18,12 +24,63 @@ export default function LoginPage() {
     setError('');
     try {
       const response = await api.auth.login(email, password);
+      
+      // Verificar se o usuário possui MFA ativo
+      const factors = await api.auth.mfa.listFactors();
+      const verifiedFactor = (factors.all || []).find((f: any) => f.status === 'verified');
+
+      if (verifiedFactor) {
+        setPendingLogin({ 
+          user: response.user, 
+          organization: response.organization, 
+          factorId: verifiedFactor.id 
+        });
+        setIs2FAModalOpen(true);
+        return;
+      }
+
       login(response.user, response.organization);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Erro ao fazer login');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handle2FASuccess = () => {
+    if (pendingLogin) {
+      login(pendingLogin.user, pendingLogin.organization);
+      navigate('/dashboard');
+    }
+  };
+
+  const handleMagicLink = async () => {
+    if (!email) {
+      setError('Informe seu e-mail para receber o link de acesso.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.auth.signInWithOtp(email);
+      setIsOTPModalOpen(true);
+      notify({ type: 'info', title: 'Código enviado', message: 'Verifique seu e-mail para o código de acesso.' });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOTPVerifySuccess = async () => {
+    try {
+      const session = await api.auth.getSession();
+      if (session) {
+        navigate('/dashboard');
+        window.location.reload();
+      }
+    } catch (e) {
+      setError('Erro ao processar login após verificação.');
     }
   };
 
@@ -142,6 +199,14 @@ export default function LoginPage() {
                 <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
               ) : 'Entrar'}
             </button>
+            <button
+              type="button"
+              onClick={handleMagicLink}
+              disabled={loading}
+              className="w-full py-3 bg-white/5 border border-white/10 text-white font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+            >
+              <iconify-icon icon="solar:letter-bold" /> Entrar com Código (E-mail)
+            </button>
           </form>
 
           <p className="text-center text-neutral-400 mt-8 text-sm">
@@ -159,6 +224,23 @@ export default function LoginPage() {
           <p className="text-neutral-400 text-lg">Crie, gerencie e assine contratos com validade jurídica e registro na rede Stellar.</p>
         </div>
       </div>
+      </div>
+
+      <OTPModal 
+        isOpen={isOTPModalOpen} 
+        onClose={() => setIsOTPModalOpen(false)} 
+        onSuccess={handleOTPVerifySuccess}
+        purpose="supabase_auth"
+        email={email}
+        digits={6}
+      />
+
+      <TwoFactorVerifyModal
+        isOpen={is2FAModalOpen}
+        onClose={() => setIs2FAModalOpen(false)}
+        onSuccess={handle2FASuccess}
+        factorId={pendingLogin?.factorId || ''}
+      />
     </div>
   );
 }

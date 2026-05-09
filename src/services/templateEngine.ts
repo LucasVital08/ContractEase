@@ -128,7 +128,7 @@ export const BUILTIN_TEMPLATES: ContractTemplate[] = [
     name: 'Prestação de Serviços',
     description: 'Contrato padrão para prestação de serviços profissionais com cláusulas de confidencialidade e penalidades.',
     category: 'servico',
-    icon: 'solar:briefcase-bold-duotone',
+    icon: 'solar:case-bold-duotone',
     content: '',
     clauses: [
       {
@@ -384,7 +384,7 @@ export const BUILTIN_TEMPLATES: ContractTemplate[] = [
     name: 'Testamento Particular',
     description: 'Documento particular redigido pelo testador para disposição de última vontade de seus bens.',
     category: 'family',
-    icon: 'solar:document-medicine-bold-duotone',
+    icon: 'solar:document-text-bold-duotone',
     content: '',
     clauses: [
       {
@@ -427,9 +427,13 @@ export const BUILTIN_TEMPLATES: ContractTemplate[] = [
  */
 export const TEMPLATE_CATEGORIES = [
   { id: 'all', label: 'Todos', icon: 'solar:layers-bold-duotone' },
-  { id: 'real_estate', label: 'Imobiliário', icon: 'solar:buildings-bold-duotone' },
-  { id: 'family', label: 'Família', icon: 'solar:hearts-bold-duotone' },
-  { id: 'servico', label: 'Serviços', icon: 'solar:briefcase-bold-duotone' },
-  { id: 'employment', label: 'Trabalho', icon: 'solar:user-id-bold-duotone' },
-  { id: 'rental', label: 'Locação', icon: 'solar:home-bold-duotone' },
+  { id: 'technology', label: 'Tecnologia', icon: 'ph:laptop-duotone' },
+  { id: 'commercial', label: 'Comercial', icon: 'ph:storefront-duotone' },
+  { id: 'partnership', label: 'Parcerias', icon: 'ph:handshake-duotone' },
+  { id: 'supply', label: 'Fornecimento', icon: 'ph:package-duotone' },
+  { id: 'real_estate', label: 'Imobiliário', icon: 'ph:buildings-duotone' },
+  { id: 'servico', label: 'Serviços', icon: 'ph:briefcase-duotone' },
+  { id: 'employment', label: 'Trabalho', icon: 'ph:users-duotone' },
+  { id: 'family', label: 'Família', icon: 'ph:heart-duotone' },
+  { id: 'general', label: 'Geral', icon: 'ph:file-text-duotone' },
 ];

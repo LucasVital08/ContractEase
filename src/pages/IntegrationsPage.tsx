@@ -3,11 +3,11 @@ import { motion } from 'motion/react';
 import { useNotificationStore } from '@/stores';
 
 const INTEGRATIONS = [
-  { id: 'zapier', name: 'Zapier', icon: 'logos:zapier-icon', desc: 'Dispare automações em mais de 5.000 apps.', status: 'connected' },
-  { id: 'slack', name: 'Slack', icon: 'logos:slack-icon', desc: 'Receba notificações de assinaturas em canais.', status: 'pending' },
+  { id: 'zapier', name: 'Zapier', icon: 'logos:zapier', desc: 'Dispare automações em mais de 5.000 apps.', status: 'connected' },
+  { id: 'slack', name: 'Slack', icon: 'devicon:slack', desc: 'Receba notificações de assinaturas em canais.', status: 'pending' },
   { id: 'gdrive', name: 'Google Drive', icon: 'logos:google-drive', desc: 'Backup automático de todos os PDFs assinados.', status: 'pending' },
   { id: 'whatsapp', name: 'WhatsApp Bot', icon: 'logos:whatsapp-icon', desc: 'Consulte status via comandos no Zap.', status: 'connected' },
-  { id: 'gdocs', name: 'Google Docs', icon: 'logos:google-docs', desc: 'Extensão para redigir cláusulas direto no editor.', status: 'available' },
+  { id: 'gdocs', name: 'Google Docs', icon: 'vscode-icons:file-type-gdocs', desc: 'Extensão para redigir cláusulas direto no editor.', status: 'available' },
 ];
 
 export default function IntegrationsPage() {

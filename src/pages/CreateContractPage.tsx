@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -93,7 +93,10 @@ export default function CreateContractPage() {
   };
 
   // Load from Draft
+  const hasLoadedDraft = React.useRef(false);
   useEffect(() => {
+    if (hasLoadedDraft.current) return;
+    
     const draft = localStorage.getItem(AUTOSAVE_KEY);
     if (draft) {
       try {
@@ -105,12 +108,16 @@ export default function CreateContractPage() {
         if (parsed.clauses) setClauses(parsed.clauses);
         if (parsed.expiresAt) setExpiresAt(parsed.expiresAt);
         if (parsed.tags) setTags(parsed.tags);
+        
+        hasLoadedDraft.current = true;
         notify({ type: 'info', title: 'Rascunho recuperado', message: 'Seu progresso anterior foi restaurado.' });
       } catch (e) {
         // fail silently on parse error
       }
+    } else {
+      hasLoadedDraft.current = true;
     }
-  }, []);
+  }, [notify]);
 
   // Autosave
   useEffect(() => {

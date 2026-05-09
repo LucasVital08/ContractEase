@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import type { ContractDraft, Contract } from '@/types';
-import { useNotificationStore } from '@/stores';
+import { useNotificationStore, useAuthStore } from '@/stores';
 
 export const contractKeys = {
   all: ['contracts'] as const,
@@ -9,9 +9,10 @@ export const contractKeys = {
 };
 
 export function useContracts() {
+  const org = useAuthStore(s => s.organization);
   return useQuery({
-    queryKey: contractKeys.all,
-    queryFn: api.contracts.list,
+    queryKey: [...contractKeys.all, org?.id],
+    queryFn: () => api.contracts.list(org?.id),
   });
 }
 
@@ -28,7 +29,10 @@ export function useCreateContract() {
   const notify = useNotificationStore.getState().add;
 
   return useMutation({
-    mutationFn: (draft: ContractDraft) => api.contracts.create(draft),
+    mutationFn: (draft: ContractDraft) => {
+      const orgId = useAuthStore.getState().organization?.id;
+      return api.contracts.create(draft, orgId);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: contractKeys.all });
       notify({ type: 'success', title: 'Contrato criado com sucesso!' });
@@ -76,9 +80,10 @@ export function useDeleteContract() {
 // ─── Folders & Favorites ─────────────────────────────────────
 
 export function useFolders() {
+  const org = useAuthStore(s => s.organization);
   return useQuery({
-    queryKey: ['folders'],
-    queryFn: api.folders.list,
+    queryKey: ['folders', org?.id],
+    queryFn: () => api.folders.list(org?.id),
   });
 }
 
@@ -87,7 +92,10 @@ export function useCreateFolder() {
   const notify = useNotificationStore.getState().add;
 
   return useMutation({
-    mutationFn: ({ name, color }: { name: string; color: string }) => api.folders.create(name, color),
+    mutationFn: ({ name, color }: { name: string; color: string }) => {
+      const orgId = useAuthStore.getState().organization?.id;
+      return api.folders.create(name, color, orgId);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['folders'] });
       notify({ type: 'success', title: 'Pasta criada!' });

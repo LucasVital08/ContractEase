@@ -23,7 +23,7 @@ export default function PrivacyPolicyPage() {
     <p>Todos os dados confidenciais e contratos são armazenados de forma criptografada usando AES-256 bits, garantindo o mais alto nível de proteção. Para comunicações em trânsito, utilizamos TLS 1.3 obrigatório em todos os endpoints.</p>
 
     <h2>5. Seus Direitos (Portal de Direitos do Titular)</h2>
-    <p>Você pode acessar o seu <a href="/compliance" class="text-emerald-400">Painel de Compliance</a> a qualquer momento para:</p>
+    <p>Você pode acessar o seu <a href="/settings" class="text-emerald-400">Painel de Segurança e Privacidade</a> a qualquer momento para:</p>
     <ul>
       <li>Revogar o seu consentimento.</li>
       <li>Exigir a portabilidade (exportação) total dos seus dados.</li>

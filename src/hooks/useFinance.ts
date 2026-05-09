@@ -54,7 +54,7 @@ export function useFinance() {
 
   useEffect(() => {
     fetchFinanceData();
-  }, [user]);
+  }, [user?.id]);
 
   return { profile, payments, loading, refresh: fetchFinanceData };
 }

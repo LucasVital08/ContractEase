@@ -1,0 +1,1550 @@
+SocialPay - Documentação Técnica e de Produto
+Rede social financeira auditável com pagamentos por @ na Stellar
+AKS Enterprise
+07/05/2026
+Sumário
+1 SocialPay - Documentação Técnica e de Produto 5
+2 1. Resumo Executivo 5
+3 2. Visão do Produto 6
+3.1 2.1. F rase principal . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+3.2 2.2. Proposta de valor . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+3.3 2.3. Diferencial . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+3.4 2.4. Posicionamento recomendado . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+4 3. Problema 7
+5 4. Solução 7
+6 5. Personas 8
+6.1 5.1. Usuário comum . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+6.2 5.2. Empresa . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+6.3 5.3. F uncionário ou responsável por projeto . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+6.4 5.4. Prestador ou fornecedor . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+6.5 5.5. Auditor / gestor . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+7 6. Escopo do MVP 9
+7.1 6.1. F uncionalidades obrigatórias . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+7.2 6.2. F uncionalidades desejáveis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+7.3 6.3. F ora do escopo do MVP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+8 7. Regras de Negócio 10
+8.1 7.1. Identificador @ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+8.2 7.2. Tipos de perfil . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+8.3 7.3. Visibilidade da conta . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+8.4 7.4. Visibilidade da transação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+8.5 7.5. F eed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+8.6 7.6. Projetos e orçamento . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+8.7 7.7. T ransações de projeto . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+8.8 7.8. Comprovante . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+19 8. Modelo de Privacidade 12
+9.1 8.1. Princípio . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+9.2 8.2. Níveis de transparência . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+9.3 8.3. Recomendações de produto . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+10 9. Arquitetura Geral 13
+10.1 9.1. Visão em camadas . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+10.2 9.2. Stack recomendada . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+10.2.1 F rontend . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+10.2.2 Backend . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+10.2.3 Blockchain . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+10.2.4 Infraestrutura . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+11 10. Estratégia Blockchain 14
+11.1 10.1. MVP sem smart contract obrigatório . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+11.2 10.2. Uso futuro de Soroban . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+11.3 10.3. Contas Stellar . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+11.4 10.4. Custódia no MVP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+11.4.1 Opção A - Não custodial . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+11.4.2 Opção B - Custodial com parceiro regulado . . . . . . . . . . . . . . . . . . . . . . 15
+11.4.3 Opção C - Híbrida . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+11.5 10.5. Ativo usado no MVP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+12 11. Fluxo de T ransação 15
+12.1 11.1. Envio simples por @ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+12.2 11.2. Campos da transação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+12.3 11.3. Status da transação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+13 12. Modelo de Dados 16
+13.1 12.1. T abela users . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+13.2 12.2. T abela handles . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+13.3 12.3. T abela wallets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+13.4 12.4. T abela organizations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+13.5 12.5. T abela organization_members . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+13.6 12.6. T abela projects . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+13.7 12.7. T abela transactions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+13.8 12.8. T abela transaction_attachments . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+13.9 12.9. T abela audit_logs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+14 13. API Backend 19
+14.1 13.1. Autenticação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+14.1.1 POST /auth/register . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+14.1.2 POST /auth/login . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+14.1.3 GET /auth/me . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+14.2 13.2. Handles . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+14.2.1 POST /handles . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+14.2.2 GET /handles/check?handle=@lucas . . . . . . . . . . . . . . . . . . . . . . . . . 20
+14.2.3 GET /handles/:handle . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+14.3 13.3. W allets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+14.3.1 POST /wallets/create-testnet . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+14.3.2 GET /wallets/me . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+214.3.3 GET /wallets/:id/balance . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+14.4 13.4. Pagamentos . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+14.4.1 POST /payments/send . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+14.4.2 GET /payments/:id . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+14.4.3 GET /payments/:id/receipt . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.5 13.5. F eed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.5.1 GET /feed/public . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.5.2 GET /feed/me . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.5.3 GET /feed/organization/:organizationId . . . . . . . . . . . . . . . . . . . . . 21
+14.5.4 GET /feed/project/:projectId . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.6 13.6. Organizações . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.6.1 POST /organizations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.6.2 POST /organizations/:id/members . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.6.3 GET /organizations/:id/dashboard . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.7 13.7. Projetos . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.7.1 POST /projects . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+14.7.2 GET /projects/:id . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+14.7.3 GET /projects/:id/transactions . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+14.7.4 GET /projects/:id/report . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+15 14. T elas do Produto 22
+15.1 14.1. Landing Page . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+15.2 14.2. Cadastro . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+15.3 14.3. Home / F eed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+15.4 14.4. Enviar dinheiro . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+15.5 14.5. Perfil . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+15.6 14.6. Organização . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+15.7 14.7. Projeto . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+15.8 14.8. Comprovante . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+16 15. Permissões 24
+16.1 15.1. Papéis organizacionais . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+16.1.1 Owner . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+16.1.2 Admin . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+16.1.3 Manager . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+16.1.4 Auditor . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+16.1.5 Member . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+16.1.6 Viewer . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+17 16. Segurança 25
+17.1 16.1. Segurança de autenticação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+17.2 16.2. Segurança de carteiras . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+17.3 16.3. Segurança de transações . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+17.4 16.4. Segurança de dados . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+18 17. LGPD e Compliance 26
+18.1 17.1. Diretriz . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+18.2 17.2. Dados on-chain . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+18.3 17.3. Dados off-chain . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+18.4 17.4. Produção com dinheiro real . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+319 18. Integração com Stellar 27
+19.1 18.1. Componentes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+19.2 18.2. Rede . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+19.3 18.3. Serviço StellarService . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+19.4 18.4. Pseudocódigo de envio . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+20 19. Serviço de F eed 28
+20.1 19.1. Objetivo . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+20.2 19.2. Card de transação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+20.3 19.3. Algoritmo de visibilidade . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+21 20. Relatórios 29
+21.1 20.1. Relatório de projeto . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+21.2 20.2. Relatório de organização . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+21.3 20.3. Exportação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+22 21. Alertas e Auditoria 30
+22.1 21.1. Alertas possíveis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+22.2 21.2. V ersão futura com ONYX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+23 22. Roadmap 30
+23.1 22.1. F ase 1 - MVP Hackathon . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+23.2 22.2. F ase 2 - Produto Beta . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+23.3 22.3. F ase 3 - Soroban e automações . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+23.4 22.4. F ase 4 - Produção empresarial . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+24 23. Estrutura de Repositório 31
+25 24. V ariáveis de Ambiente 32
+26 25. Critérios de Aceite do MVP 33
+26.1 25.1. Cadastro . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+26.2 25.2. Carteira . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+26.3 25.3. Pagamento . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+26.4 25.4. F eed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+26.5 25.5. Projeto . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+27 26. T estes 34
+27.1 26.1. T estes unitários . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+27.2 26.2. T estes de integração . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+27.3 26.3. T estes E2E . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+28 27. Demonstração para Hackathon 34
+28.1 27.1. Roteiro da demo . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+28.2 27.2. Mensagem final da apresentação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 35
+29 28. Decisões Técnicas Recomendadas 35
+29.1 28.1. Decisão 1 - MVP sem Soroban . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 35
+29.2 28.2. Decisão 2 - F eed off-chain com prova on-chain . . . . . . . . . . . . . . . . . . . . . . 35
+29.3 28.3. Decisão 3 - Privacidade configurável . . . . . . . . . . . . . . . . . . . . . . . . . . . 35
+29.4 28.4. Decisão 4 - F oco B2B na narrativa comercial . . . . . . . . . . . . . . . . . . . . . . 35
+430 29. Modelo de Monetização F uturo 35
+30.1 29.1. Plano gratuito . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 35
+30.2 29.2. Plano empresarial . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 35
+30.3 29.3. Plano compliance/auditoria . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+30.4 29.4. Receita por transação . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+31 30. Integrações F uturas com o Ecossistema AKS 36
+31.1 30.1. ContractEase . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+31.2 30.2. HealthChain . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+31.3 30.3. QuiloV olt . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+31.4 30.4. ONYX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+32 31. Riscos do Projeto 37
+32.1 31.1. Risco de privacidade . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+32.2 31.2. Risco regulatório . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+32.3 31.3. Risco de marca . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+32.4 31.4. Risco técnico . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+32.5 31.5. Risco de adoção . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+33 32. Prioridade de Desenvolvimento 37
+33.1 Sprint 1 - Base . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+33.2 Sprint 2 - Stellar . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+33.3 Sprint 3 - F eed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+33.4 Sprint 4 - Empresas e Projetos . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+33.5 Sprint 5 - Polimento . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+34 33. Prompt para Desenvolvimento com IA / Vibe Code 38
+35 34. Prompt Completo para Vibe Code - Projeto F uncional T estável 39
+36 35. Conclusão 42
+1 SocialPay - Documentação Técnica e de Produto
+V ersão: 1.0
+Status: Documentação inicial para MVP / Hackathon Stellar 37°
+Produto: Rede social financeira auditável baseada em pagamentos por @
+Blockchain: Stellar T estnet no MVP; Stellar Mainnet em produção
+Nome de trabalho: SocialPay
+2 1. Resumo Executivo
+O SocialPay é uma aplicação de pagamentos sociais onde pessoas, empresas, projetos e equipes podem
+criar um identificador financeiro simples, no formato @usuario , e enviar valores entre si sem precisar
+conhecer endereços de blockchain.
+Por trás da experiência simples de usuário, cada @está vinculado a uma carteira Stellar. Quando um
+usuário envia valor para outro identificador, o sistema converte esse envio em uma transação real na rede
+Stellar.
+5A proposta une três conceitos principais:
+1. Identidade financeira social: envio de dinheiro para @lucas ,@obra-shopping ,@fornecedor01 ,
+@marketing-maio ou qualquer outro identificador da rede.
+2. F eed financeiro: uma linha do tempo de transações, com privacidade configurável, inspirada na
+lógica das redes sociais.
+3. Auditoria empresarial: empresas podem acompanhar a circulação de verba em projetos, setores,
+obras e equipes.
+O SocialPay não deve ser apresentado apenas como uma carteira cripto. Ele deve ser apresentado como
+uma rede social financeira auditável , com blockchain invisível para o usuário comum e poderosa para
+empresas que precisam de rastreabilidade.
+3 2. Visão do Produto
+3.1 2.1. F rase principal
+SocialPay é a rede social financeira onde pessoas e empresas enviam dinheiro
+por @, acompanham transações em feed e criam trilhas auditáveis na blockchain
+Stellar.
+3.2 2.2. Proposta de valor
+O SocialPay transforma pagamentos em interações sociais verificáveis. Em vez de lidar com chaves
+públicas, endereços longos ou comprovantes dispersos, o usuário utiliza uma identidade simples: o seu @.
+Para usuários comuns, isso significa simplicidade. Para empresas, significa rastreabilidade. Para projetos,
+obras e equipes, significa prestação de contas em tempo real.
+3.3 2.3. Diferencial
+O diferencial do SocialPay é combinar:
+• experiência parecida com rede social;
+• pagamentos simples por identificador;
+• feed de transações;
+• privacidade configurável;
+• rastreabilidade financeira;
+• registro auditável na Stellar;
+• painel empresarial para acompanhar orçamento e execução.
+3.4 2.4. Posicionamento recomendado
+O posicionamento ideal é manter o apelo de rede social financeira, mas estruturar a utilidade prática em
+casos empresariais.
+Mensagem curta:
+Envie dinheiro por @. Acompanhe o caminho do dinheiro em uma timeline auditável.
+Mensagem para empresas:
+Libere verba para projetos, setores e funcionários, acompanhando cada movimentação em um
+feed financeiro verificável na Stellar.
+64 3. Problema
+Empresas e equipes frequentemente repassam valores para funcionários, prestadores, responsáveis por
+obras, coordenadores de projeto ou líderes de setor sem conseguir acompanhar de forma simples e visual
+como o dinheiro foi utilizado.
+Hoje, a prestação de contas geralmente depende de:
+• planilhas manuais;
+• recibos enviados depois;
+• notas fiscais dispersas;
+• prints de pagamento;
+• comprovantes bancários soltos;
+• confiança total no responsável;
+• baixa visibilidade para outros setores;
+• pouca rastreabilidade em tempo real.
+Esse problema aparece em diversos contextos:
+• obras;
+• reformas;
+• equipes externas;
+• ONGs;
+• eventos;
+• campanhas de marketing;
+• projetos internos;
+• verbas por setor;
+• bolsistas e residentes;
+• prestação de contas pública ou privada;
+• acompanhamento de orçamento por gestores.
+5 4. Solução
+O SocialPay permite que uma empresa envie verba para um @projeto ,@funcionario ou @setor e
+acompanhe o fluxo financeiro em uma linha do tempo auditável.
+Exemplo de uso:
+1. @aks-enterprise envia R$ 5.000 para @obra-shopping-vitoria .
+2. @obra-shopping-vitoria envia R$ 1.200 para @fornecedor-drywall .
+3. @obra-shopping-vitoria envia R$ 800 para @eletricista01 .
+4. @obra-shopping-vitoria envia R$ 450 para @material-construcao .
+5. O painel mostra saldo restante, histórico, datas, destinatários, anexos e comprovantes on-chain.
+A empresa não precisa esperar o fim do projeto para entender como a verba está sendo usada. O fluxo já
+nasce rastreável.
+76 5. Personas
+6.1 5.1. Usuário comum
+Pessoa física que cria um @e usa o aplicativo para enviar e receber valores de forma simples.
+Necessidades:
+• enviar dinheiro rapidamente;
+• receber por um identificador simples;
+• controlar privacidade;
+• acompanhar histórico pessoal.
+6.2 5.2. Empresa
+Organização que deseja distribuir verba para projetos, setores, funcionários ou prestadores.
+Necessidades:
+• criar contas de projeto;
+• liberar orçamento;
+• acompanhar gastos;
+• visualizar feed interno;
+• auditar transações;
+• gerar relatórios.
+6.3 5.3. F uncionário ou responsável por projeto
+Pessoa que recebe verba da empresa para executar uma finalidade específica.
+Necessidades:
+• receber verba;
+• pagar fornecedores;
+• anexar justificativas;
+• demonstrar uso correto do dinheiro;
+• evitar prestação de contas manual complexa.
+6.4 5.4. Prestador ou fornecedor
+Pessoa ou empresa que recebe pagamento de um projeto ou funcionário.
+Necessidades:
+• receber valores;
+• ter comprovante;
+• eventualmente manter perfil privado;
+• facilitar identificação pelo @.
+6.5 5.5. Auditor / gestor
+Pessoa responsável por verificar uso de recursos.
+Necessidades:
+• acessar trilha de transações;
+• filtrar por projeto, período, usuário e categoria;
+8• verificar hash da transação;
+• exportar relatório;
+• identificar inconsistências.
+7 6. Escopo do MVP
+O MVP deve provar que é possível criar uma experiência social de pagamento por @usando a Stellar
+como infraestrutura invisível.
+7.1 6.1. F uncionalidades obrigatórias
+1. Cadastro de usuário.
+2. Criação de @único.
+3. Criação ou vinculação de carteira Stellar T estnet.
+4. Consulta de saldo.
+5. Envio de valor para outro @.
+6. Registro da transação na Stellar.
+7. F eed de transações.
+8. Configuração de visibilidade da transação.
+9. Perfil público/privado.
+10. Página de comprovante verificável.
+11. Criação de organização.
+12. Criação de projeto/orçamento.
+13. Envio de verba para projeto.
+14. Painel simples de entradas, saídas e saldo do projeto.
+7.2 6.2. F uncionalidades desejáveis
+1. Comentário ou descrição da transação.
+2. Categoria do gasto.
+3. Anexo de comprovante externo.
+4. Filtro por projeto.
+5. Filtro por usuário.
+6. Filtro por data.
+7. Exportação CSV/PDF.
+8. QR Code de pagamento para @.
+9. Notificações internas.
+10. Página pública de projeto.
+7.3 6.3. F ora do escopo do MVP
+1. Conversão real BRL para cripto ou cripto para BRL.
+2. Custódia profissional de valores reais.
+3. Cartão físico.
+4. Integração bancária real.
+5. PIX real.
+6. KYC completo.
+7. AML completo.
+8. Marketplace interno.
+99. Emissão de moeda própria.
+10. App mobile nativo.
+8 7. Regras de Negócio
+8.1 7.1. Identificador @
+Cada usuário deve possuir um identificador único.
+F ormato:
+• deve começar com @;
+• deve conter de 3 a 30 caracteres;
+• pode conter letras minúsculas, números, ponto e underline;
+• não pode conter espaços;
+• não pode usar palavras reservadas;
+• deve ser único globalmente.
+Exemplos válidos:
+• @lucas
+• @maisa
+• @aksenterprise
+• @obra.shopping
+• @fornecedor_01
+Exemplos inválidos:
+• @lu
+• @Lucas , considerando que o registro interno deve normalizar para minúsculas;
+• @admin ;
+• @stellar ;
+• @socialpay ;
+• @obra shopping .
+8.2 7.2. Tipos de perfil
+O sistema deve suportar quatro tipos de perfil:
+1. Pessoa: usuário comum.
+2. Empresa: organização formal.
+3. Projeto: conta vinculada a uma empresa ou equipe.
+4. F ornecedor: usuário ou empresa que recebe pagamentos.
+8.3 7.3. Visibilidade da conta
+Cada perfil pode ser:
+1. Público: perfil e transações públicas aparecem no feed geral.
+2. Privado: perfil aparece de forma limitada e transações não aparecem no feed público.
+3. Organizacional: transações aparecem apenas dentro da organização autorizada.
+108.4 7.4. Visibilidade da transação
+Cada transação pode ter uma configuração própria:
+1. Pública: aparece no feed público.
+2. Privada: visível apenas para remetente e destinatário.
+3. Organizacional: visível para membros autorizados da organização/projeto.
+4. Auditável por link: não aparece no feed, mas pode ser acessada por link de comprovante.
+8.5 7.5. F eed
+O feed exibe transações conforme regra de visibilidade.
+Uma transação pública pode exibir:
+• remetente por @;
+• destinatário por @;
+• valor;
+• ativo;
+• data e hora;
+• descrição opcional;
+• projeto vinculado;
+• hash da transação;
+• link de verificação.
+Uma transação privada não deve aparecer no feed geral.
+Uma transação organizacional deve aparecer apenas para membros com permissão.
+8.6 7.6. Projetos e orçamento
+Uma empresa pode criar projetos, por exemplo:
+• @obra-shopping-vitoria
+• @campanha-maio
+• @residencia-blockchain
+• @equipe-saude360
+Cada projeto pode ter:
+• saldo próprio;
+• responsável;
+• membros;
+• orçamento inicial;
+• entradas;
+• saídas;
+• categorias de gasto;
+• anexos;
+• relatório.
+8.7 7.7. T ransações de projeto
+Quando um projeto envia valor, o sistema deve registrar:
+• projeto de origem;
+• responsável pela ação;
+11• destinatário;
+• valor;
+• ativo;
+• categoria;
+• descrição;
+• hash on-chain;
+• visibilidade;
+• data/hora.
+8.8 7.8. Comprovante
+T oda transação deve gerar uma página de comprovante com:
+• ID interno;
+• hash Stellar;
+• remetente;
+• destinatário;
+• valor;
+• ativo;
+• data/hora;
+• status;
+• visibilidade;
+• link para explorer;
+• metadados do projeto, se houver.
+9 8. Modelo de Privacidade
+A privacidade é um ponto central do SocialPay . O produto não deve obrigar todos os usuários a exporem
+todos os pagamentos.
+9.1 8.1. Princípio
+T ransparência deve ser configurável, não obrigatória.
+9.2 8.2. Níveis de transparência
+1. Social: transações públicas em feed.
+2. Pessoal: transações privadas por padrão.
+3. Empresarial: transações visíveis para a organização.
+4. Auditável: transações verificáveis por hash, mesmo que não apareçam publicamente.
+9.3 8.3. Recomendações de produto
+• Pessoa física deve ter transação privada por padrão.
+• Empresa/projeto deve ter transação organizacional por padrão.
+• T ransação pública deve ser uma escolha ativa.
+• T ransação empresarial deve permitir auditoria por membros autorizados.
+• Dados sensíveis não devem ser gravados diretamente on-chain.
+1210 9. Arquitetura Geral
+10.1 9.1. Visão em camadas
+[Frontend Web]
+↓
+[API Backend]
+↓
+[Serviço de Identidade @]
+[Serviço de Carteira]
+[Serviço de Pagamentos Stellar]
+[Serviço de Feed]
+[Serviço de Organizações/Projetos]
+[Serviço de Auditoria]
+↓
+[PostgreSQL]
+[Redis / Queue]
+↓
+[Stellar Horizon API]
+[Stellar Testnet/Mainnet]
+10.2 9.2. Stack recomendada
+10.2.1 F rontend
+• Next.js
+• React
+• TypeScript
+• T ailwind CSS
+• shadcn/ui
+• Zustand ou T anStack Query
+10.2.2 Backend
+• Node.js
+• NestJS ou Express/F astify
+• TypeScript
+• Prisma ORM
+• PostgreSQL
+• Redis
+• BullMQ para filas
+10.2.3 Blockchain
+• Stellar SDK JavaScript
+• Horizon API
+• Stellar T estnet no MVP
+• Stellar Mainnet em produção
+• Soroban opcional em versões futuras
+10.2.4 Infraestrutura
+• Docker
+13• GitHub Actions
+• V ercel para frontend
+• Render, Fly .io, Railway ou A WS para backend
+• Supabase ou Neon para PostgreSQL inicial
+11 10. Estratégia Blockchain
+11.1 10.1. MVP sem smart contract obrigatório
+Para o MVP , o SocialPay pode funcionar sem smart contract. A aplicação precisa apenas:
+1. criar ou vincular contas Stellar;
+2. mapear @usuario para uma chave pública Stellar;
+3. montar transações de pagamento;
+4. assinar transações;
+5. enviar para a Stellar T estnet;
+6. indexar o resultado;
+7. exibir no feed.
+Essa abordagem reduz complexidade e aumenta a chance de entregar um MVP funcional no hackathon.
+11.2 10.2. Uso futuro de Soroban
+Soroban pode ser usado em uma fase futura para:
+• registro descentralizado de @;
+• regras de permissões organizacionais;
+• cofres programáveis de projeto;
+• orçamento com limites por categoria;
+• multisig empresarial;
+• autorização por função;
+• contratos de liberação condicionada;
+• reputação financeira verificável.
+11.3 10.3. Contas Stellar
+Cada perfil pode ter uma conta Stellar associada.
+Tipos de conta:
+1. Conta pessoal: vinculada a um usuário.
+2. Conta empresarial: vinculada a uma empresa.
+3. Conta de projeto: vinculada a um projeto.
+4. Conta custodial interna: opção simplificada para MVP .
+11.4 10.4. Custódia no MVP
+Para hackathon, o caminho mais simples é a aplicação gerar contas T estnet e armazenar chaves de teste
+de forma segura em ambiente controlado.
+Para produção, existem três caminhos possíveis:
+1411.4.1 Opção A - Não custodial
+O usuário conecta uma carteira externa, como F reighter ou wallet compatível.
+V antagem: menor responsabilidade de custódia.
+Desvantagem: experiência menos simples para usuário comum.
+11.4.2 Opção B - Custodial com parceiro regulado
+A aplicação gerencia a experiência, mas a custódia é feita por parceiro autorizado.
+V antagem: melhor UX.
+Desvantagem: maior dependência regulatória e operacional.
+11.4.3 Opção C - Híbrida
+Usuários comuns podem usar carteira conectada; empresas podem usar estrutura gerenciada com controles
+internos.
+V antagem: equilíbrio entre UX e segurança.
+Desvantagem: arquitetura mais complexa.
+11.5 10.5. Ativo usado no MVP
+Para o MVP , usar:
+• XLM T estnet;
+• token fictício emitido na T estnet, como TBRL ou TUSD ;
+• USDC simulado na T estnet, se a integração estiver disponível no ambiente escolhido.
+Recomendação para hackathon:
+Usar um ativo de teste chamado TBRL ou SOCIALUSD , deixando claro que é uma simulação de
+stablecoin para fins de demonstração.
+12 11. Fluxo de T ransação
+12.1 11.1. Envio simples por @
+Usuário A digita @destinatario
+↓
+Backend resolve @destinatario para public_key Stellar
+↓
+Sistema valida saldo do remetente
+↓
+Sistema cria transação Stellar
+↓
+Transação é assinada
+↓
+Transação é enviada para Horizon
+↓
+Stellar confirma a transação
+↓
+15Backend salva hash e metadados
+↓
+Feed é atualizado
+↓
+Comprovante é gerado
+12.2 11.2. Campos da transação
+• sender_user_id
+• sender_handle
+• sender_wallet_public_key
+• receiver_user_id
+• receiver_handle
+• receiver_wallet_public_key
+• amount
+• asset_code
+• asset_issuer
+• visibility
+• description
+• project_id
+• stellar_transaction_hash
+• status
+• created_at
+• confirmed_at
+12.3 11.3. Status da transação
+1. draft
+2. pending_signature
+3. submitted
+4. confirmed
+5. failed
+6. cancelled
+13 12. Modelo de Dados
+13.1 12.1. T abela users
+CREATE TABLE users (
+id UUID PRIMARY KEY ,
+name VARCHAR (120 )NOT NULL ,
+email VARCHAR (180 ) UNIQUE NOT NULL ,
+password_hash TEXT,
+avatar_url TEXT,
+account_type VARCHAR (30 )NOT NULL DEFAULT 'person' ,
+profile_visibility VARCHAR (30) NOT NULL DEFAULT 'private' ,
+created_at TIMESTAMP NOT NULL DEFAULT now(),
+updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+1613.2 12.2. T abela handles
+CREATE TABLE handles (
+id UUID PRIMARY KEY ,
+user_id UUID REFERENCES users( id),
+handle VARCHAR (40) UNIQUE NOT NULL ,
+normalized_handle VARCHAR (40) UNIQUE NOT NULL ,
+status VARCHAR (30) NOT NULL DEFAULT 'active' ,
+created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+13.3 12.3. T abela wallets
+CREATE TABLE wallets (
+id UUID PRIMARY KEY ,
+owner_type VARCHAR (30) NOT NULL ,
+owner_id UUID NOT NULL ,
+public_key TEXT NOT NULL ,
+encrypted_secret_key TEXT,
+wallet_provider VARCHAR (50 )NOT NULL DEFAULT 'internal_testnet' ,
+network VARCHAR (30) NOT NULL DEFAULT 'testnet' ,
+created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+13.4 12.4. T abela organizations
+CREATE TABLE organizations (
+id UUID PRIMARY KEY ,
+name VARCHAR (150 )NOT NULL ,
+handle_id UUID REFERENCES handles( id),
+owner_user_id UUID REFERENCES users( id ),
+visibility VARCHAR (30) NOT NULL DEFAULT 'private' ,
+created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+13.5 12.5. T abela organization_members
+CREATE TABLE organization_members (
+id UUID PRIMARY KEY ,
+organization_id UUID REFERENCES organizations( id),
+user_id UUID REFERENCES users( id),
+role VARCHAR (30 )NOT NULL ,
+created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+Papéis recomendados:
+• owner
+• admin
+• manager
+• auditor
+• member
+17• viewer
+13.6 12.6. T abela projects
+CREATE TABLE projects (
+id UUID PRIMARY KEY ,
+organization_id UUID REFERENCES organizations( id),
+name VARCHAR (150 )NOT NULL ,
+handle_id UUID REFERENCES handles( id),
+description TEXT,
+budget_amount NUMERIC (18 , 7),
+asset_code VARCHAR (20),
+status VARCHAR (30) NOT NULL DEFAULT 'active' ,
+visibility VARCHAR (30) NOT NULL DEFAULT 'organizational' ,
+created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+13.7 12.7. T abela transactions
+CREATE TABLE transactions (
+id UUID PRIMARY KEY ,
+sender_user_id UUID REFERENCES users( id),
+receiver_user_id UUID REFERENCES users( id ),
+sender_handle VARCHAR (40 ),
+receiver_handle VARCHAR (40 ),
+sender_wallet_public_key TEXT NOT NULL ,
+receiver_wallet_public_key TEXT NOT NULL ,
+project_id UUID REFERENCES projects( id ),
+organization_id UUID REFERENCES organizations( id),
+amount NUMERIC (18, 7)NOT NULL ,
+asset_code VARCHAR (20) NOT NULL ,
+asset_issuer TEXT,
+description TEXT,
+category VARCHAR (80 ),
+visibility VARCHAR (30) NOT NULL DEFAULT 'private' ,
+status VARCHAR (30) NOT NULL DEFAULT 'draft' ,
+stellar_transaction_hash TEXT,
+explorer_url TEXT,
+submitted_at TIMESTAMP ,
+confirmed_at TIMESTAMP ,
+created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+13.8 12.8. T abela transaction_attachments
+CREATE TABLE transaction_attachments (
+id UUID PRIMARY KEY ,
+transaction_id UUID REFERENCES transactions( id ),
+file_url TEXT NOT NULL ,
+file_type VARCHAR (80 ),
+description TEXT,
+18uploaded_by UUID REFERENCES users( id),
+created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+13.9 12.9. T abela audit_logs
+CREATE TABLE audit_logs (
+id UUID PRIMARY KEY ,
+actor_user_id UUID REFERENCES users( id ),
+action VARCHAR (120 ) NOT NULL ,
+entity_type VARCHAR (80) NOT NULL ,
+entity_id UUID NOT NULL ,
+metadata JSONB,
+created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+14 13. API Backend
+14.1 13.1. Autenticação
+14.1.1 POST /auth/register
+Cria uma conta de usuário.
+Body:
+{
+"name" : "Lucas Monteiro" ,
+"email" : "lucas@email.com" ,
+"password" : "senha_segura"
+}
+14.1.2 POST /auth/login
+Autentica usuário.
+14.1.3 GET /auth/me
+Retorna usuário autenticado.
+14.2 13.2. Handles
+14.2.1 POST /handles
+Cria um identificador @.
+{
+"handle" :"@lucas"
+}
+1914.2.2 GET /handles/check?handle=@lucas
+V erifica disponibilidade.
+14.2.3 GET /handles/:handle
+Retorna perfil público ou informações limitadas.
+14.3 13.3. W allets
+14.3.1 POST /wallets/create-testnet
+Cria uma carteira Stellar T estnet para o usuário.
+14.3.2 GET /wallets/me
+Lista carteiras do usuário.
+14.3.3 GET /wallets/:id/balance
+Consulta saldo da carteira.
+14.4 13.4. Pagamentos
+14.4.1 POST /payments/send
+Envia valor para um @.
+{
+"to" :"@gabriel" ,
+"amount" :"100.00" ,
+"assetCode" : "TBRL" ,
+"description" : "Pagamento de material" ,
+"visibility" :"organizational" ,
+"projectId" : "uuid-opcional"
+}
+Resposta:
+{
+"transactionId" :"uuid" ,
+"status" :"confirmed" ,
+"stellarHash" : "hash" ,
+"receiptUrl" :"https://app.socialpay.com/receipt/uuid"
+}
+14.4.2 GET /payments/:id
+Detalha transação.
+2014.4.3 GET /payments/:id/receipt
+Retorna comprovante.
+14.5 13.5. F eed
+14.5.1 GET /feed/public
+Retorna transações públicas.
+14.5.2 GET /feed/me
+Retorna transações do usuário.
+14.5.3 GET /feed/organization/:organizationId
+Retorna feed organizacional autorizado.
+14.5.4 GET /feed/project/:projectId
+Retorna feed de projeto.
+14.6 13.6. Organizações
+14.6.1 POST /organizations
+Cria organização.
+{
+"name" : "AKS Enterprise" ,
+"handle" :"@aksenterprise"
+}
+14.6.2 POST /organizations/:id/members
+Adiciona membro.
+{
+"userHandle" :"@netinho" ,
+"role" : "auditor"
+}
+14.6.3 GET /organizations/:id/dashboard
+Retorna painel financeiro.
+14.7 13.7. Projetos
+14.7.1 POST /projects
+Cria projeto.
+21{
+"organizationId" :"uuid" ,
+"name" : "Obra Shopping Vitória" ,
+"handle" :"@obra-shopping-vitoria" ,
+"budgetAmount" : "5000.00" ,
+"assetCode" : "TBRL"
+}
+14.7.2 GET /projects/:id
+Detalha projeto.
+14.7.3 GET /projects/:id/transactions
+Lista transações do projeto.
+14.7.4 GET /projects/:id/report
+Gera relatório.
+15 14. T elas do Produto
+15.1 14.1. Landing Page
+Objetivo: explicar rapidamente a tese.
+Seções:
+1. Hero:
+• “Envie dinheiro por @. ”
+• “A rede social financeira auditável na Stellar. ”
+2. Demonstração visual do feed.
+3. Benefícios para pessoas.
+4. Benefícios para empresas.
+5. Como funciona.
+6. Casos de uso.
+7. CT A: “Criar meu @” .
+15.2 14.2. Cadastro
+Campos:
+• nome;
+• e-mail;
+• senha;
+• criação do @;
+• tipo de conta.
+15.3 14.3. Home / F eed
+Componentes:
+22• saldo resumido;
+• botão “Enviar”;
+• botão “Receber”;
+• feed de transações;
+• filtro público/privado/organizacional;
+• cards de projeto.
+15.4 14.4. Enviar dinheiro
+Campos:
+• destinatário @;
+• valor;
+• ativo;
+• descrição;
+• visibilidade;
+• projeto vinculado;
+• confirmação.
+15.5 14.5. Perfil
+Exibe:
+• avatar;
+• nome;
+• @;
+• tipo de perfil;
+• bio;
+• transações públicas;
+• botão enviar.
+15.6 14.6. Organização
+Exibe:
+• nome da empresa;
+• @;
+• saldo;
+• projetos;
+• membros;
+• feed interno;
+• relatórios.
+15.7 14.7. Projeto
+Exibe:
+• orçamento total;
+• valor recebido;
+• valor gasto;
+• saldo;
+• responsáveis;
+• transações;
+23• categorias;
+• gráfico simples;
+• comprovantes.
+15.8 14.8. Comprovante
+Exibe:
+• status confirmado;
+• valor;
+• remetente;
+• destinatário;
+• data/hora;
+• hash Stellar;
+• link para explorer;
+• metadados do projeto.
+16 15. Permissões
+16.1 15.1. Papéis organizacionais
+16.1.1 Owner
+Pode:
+• editar organização;
+• remover membros;
+• criar projetos;
+• enviar verba;
+• ver todos os relatórios;
+• alterar permissões.
+16.1.2 Admin
+Pode:
+• criar projetos;
+• adicionar membros;
+• visualizar relatórios;
+• aprovar transações.
+16.1.3 Manager
+Pode:
+• operar projetos autorizados;
+• enviar pagamentos do projeto;
+• anexar comprovantes;
+• ver feed do projeto.
+2416.1.4 Auditor
+Pode:
+• visualizar transações;
+• acessar relatórios;
+• exportar dados;
+• não pode movimentar valores.
+16.1.5 Member
+Pode:
+• visualizar projetos autorizados;
+• receber pagamentos;
+• interagir com feed interno.
+16.1.6 Viewer
+Pode:
+• apenas visualizar informações permitidas.
+17 16. Segurança
+17.1 16.1. Segurança de autenticação
+• Senhas com hash forte.
+• JWT com expiração curta.
+• Refresh token rotativo.
+• Rate limit em login.
+• Proteção contra brute force.
+• V erificação de e-mail.
+17.2 16.2. Segurança de carteiras
+No MVP T estnet:
+• chaves podem ser armazenadas criptografadas;
+• nunca expor secret key no frontend;
+• usar variáveis de ambiente;
+• separar ambiente local, staging e produção.
+Em produção:
+• evitar custódia direta sem estrutura regulatória adequada;
+• usar wallet externa ou parceiro de custódia;
+• considerar HSM/KMS;
+• suportar multisig;
+• suportar limites por função;
+• logs de auditoria obrigatórios.
+2517.3 16.3. Segurança de transações
+• validar saldo antes do envio;
+• validar destinatário;
+• bloquear envio para handles suspeitos;
+• exigir confirmação do usuário;
+• registrar IP e dispositivo em eventos críticos;
+• detectar comportamento anômalo;
+• limitar valor por transação no MVP .
+17.4 16.4. Segurança de dados
+• criptografia em repouso para dados sensíveis;
+• HTTPS obrigatório;
+• logs sem secret keys;
+• mascaramento de dados pessoais;
+• controle de acesso por papel;
+• backups automáticos.
+18 17. LGPD e Compliance
+O SocialPay deve evitar gravar dados pessoais sensíveis diretamente na blockchain, porque dados on-chain
+são difíceis ou impossíveis de apagar.
+18.1 17.1. Diretriz
+A blockchain deve registrar a prova da transação; os dados pessoais e contextuais devem
+permanecer off-chain, com controle de acesso.
+18.2 17.2. Dados on-chain
+Podem ir on-chain:
+• transação financeira;
+• chaves públicas;
+• ativo;
+• valor;
+• hash;
+• memo técnico não sensível.
+18.3 17.3. Dados off-chain
+Devem ficar no banco da aplicação:
+• nome civil;
+• e-mail;
+• descrição detalhada;
+• notas fiscais;
+• anexos;
+• justificativas;
+• relação funcional;
+26• dados internos da empresa.
+18.4 17.4. Produção com dinheiro real
+Para operar com valores reais em moeda fiduciária, o projeto deve avaliar:
+• parceria com instituição de pagamento;
+• parceiro de on/off ramp;
+• política de KYC;
+• política de AML;
+• termos de uso;
+• política de privacidade;
+• regras de custódia;
+• responsabilidade por chargeback, erro e fraude.
+No hackathon, o produto deve ser apresentado como MVP funcional em T estnet, sem operação financeira
+real.
+19 18. Integração com Stellar
+19.1 18.1. Componentes
+• Stellar SDK para criar keypairs e transações.
+• Horizon API para consultar contas, saldos e transações.
+• T estnet para ambiente de demonstração.
+• F riendbot para funding de contas de teste.
+• Explorer para verificar hashes.
+19.2 18.2. Rede
+MVP:
+STELLAR_NETWORK=testnet
+STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+Produção:
+STELLAR_NETWORK=mainnet
+STELLAR_HORIZON_URL=https://horizon.stellar.org
+STELLAR_NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+19.3 18.3. Serviço StellarService
+Responsabilidades:
+• criar keypair;
+• financiar conta T estnet;
+• consultar saldo;
+• criar trustline;
+• enviar pagamento;
+• consultar transação;
+27• gerar explorer URL;
+• tratar erro de rede.
+19.4 18.4. Pseudocódigo de envio
+async function sendPaymentByHandle ({ fromUserId ,toHandle , amount ,assetCode }) {
+const senderWallet =await walletRepository .findByUserId (fromUserId) ;
+const receiver =await handleRepository .findUserByHandle (toHandle) ;
+const receiverWallet = await walletRepository .findByUserId (receiver .id);
+if (!receiverWallet) {
+throw new Error ('Destinatário não possui carteira vinculada' );
+}
+await balanceService .ensureSufficientBalance (senderWallet .publicKey ,amount ,assetCode) ;
+const tx =await stellarService .buildPaymentTransaction ({
+fromPublicKey :senderWallet .publicKey ,
+toPublicKey : receiverWallet .publicKey ,
+amount ,
+assetCode
+}) ;
+const signedTx =await stellarService .signTransaction (tx ,senderWallet .encryptedSecretKey );
+const result = await stellarService .submitTransaction (signedTx) ;
+return transactionRepository .create ({
+senderUserId : fromUserId ,
+receiverUserId :receiver .id,
+amount ,
+assetCode ,
+stellarTransactionHash : result .hash ,
+status :'confirmed'
+}) ;
+}
+20 19. Serviço de F eed
+20.1 19.1. Objetivo
+T ransformar eventos financeiros em uma experiência visual parecida com rede social.
+20.2 19.2. Card de transação
+Exemplo:
+@aksenterprise enviou 500 TBRL para @obra-shopping-vitoria
+Projeto: Reforma do Forro
+Categoria: Materiais
+2807/05/2026 às 14h32
+Ver comprovante
+20.3 19.3. Algoritmo de visibilidade
+Se transação.visibility = public:
+exibir no feed público
+Se transação.visibility = private:
+exibir apenas para remetente e destinatário
+Se transação.visibility = organizational:
+exibir apenas para membros autorizados da organização
+Se transação.visibility = receipt_link:
+exibir apenas via link de comprovante ou usuários autorizados
+21 20. Relatórios
+21.1 20.1. Relatório de projeto
+Campos:
+• nome do projeto;
+• @do projeto;
+• organização;
+• orçamento total;
+• entradas;
+• saídas;
+• saldo;
+• número de transações;
+• maiores destinatários;
+• categorias de gasto;
+• período;
+• hashes on-chain.
+21.2 20.2. Relatório de organização
+Campos:
+• total movimentado;
+• total por projeto;
+• total por setor;
+• total por usuário;
+• transações pendentes;
+• transações confirmadas;
+• transações com anexo;
+• transações sem descrição;
+• alertas.
+2921.3 20.3. Exportação
+F ormatos futuros:
+• CSV;
+• PDF;
+• JSON;
+• link auditável;
+• integração com BI.
+22 21. Alertas e Auditoria
+22.1 21.1. Alertas possíveis
+• pagamento acima do limite;
+• pagamento fora do horário;
+• pagamento para destinatário novo;
+• pagamento sem descrição;
+• pagamento sem anexo;
+• múltiplas transações fracionadas;
+• gasto acima do orçamento;
+• saldo baixo;
+• fornecedor recorrente não cadastrado.
+22.2 21.2. V ersão futura com ONYX
+O SocialPay pode se integrar ao ONYX Stellar Risk para:
+• análise de risco de carteiras;
+• classificação de comportamento suspeito;
+• alerta de padrões incomuns;
+• score de risco;
+• dashboard de compliance;
+• trilhas de investigação.
+23 22. Roadmap
+23.1 22.1. F ase 1 - MVP Hackathon
+Objetivo: provar envio por @com feed e Stellar T estnet.
+Entregas:
+• login;
+• criação de @;
+• carteira T estnet;
+• envio por @;
+• feed;
+• comprovante;
+• organização;
+30• projeto;
+• dashboard simples.
+23.2 22.2. F ase 2 - Produto Beta
+Objetivo: melhorar experiência e governança.
+Entregas:
+• QR Code de pagamento;
+• anexos;
+• categorias;
+• relatórios;
+• permissões avançadas;
+• notificações;
+• exportação CSV;
+• design responsivo.
+23.3 22.3. F ase 3 - Soroban e automações
+Objetivo: descentralizar regras críticas.
+Entregas:
+• registro de @em contrato;
+• cofres de projeto;
+• limites programáveis;
+• multisig;
+• liberação condicionada;
+• regras de orçamento.
+23.4 22.4. F ase 4 - Produção empresarial
+Objetivo: operar com clientes reais.
+Entregas:
+• parceiro regulado;
+• KYC/KYB;
+• AML;
+• termos jurídicos;
+• painel corporativo;
+• integração contábil;
+• APIs empresariais.
+24 23. Estrutura de Repositório
+socialpay/
+apps/
+web/
+src/
+app/
+31components/
+features/
+lib/
+styles/
+api/
+src/
+modules/
+auth/
+users/
+handles/
+wallets/
+payments/
+feed/
+organizations/
+projects/
+audit/
+shared/
+main.ts
+packages/
+database/
+prisma/
+schema.prisma
+stellar/
+src/
+stellar.service.ts
+stellar.types.ts
+ui/
+docker-compose.yml
+.env.example
+README.md
+25 24. V ariáveis de Ambiente
+# App
+NODE_ENV=development
+APP_URL=http://localhost:3000
+API_URL=http://localhost:4000
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/socialpay
+# Auth
+JWT_SECRET=change_me
+JWT_EXPIRES_IN=15m
+REFRESH_TOKEN_SECRET=change_me
+# Stellar
+STELLAR_NETWORK=testnet
+32STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org
+# Security
+ENCRYPTION_KEY=change_me_32_bytes
+# Storage
+STORAGE_PROVIDER=local
+S3_BUCKET=
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+26 25. Critérios de Aceite do MVP
+26.1 25.1. Cadastro
+• Usuário consegue criar conta.
+• Usuário consegue escolher um @disponível.
+• Sistema impede handles duplicados.
+26.2 25.2. Carteira
+• Sistema cria carteira T estnet.
+• Sistema mostra chave pública.
+• Sistema consulta saldo.
+26.3 25.3. Pagamento
+• Usuário consegue enviar valor para outro @.
+• Sistema resolve @para carteira Stellar.
+• T ransação aparece como confirmada.
+• Hash da Stellar é salvo.
+• Comprovante é gerado.
+26.4 25.4. F eed
+• T ransação pública aparece no feed público.
+• T ransação privada não aparece no feed público.
+• T ransação organizacional aparece apenas para membros autorizados.
+26.5 25.5. Projeto
+• Empresa cria projeto.
+• Projeto recebe verba.
+• Projeto envia pagamentos.
+• Dashboard mostra entradas, saídas e saldo.
+3327 26. T estes
+27.1 26.1. T estes unitários
+• validação de handle;
+• resolução de handle;
+• cálculo de saldo;
+• regra de visibilidade;
+• permissões organizacionais;
+• formatação de comprovante.
+27.2 26.2. T estes de integração
+• criar usuário + handle + carteira;
+• enviar transação T estnet;
+• salvar hash;
+• atualizar feed;
+• consultar comprovante.
+27.3 26.3. T estes E2E
+Fluxo principal:
+1. criar @lucas ;
+2. criar @gabriel ;
+3. financiar carteira T estnet;
+4. enviar 100 TBRL de @lucas para @gabriel ;
+5. visualizar feed;
+6. abrir comprovante;
+7. verificar hash no explorer.
+28 27. Demonstração para Hackathon
+28.1 27.1. Roteiro da demo
+1. Mostrar a landing page.
+2. Criar usuário @lucas .
+3. Criar usuário @gabriel .
+4. Mostrar que cada @tem uma carteira Stellar por trás.
+5. Enviar 100 TBRL para @gabriel .
+6. Abrir o feed e mostrar a transação.
+7. Abrir comprovante e mostrar hash.
+8. Criar organização @aksenterprise .
+9. Criar projeto @obra-shopping-vitoria .
+10. Enviar orçamento para o projeto.
+11. F azer pagamentos do projeto para fornecedores.
+12. Mostrar dashboard de saldo e gastos.
+3428.2 27.2. Mensagem final da apresentação
+O SocialPay transforma a Stellar em uma rede social financeira. O usuário não precisa entender
+blockchain. Ele envia dinheiro para um @. Para empresas, cada pagamento vira parte de uma
+trilha auditável de orçamento, projeto e execução. É simples para pessoas, transparente para
+organizações e verificável na blockchain.
+29 28. Decisões Técnicas Recomendadas
+29.1 28.1. Decisão 1 - MVP sem Soroban
+Decisão: não usar Soroban no MVP inicial.
+Motivo: reduzir complexidade e garantir entrega funcional.
+Consequência: o registro de @fica off-chain inicialmente.
+Evolução: migrar registro e regras críticas para Soroban em fase posterior.
+29.2 28.2. Decisão 2 - F eed off-chain com prova on-chain
+Decisão: o feed será montado no banco da aplicação, usando a transação Stellar como prova.
+Motivo: permite privacidade, filtros, descrições e anexos sem gravar dados sensíveis on-chain.
+Consequência: a aplicação precisa manter indexação confiável.
+Evolução: publicar hashes agregados de relatórios em blockchain.
+29.3 28.3. Decisão 3 - Privacidade configurável
+Decisão: transações não serão públicas por padrão para pessoa física.
+Motivo: evitar rejeição por exposição financeira.
+Consequência: o produto precisa explicar bem os modos de visibilidade.
+Evolução: perfis empresariais podem ter transparência interna obrigatória.
+29.4 28.4. Decisão 4 - F oco B2B na narrativa comercial
+Decisão: manter o apelo de rede social, mas monetizar com empresas.
+Motivo: usuários finais podem não pagar; empresas têm dor clara de auditoria e controle.
+Consequência: priorizar painel de projetos e organizações.
+Evolução: planos pagos por organização, volume de transações e relatórios.
+30 29. Modelo de Monetização F uturo
+30.1 29.1. Plano gratuito
+• criar @;
+• enviar/receber em ambiente básico;
+• feed pessoal;
+• comprovantes simples.
+30.2 29.2. Plano empresarial
+• criar organização;
+35• criar projetos;
+• membros;
+• feed interno;
+• permissões;
+• relatórios;
+• exportação.
+30.3 29.3. Plano compliance/auditoria
+• alertas;
+• análise de risco;
+• logs avançados;
+• integração com ONYX;
+• relatórios auditáveis;
+• API.
+30.4 29.4. Receita por transação
+Possível cobrança futura:
+• taxa fixa pequena por transação;
+• assinatura mensal;
+• pacote por volume;
+• taxa por relatório;
+• taxa por integração empresarial.
+31 30. Integrações F uturas com o Ecossistema AKS
+31.1 30.1. ContractEase
+O SocialPay pode ser usado para pagamentos vinculados a contratos digitais.
+Exemplo:
+• contrato assinado no ContractEase;
+• pagamento feito via SocialPay;
+• hash do contrato e hash do pagamento ficam vinculados;
+• partes conseguem verificar execução financeira.
+31.2 30.2. HealthChain
+Pode ser usado para repasses, pagamentos de serviços de saúde e trilhas de financiamento de projetos de
+saúde, desde que respeitados os limites de privacidade.
+31.3 30.3. QuiloV olt
+Pode ser usado como camada de pagamento por @ou QR Code para recargas elétricas.
+Exemplo:
+• @quilovolt-recife recebe pagamento de usuário;
+• comprovante de recarga fica associado;
+36• empresa acompanha receita por estação.
+31.4 30.4. ONYX
+Pode fornecer análise de risco, monitoramento e auditoria avançada das carteiras e fluxos.
+32 31. Riscos do Projeto
+32.1 31.1. Risco de privacidade
+Usuários podem rejeitar feed financeiro público.
+Mitigação: privacidade configurável e foco em feed organizacional.
+32.2 31.2. Risco regulatório
+Operar dinheiro real exige cuidados legais e regulatórios.
+Mitigação: MVP em T estnet; produção com parceiro regulado.
+32.3 31.3. Risco de marca
+Nome SocialPay pode ser genérico ou já utilizado em outros mercados.
+Mitigação: usar como nome de trabalho no hackathon e avaliar marca definitiva depois.
+32.4 31.4. Risco técnico
+Usuários comuns podem ter dificuldade com carteiras.
+Mitigação: abstração completa da blockchain e criação automática de carteira no MVP .
+32.5 31.5. Risco de adoção
+Usuário final pode não ver motivo para usar.
+Mitigação: focar em empresas, projetos e prestação de contas.
+33 32. Prioridade de Desenvolvimento
+33.1 Sprint 1 - Base
+• setup do repositório;
+• autenticação;
+• banco de dados;
+• cadastro de usuário;
+• criação de handle.
+3733.2 Sprint 2 - Stellar
+• criação de carteira T estnet;
+• funding com F riendbot;
+• consulta de saldo;
+• envio básico de XLM/TBRL.
+33.3 Sprint 3 - F eed
+• salvar transações;
+• feed público;
+• feed privado;
+• comprovante.
+33.4 Sprint 4 - Empresas e Projetos
+• criar organização;
+• criar projeto;
+• enviar verba;
+• dashboard de projeto.
+33.5 Sprint 5 - Polimento
+• UI profissional;
+• landing page;
+• filtros;
+• demo script;
+• seed data;
+• deploy .
+34 33. Prompt para Desenvolvimento com IA / Vibe Code
+Crie uma aplicação web completa chamada SocialPay.
+O SocialPay é uma rede social financeira auditável baseada na blockchain Stellar. O usuário cria um identificador financeiro no formato @usuario e pode enviar valores para outros usuários usando apenas o @, sem precisar conhecer endereços blockchain. Por trás de cada @ existe uma carteira Stellar Testnet.
+A aplicação deve ter:
+1. Landing page profissional com a proposta: “Envie dinheiro por @. A rede social financeira auditável na Stellar.”
+2. Cadastro e login de usuário.
+3. Criação de handle único no formato @usuario.
+4. Criação automática de carteira Stellar Testnet.
+5. Consulta de saldo.
+6. Tela para enviar pagamento para outro @.
+7. Serviço backend que resolve o @ para public key Stellar.
+8. Envio real de transação na Stellar Testnet usando Stellar SDK.
+9. Registro do hash da transação no banco.
+10. Feed de transações com modos público, privado e organizacional.
+11. Página de comprovante com hash, valor, remetente, destinatário e link para explorer.
+12. Criação de organização.
+3813. Criação de projeto vinculado à organização.
+14. Dashboard do projeto com entradas, saídas e saldo.
+15. Permissões básicas: owner, admin, auditor, member.
+Use Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, Node.js/NestJS ou API routes, Prisma, PostgreSQL e Stellar SDK.
+Crie uma interface moderna, limpa, responsiva e com estética de fintech/rede social. Use cards, feed em timeline, botões claros e destaque para @ dos usuários.
+O MVP deve rodar em ambiente de desenvolvimento e usar Stellar Testnet. Não usar dinheiro real. Não expor secret keys no frontend. Crie variáveis de ambiente para Stellar, banco e autenticação.
+Inclua seed data com usuários @lucas, @gabriel, @aksenterprise, @obra-shopping-vitoria e @fornecedor-cabos para demonstração.
+35 34. Prompt Completo para Vibe Code - Projeto F uncional T estável
+O prompt abaixo é uma versão mais operacional para pedir ao Vibe Code que crie um projeto funcional
+onde já seja possível testar transações entre duas carteiras Stellar T estnet.
+Você é um desenvolvedor sênior full stack especialista em fintech, blockchain e UX de produtos web.
+Crie do zero uma aplicação web completa chamada SocialPay, usando arquitetura profissional, código limpo e pronta para teste local.
+O SocialPay é uma rede social financeira na blockchain Stellar. O usuário cria um identificador financeiro no formato @usuario, como em uma rede social, e consegue enviar dinheiro para outro usuário usando apenas esse @. Por trás de cada @ existe uma carteira Stellar Testnet. O usuário não precisa conhecer chave pública, endereço blockchain ou explorer.
+O objetivo do MVP é permitir um teste real entre duas carteiras Stellar Testnet:
+1. Criar usuário A com handle @lucas.
+2. Criar usuário B com handle @gabriel.
+3. Criar automaticamente uma carteira Stellar Testnet para cada usuário.
+4. Financiar as carteiras na Testnet via Friendbot.
+5. Mostrar saldo de cada carteira.
+6. Permitir que @lucas envie XLM Testnet para @gabriel usando apenas o @gabriel.
+7. Registrar a transação na Stellar Testnet.
+8. Salvar o hash da transação no banco.
+9. Exibir a transação em um feed financeiro.
+10. Gerar uma página de comprovante com hash, remetente, destinatário, valor, data e link para o explorer da Stellar Testnet.
+Stack obrigatória:
+- Next.js com App Router.
+- React.
+- TypeScript.
+- Tailwind CSS.
+- shadcn/ui.
+- Prisma ORM.
+- PostgreSQL ou SQLite para desenvolvimento local, priorizando facilidade de teste.
+- Stellar SDK JavaScript.
+- API routes ou backend Node.js integrado.
+Requisitos de produto:
+391. Landing page:
+- título: “Envie dinheiro por @.”
+- subtítulo: “A rede social financeira auditável na Stellar.”
+- explicação simples do funcionamento.
+- CTA para criar conta.
+2. Autenticação simples para MVP:
+- cadastro com nome, e-mail, senha e handle.
+- login.
+- sessão protegida.
+3. Handles:
+- cada usuário deve ter um handle único.
+- exemplo: @lucas, @gabriel, @aksenterprise.
+- validar formato.
+- impedir duplicidade.
+4. Carteira Stellar:
+- criar keypair Stellar Testnet automaticamente no cadastro ou em etapa posterior.
+- salvar public key no banco.
+- salvar secret key apenas em ambiente de desenvolvimento, de forma protegida no backend, nunca no frontend.
+- criar função de funding via Friendbot.
+- mostrar saldo em XLM.
+5. Envio por @:
+- tela com campo “Enviar para @”.
+- campo de valor.
+- campo de descrição.
+- campo de visibilidade: pública, privada ou organizacional.
+- o sistema deve resolver o @ para a public key Stellar.
+- criar, assinar e submeter a transação via Stellar SDK na Testnet.
+- salvar status, hash, valor, remetente e destinatário no banco.
+6. Feed:
+- feed com cards de transações.
+- cada card deve mostrar: @remetente, @destinatário, valor, ativo, descrição, data, status e botão “Ver comprovante”.
+- transações públicas aparecem no feed público.
+- transações privadas aparecem apenas para remetente e destinatário.
+7. Comprovante:
+- página /receipt/[id].
+- mostrar hash da transação.
+- mostrar link para Stellar Expert ou explorer da Testnet.
+- mostrar remetente, destinatário, valor, data e status.
+8. Organização e projeto:
+- criar organização @aksenterprise.
+- criar projeto @obra-shopping-vitoria.
+- permitir associar transações a projeto.
+40- dashboard do projeto com entradas, saídas e saldo calculado pelo banco.
+9. Seed data:
+- criar script de seed com usuários @lucas, @gabriel, @aksenterprise e @obra-shopping-vitoria.
+- criar carteiras Testnet para eles.
+- deixar botão ou comando para financiar com Friendbot.
+10. Segurança mínima:
+- nunca enviar secret key para o frontend.
+- fazer todas as assinaturas no backend.
+- separar variáveis de ambiente.
+- criar .env.example.
+- validar inputs.
+- tratar erros da Stellar.
+11. Interface:
+- visual moderno de fintech/rede social.
+- cards arredondados.
+- feed em timeline.
+- dashboard com saldo.
+- botões claros para “Enviar”, “Receber”, “Ver carteira” e “Ver comprovante”.
+- layout responsivo.
+12. Entregáveis:
+- código completo.
+- README.md com instruções para rodar.
+- comandos de instalação.
+- comandos de migration/seed.
+- instruções para criar e financiar carteiras Testnet.
+- instruções para testar envio de @lucas para @gabriel.
+Arquitetura desejada:
+- /app para páginas Next.js.
+- /components para componentes de UI.
+- /lib/stellar.ts para serviço Stellar.
+- /lib/auth.ts para autenticação.
+- /lib/db.ts para Prisma.
+- /app/api para endpoints.
+- /prisma/schema.prisma para banco.
+- /prisma/seed.ts para dados de teste.
+Crie um projeto funcional, com foco em permitir o primeiro teste real de transação entre duas carteiras Stellar Testnet usando apenas handles @.
+Não implemente dinheiro real, PIX, cartão ou KYC. O MVP é exclusivamente Testnet para demonstração em hackathon.
+4136 35. Conclusão
+O SocialPay é uma aplicação com forte potencial para hackathon porque usa a Stellar de forma clara,
+prática e demonstrável. O produto resolve um problema real de usabilidade em blockchain ao substituir
+endereços complexos por @sociais.
+Ao mesmo tempo, cria uma proposta empresarial forte: empresas, obras, ONGs e projetos podem acom-
+panhar a circulação de recursos com transparência, feed organizacional e comprovantes verificáveis.
+A melhor estratégia é manter o apelo de rede social financeira para gerar interesse e diferenciação, mas
+direcionar a utilidade prática para casos B2B de auditoria, orçamento e execução financeira.
+T ese final:
+SocialPay transforma pagamentos Stellar em uma experiência social simples, onde o usuário
+envia dinheiro por @e empresas acompanham o caminho do orçamento em uma trilha auditável,
+visual e verificável.
+42

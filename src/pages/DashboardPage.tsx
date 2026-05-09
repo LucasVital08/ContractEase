@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useContracts } from '@/hooks/useContractQueries';
 import { useAuthStore } from '@/stores';
 import type { Contract } from '@/types';
+import { api } from '@/services/supabaseService';
 
 function StatCard({ title, value, icon, color, bg, delay = 0 }: { title: string; value: string; icon: string; color: string; bg: string; delay?: number }) {
   return (
@@ -73,6 +74,7 @@ export default function DashboardPage() {
     const saved = localStorage.getItem('dashboard_widgets');
     return saved ? JSON.parse(saved) : DEFAULT_WIDGETS;
   });
+
 
   const toggleWidget = (id: keyof typeof DEFAULT_WIDGETS) => {
     const next = { ...visibleWidgets, [id]: !visibleWidgets[id] };
@@ -147,9 +149,12 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* Stats */}
+      {/* Stats & AI Insight */}
       {visibleWidgets.stats && (
-        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-all ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+        <>
+
+
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-all ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
           <StatCard title="Total de Documentos" value={contracts.length.toString()} icon="solar:document-text-bold-duotone" color="text-emerald-500" bg="bg-emerald-500/10" delay={0} />
           <StatCard title="Documentos Ativos" value={active.toString()} icon="solar:check-circle-bold-duotone" color="text-blue-500" bg="bg-blue-500/10" delay={0.05} />
           <StatCard title="Aguardando Assinatura" value={pending.toString()} icon="solar:pen-bold-duotone" color="text-amber-500" bg="bg-amber-500/10" delay={0.1} />
@@ -157,6 +162,7 @@ export default function DashboardPage() {
             <StatCard title="Eficiência de Fechamento" value={`${contracts.length > 0 ? Math.round((active / contracts.length) * 100) : 0}%`} icon="solar:bolt-circle-bold-duotone" color="text-violet-500" bg="bg-violet-500/10" delay={0.15} />
           </div>
         </div>
+        </>
       )}
 
       {/* Blockchain Stats */}
