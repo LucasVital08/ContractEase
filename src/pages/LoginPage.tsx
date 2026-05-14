@@ -224,7 +224,6 @@ export default function LoginPage() {
           <p className="text-neutral-400 text-lg">Crie, gerencie e assine contratos com validade jurídica e registro na rede Stellar.</p>
         </div>
       </div>
-      </div>
 
       <OTPModal 
         isOpen={isOTPModalOpen} 
