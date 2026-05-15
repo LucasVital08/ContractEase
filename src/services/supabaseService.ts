@@ -373,19 +373,47 @@ function mapDbToContract(row: DbContract): Contract {
 // ─── Contracts ───────────────────────────────────────────────
 export const contractsService = {
   list: async (orgId?: string): Promise<Contract[]> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userEmail = session?.user?.email;
+
+    // Query 1: contracts owned by the user (or their org)
     let query = supabase
       .from('contracts')
       .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)');
-    
+
     if (orgId && orgId !== 'personal') {
       query = query.eq('organization_id', orgId);
     } else {
       query = query.is('organization_id', null);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data: ownContracts, error } = await query.order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return (data as DbContract[]).map(mapDbToContract);
+
+    // Query 2: contracts where the user is a party but not the owner
+    let partyContracts: DbContract[] = [];
+    if (userEmail) {
+      const { data: partyRows } = await supabase
+        .from('contract_parties')
+        .select('contract_id')
+        .eq('email', userEmail);
+
+      const ownIds = new Set((ownContracts as DbContract[]).map(c => c.id));
+      const partyIds = (partyRows ?? [])
+        .map(p => p.contract_id)
+        .filter((id): id is string => !!id && !ownIds.has(id));
+
+      if (partyIds.length > 0) {
+        const { data } = await supabase
+          .from('contracts')
+          .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)')
+          .in('id', partyIds);
+        partyContracts = (data as DbContract[]) ?? [];
+      }
+    }
+
+    const all = [...(ownContracts as DbContract[]), ...partyContracts];
+    return all.map(mapDbToContract);
   },
 
   get: async (id: string): Promise<Contract | undefined> => {
@@ -864,21 +892,39 @@ export const signingService = {
     if (error) console.error('[notifyUser]', error);
   },
 
-  notifyContractParties: async (contractId: string, contractTitle: string, parties: { email: string }[]) => {
+  notifyContractParties: async (
+    contractId: string,
+    contractTitle: string,
+    parties: { name?: string; email: string }[]
+  ) => {
     for (const party of parties) {
-      const { data } = await supabase
+      // 1. In-app notification (for users already registered)
+      const { data: profile } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', party.email)
         .maybeSingle();
-      if (data?.id) {
-        await signingService.notifyUser(data.id, {
+
+      if (profile?.id) {
+        await signingService.notifyUser(profile.id, {
           title: 'Convite para Assinar Documento',
           message: `Você foi convidado(a) a assinar: "${contractTitle}".`,
           type: 'signing_invite',
           link: `/contracts/${contractId}`,
         });
       }
+
+      // 2. Email notification (works for any email, registered or not)
+      supabase.functions
+        .invoke('send-signing-email', {
+          body: {
+            to: party.email,
+            signerName: party.name ?? '',
+            contractTitle,
+            contractId,
+          },
+        })
+        .catch(err => console.warn('[notifyContractParties] email error:', err));
     }
   },
 
