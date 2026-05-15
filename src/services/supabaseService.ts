@@ -373,10 +373,7 @@ function mapDbToContract(row: DbContract): Contract {
 // ─── Contracts ───────────────────────────────────────────────
 export const contractsService = {
   list: async (orgId?: string): Promise<Contract[]> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const userEmail = session?.user?.email;
-
-    // Query 1: contracts owned by the user (or their org)
+    // Query 1: contracts owned by the user (filtered by RLS + org)
     let query = supabase
       .from('contracts')
       .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)');
@@ -391,25 +388,16 @@ export const contractsService = {
     if (error) throw new Error(error.message);
 
     // Query 2: contracts where the user is a party but not the owner
+    // Uses Edge Function with service role to bypass RLS restrictions
     let partyContracts: DbContract[] = [];
-    if (userEmail) {
-      const { data: partyRows } = await supabase
-        .from('contract_parties')
-        .select('contract_id')
-        .eq('email', userEmail);
-
-      const ownIds = new Set((ownContracts as DbContract[]).map(c => c.id));
-      const partyIds = (partyRows ?? [])
-        .map(p => p.contract_id)
-        .filter((id): id is string => !!id && !ownIds.has(id));
-
-      if (partyIds.length > 0) {
-        const { data } = await supabase
-          .from('contracts')
-          .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)')
-          .in('id', partyIds);
-        partyContracts = (data as DbContract[]) ?? [];
+    try {
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('get-party-contracts');
+      if (!fnError && Array.isArray(fnData)) {
+        const ownIds = new Set((ownContracts as DbContract[]).map(c => c.id));
+        partyContracts = (fnData as DbContract[]).filter(c => !ownIds.has(c.id));
       }
+    } catch {
+      // Edge function not deployed yet — silently ignore, user still sees their own contracts
     }
 
     const all = [...(ownContracts as DbContract[]), ...partyContracts];
