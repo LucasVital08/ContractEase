@@ -373,7 +373,7 @@ function mapDbToContract(row: DbContract): Contract {
 // ─── Contracts ───────────────────────────────────────────────
 export const contractsService = {
   list: async (orgId?: string): Promise<Contract[]> => {
-    // Query 1: contracts owned by the user (filtered by RLS + org)
+    // Query 1: contracts owned/visible to the user via RLS
     let query = supabase
       .from('contracts')
       .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)');
@@ -387,21 +387,27 @@ export const contractsService = {
     const { data: ownContracts, error } = await query.order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
 
-    // Query 2: contracts where the user is a party but not the owner
-    // Uses Edge Function with service role to bypass RLS restrictions
+    // Query 2: contracts where current user is a party but not visible via RLS
+    // Works via Edge Function (service role bypasses RLS) when deployed.
+    // Also works after applying the SQL migration in supabase/migrations/20260515_party_contracts_rls.sql
+    const ownIds = new Set((ownContracts as DbContract[]).map(c => c.id));
     let partyContracts: DbContract[] = [];
+
     try {
       const { data: fnData, error: fnError } = await supabase.functions.invoke('get-party-contracts');
       if (!fnError && Array.isArray(fnData)) {
-        const ownIds = new Set((ownContracts as DbContract[]).map(c => c.id));
         partyContracts = (fnData as DbContract[]).filter(c => !ownIds.has(c.id));
       }
     } catch {
-      // Edge function not deployed yet — silently ignore, user still sees their own contracts
+      // Edge function not yet deployed — RLS migration is the permanent fix
     }
 
+    // Fallback: if RLS migration was applied, the first query already returns party contracts,
+    // so we deduplicate by ID before merging
     const all = [...(ownContracts as DbContract[]), ...partyContracts];
-    return all.map(mapDbToContract);
+    const seen = new Set<string>();
+    const deduped = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    return deduped.map(mapDbToContract);
   },
 
   get: async (id: string): Promise<Contract | undefined> => {
