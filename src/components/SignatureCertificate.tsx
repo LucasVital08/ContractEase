@@ -1,5 +1,15 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import type { Contract } from '@/types';
+import { generateContractHash, serializeContract } from '@/services/stellar';
+
+const SIG_TYPE_LABEL: Record<string, string> = {
+  type: 'Eletrônica (Aceite Digital)',
+  draw: 'Manuscrita (Desenho)',
+  upload: 'Imagem Carregada',
+  a1: 'Certificado A1 (ICP-Brasil)',
+  freighter: 'Carteira Stellar (Freighter)',
+};
 
 interface SignatureCertificateProps {
   contract: Contract;
@@ -9,6 +19,19 @@ interface SignatureCertificateProps {
 export default function SignatureCertificate({ contract, onClose }: SignatureCertificateProps) {
   const signedParties = contract.parties.filter(p => p.signedAt);
   const allSigned = contract.parties.every(p => p.signedAt);
+  const [liveHash, setLiveHash] = useState(contract.contractHash || '');
+
+  useEffect(() => {
+    if (contract.contractHash) { setLiveHash(contract.contractHash); return; }
+    generateContractHash(
+      serializeContract({
+        title: contract.title,
+        description: contract.description,
+        clauses: contract.clauses.map(c => ({ title: c.title, content: c.content, order: c.order })),
+        parties: contract.parties.map(p => ({ name: p.name, email: p.email })),
+      })
+    ).then(setLiveHash);
+  }, [contract]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -61,25 +84,65 @@ export default function SignatureCertificate({ contract, onClose }: SignatureCer
           {/* Hash Info */}
           <div className="border border-neutral-200 rounded-xl p-5">
             <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-wide mb-3">Integridade Criptográfica</h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-neutral-400 text-xs mb-1">Hash SHA-256 do Contrato</p>
-                <p className="font-mono text-xs bg-neutral-100 p-2 rounded break-all">{contract.contractHash || 'Aguardando geração...'}</p>
-              </div>
-              {contract.stellarTxHash && (
-                <div>
-                  <p className="text-neutral-400 text-xs mb-1">Transaction Hash (Stellar Blockchain)</p>
-                  <a 
-                    href={`https://stellar.expert/explorer/testnet/tx/${contract.stellarTxHash}`} 
-                    target="_blank" 
-                    className="font-mono text-xs text-emerald-600 hover:underline bg-emerald-50 p-2 rounded break-all block"
-                  >
-                    {contract.stellarTxHash}
-                  </a>
-                </div>
-              )}
+            <div>
+              <p className="text-neutral-400 text-xs mb-1">Hash SHA-256 do Contrato</p>
+              <p className="font-mono text-[11px] bg-neutral-100 p-3 rounded-lg break-all leading-relaxed text-neutral-700">
+                {liveHash || 'Calculando...'}
+              </p>
             </div>
           </div>
+
+          {/* Blockchain Audit — bloco destacado */}
+          {contract.stellarTxHash ? (
+            <div className="border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <iconify-icon icon="solar:shield-check-bold-duotone" class="text-2xl text-emerald-600" />
+                  <h3 className="text-sm font-bold text-emerald-700 uppercase tracking-wide">Registro Blockchain</h3>
+                </div>
+                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-bold border border-emerald-300 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                  Stellar Testnet
+                </span>
+              </div>
+
+              <p className="text-xs text-emerald-800 mb-4 leading-relaxed">
+                Este documento foi ancorado de forma imutável na blockchain Stellar Network. A transação abaixo é prova pública de existência e integridade — verificável por qualquer pessoa, a qualquer momento.
+              </p>
+
+              <div className="bg-white border border-emerald-200 rounded-xl p-3 mb-3">
+                <p className="text-[10px] text-neutral-400 uppercase tracking-wide mb-1.5">Hash da Transação (TX ID)</p>
+                <p className="font-mono text-[11px] text-neutral-700 break-all leading-relaxed">{contract.stellarTxHash}</p>
+              </div>
+
+              <a
+                href={`https://stellar.expert/explorer/testnet/tx/${contract.stellarTxHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-bold rounded-xl transition-colors"
+              >
+                <iconify-icon icon="solar:globus-bold" class="text-base" />
+                Auditar Transação na Stellar Explorer
+                <iconify-icon icon="solar:arrow-right-up-bold" class="text-sm" />
+              </a>
+
+              <div className="flex items-center justify-center gap-6 mt-3 text-[10px] text-emerald-700/60">
+                <span className="flex items-center gap-1"><iconify-icon icon="solar:lock-bold" /> Imutável</span>
+                <span className="flex items-center gap-1"><iconify-icon icon="solar:clock-bold" /> Carimbo de Tempo</span>
+                <span className="flex items-center gap-1"><iconify-icon icon="solar:eye-bold" /> Público e Auditável</span>
+              </div>
+            </div>
+          ) : (
+            <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 flex items-start gap-3">
+              <iconify-icon icon="solar:danger-triangle-bold" class="text-amber-500 text-lg flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-700">Ancoragem Blockchain Pendente</p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  Este documento ainda não foi registrado na blockchain. Acesse o contrato e clique em "Ancorar" para garantir a rastreabilidade.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Signatories */}
           <div className="border border-neutral-200 rounded-xl p-5">
@@ -126,7 +189,7 @@ export default function SignatureCertificate({ contract, onClose }: SignatureCer
                       </div>
                       <div>
                         <p className="text-[10px] text-neutral-400 uppercase">Tipo</p>
-                        <p className="text-xs capitalize">{party.signatureType || 'N/A'}</p>
+                        <p className="text-xs">{party.signatureType ? (SIG_TYPE_LABEL[party.signatureType] ?? party.signatureType) : 'N/A'}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-neutral-400 uppercase">LGPD</p>
