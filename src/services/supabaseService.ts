@@ -429,9 +429,10 @@ export const contractsService = {
       .from('contracts')
       .insert({
         title: draft.title,
-        description: draft.description,
+        description: draft.description ?? '',
         type: draft.type,
-        tags: draft.tags,
+        status: 'pending',
+        tags: draft.tags ?? [],
         expires_at: draft.expiresAt || null,
         signature_order: draft.signatureOrder ?? 'parallel',
         owner_id: session.user.id,
@@ -449,9 +450,11 @@ export const contractsService = {
           name: p.name,
           email: p.email,
           role: p.role,
+          status: 'pending',
+          lgpd_consent: false,
         }))
       );
-      if (pError) throw new Error(pError.message);
+      if (pError) throw new Error(`Erro ao salvar signatários: ${pError.message}`);
     }
 
     // 3. Insert clauses
@@ -462,9 +465,10 @@ export const contractsService = {
           title: c.title,
           content: c.content,
           order_index: c.order ?? i,
+          is_custom: true,
         }))
       );
-      if (cError) throw new Error(cError.message);
+      if (cError) throw new Error(`Erro ao salvar cláusulas: ${cError.message}`);
     }
 
     // 4. Re-fetch full contract with relations

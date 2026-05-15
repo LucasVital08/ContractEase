@@ -35,10 +35,10 @@ export function useCreateContract() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: contractKeys.all });
-      notify({ type: 'success', title: 'Contrato criado com sucesso!' });
     },
-    onError: () => {
-      notify({ type: 'error', title: 'Erro ao criar contrato' });
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Tente novamente.';
+      notify({ type: 'error', title: 'Erro ao criar contrato', message: msg });
     },
   });
 }
