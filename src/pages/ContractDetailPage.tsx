@@ -197,12 +197,8 @@ export default function ContractDetailPage() {
           <SignDocumentModal
             contract={contract}
             party={myParty}
-            onClose={() => setShowSignModal(false)}
-            onSuccess={() => {
-              setShowSignModal(false);
-              notify({ type: 'success', title: 'Documento Assinado!', message: 'Sua assinatura foi registrada com sucesso.' });
-              refetch();
-            }}
+            onClose={() => { setShowSignModal(false); refetch(); }}
+            onSuccess={() => refetch()}
           />
         )}
       </AnimatePresence>
