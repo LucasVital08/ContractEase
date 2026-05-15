@@ -74,24 +74,19 @@ export async function anchorOnStellar(contractHash: string): Promise<AnchorResul
     // Carregar conta do remetente
     const account = await server.loadAccount(publicKey);
 
-    // Converter hex para Uint8Array (browser-safe, sem Buffer)
-    const hex = contractHash.slice(0, 56);
-    const memoHash = new Uint8Array(28);
-    for (let i = 0; i < 28; i++) memoHash[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-
-    // Construir transação
+    // SHA-256 = 64 hex chars = 32 bytes — Memo.hash aceita hex string diretamente
     const tx = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
       networkPassphrase: TESTNET_PASSPHRASE,
     })
       .addOperation(
         StellarSdk.Operation.payment({
-          destination: publicKey, // self-payment (0.0000001 XLM)
+          destination: publicKey,
           asset: StellarSdk.Asset.native(),
           amount: '0.0000001',
         })
       )
-      .addMemo(StellarSdk.Memo.hash(memoHash))
+      .addMemo(StellarSdk.Memo.hash(contractHash))
       .setTimeout(30)
       .build();
 
@@ -134,9 +129,6 @@ export async function anchorWithFreighter(contractHash: string): Promise<AnchorR
 
     const server = new StellarSdk.Horizon.Server(TESTNET_HORIZON);
     const account = await server.loadAccount(publicKey);
-    const hexFr = contractHash.slice(0, 56);
-    const memoHash = new Uint8Array(28);
-    for (let i = 0; i < 28; i++) memoHash[i] = parseInt(hexFr.slice(i * 2, i * 2 + 2), 16);
 
     const tx = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
@@ -149,7 +141,7 @@ export async function anchorWithFreighter(contractHash: string): Promise<AnchorR
           amount: '0.0000001',
         })
       )
-      .addMemo(StellarSdk.Memo.hash(memoHash))
+      .addMemo(StellarSdk.Memo.hash(contractHash))
       .setTimeout(30)
       .build();
 

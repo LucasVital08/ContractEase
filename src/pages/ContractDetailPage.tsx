@@ -8,7 +8,7 @@ import { useStellar } from '@/hooks/useStellar';
 import SignatureCertificate from '@/components/SignatureCertificate';
 import { downloadContractPDF } from '@/services/pdfGenerator';
 import { exportContractToDOCX, exportContractToXML } from '@/services/documentExport';
-import { generateContractHash, serializeContract, anchorOnStellar, createMultiSig, mintContractNFT, createEscrow } from '@/services/stellar';
+import { createMultiSig, mintContractNFT, createEscrow } from '@/services/stellar';
 import type { Attachment } from '@/types';
 import { AIAssistantModal } from '@/components/AIAssistantModal';
 import { api } from '@/services/api';
@@ -38,7 +38,7 @@ export default function ContractDetailPage() {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'parties' | 'clauses' | 'audit' | 'anexos' | 'comments' | 'security'>('overview');
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const { anchorContract, isAnchoring, getExplorerUrl } = useStellar();
+  const { getExplorerUrl } = useStellar();
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showCertificate, setShowCertificate] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
@@ -224,28 +224,8 @@ export default function ContractDetailPage() {
             </button>
           )}
 
-          {/* Blockchain status */}
-          {!contract.stellarTxHash ? (
-            <button
-              onClick={async () => {
-                const result = await anchorContract(contract);
-                if (result.success && result.txHash) {
-                  const hash = await generateContractHash(serializeContract(contract));
-                  updateMutation.mutate({ id: contract.id, data: { stellarTxHash: result.txHash, contractHash: hash } as any });
-                  notify({ type: 'success', title: 'Ancorado com Sucesso!', message: 'Documento registrado na Stellar Testnet.' });
-                } else {
-                  notify({ type: 'error', title: 'Falha na ancoragem', message: result.error });
-                }
-              }}
-              disabled={isAnchoring}
-              className="px-3 py-2 rounded-xl bg-neutral-800 border border-white/8 text-neutral-300 text-sm hover:bg-neutral-700 hover:text-white transition-all flex items-center gap-2 disabled:opacity-50"
-            >
-              {isAnchoring
-                ? <div className="w-3.5 h-3.5 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin" />
-                : <iconify-icon icon="solar:shield-network-bold" class="text-neutral-500" />}
-              {isAnchoring ? 'Ancorando...' : 'Ancorar'}
-            </button>
-          ) : (
+          {/* Blockchain status — shown only when already anchored */}
+          {contract.stellarTxHash && (
             <a
               href={getExplorerUrl(contract.stellarTxHash)}
               target="_blank"
