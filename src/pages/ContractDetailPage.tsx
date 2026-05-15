@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useContract, useDeleteContract, useCreateContract, useUpdateContract, useFolders, useMoveToFolder, useToggleFavorite } from '@/hooks/useContractQueries';
-import { useNotificationStore } from '@/stores';
+import { useNotificationStore, useAuthStore } from '@/stores';
+import SignDocumentModal from '@/components/SignDocumentModal';
 import { useStellar } from '@/hooks/useStellar';
 import SignatureCertificate from '@/components/SignatureCertificate';
 import { downloadContractPDF } from '@/services/pdfGenerator';
@@ -26,7 +27,8 @@ export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const notify = useNotificationStore(s => s.add);
-  const { data: contract, isLoading } = useContract(id!);
+  const currentUser = useAuthStore(s => s.user);
+  const { data: contract, isLoading, refetch } = useContract(id!);
   const { data: folders = [] } = useFolders();
   const deleteMutation = useDeleteContract();
   const createMutation = useCreateContract();
@@ -51,6 +53,8 @@ export default function ContractDetailPage() {
   const [isRewriting, setIsRewriting] = useState(false);
   const [viewingHistoryId, setViewingHistoryId] = useState<string | null>(null);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const [showSignModal, setShowSignModal] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   if (isLoading) {
     return (
@@ -71,6 +75,7 @@ export default function ContractDetailPage() {
   }
 
   const s = STATUS_MAP[contract.status] ?? STATUS_MAP.draft;
+  const myParty = contract.parties.find(p => p.email === currentUser?.email && !p.signedAt);
 
   const handleArchive = () => {
     updateMutation.mutate(
@@ -187,119 +192,149 @@ export default function ContractDetailPage() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showSignModal && myParty && (
+          <SignDocumentModal
+            contract={contract}
+            party={myParty}
+            onClose={() => setShowSignModal(false)}
+            onSuccess={() => {
+              setShowSignModal(false);
+              notify({ type: 'success', title: 'Documento Assinado!', message: 'Sua assinatura foi registrada com sucesso.' });
+              refetch();
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-neutral-500">
-          <Link to="/contracts" className="hover:text-white transition-colors">Contratos</Link>
-          <span>/</span>
-          <span className="text-white truncate max-w-[200px]">{contract.id}</span>
+          <Link to="/contracts" className="hover:text-white transition-colors flex items-center gap-1">
+            <iconify-icon icon="solar:arrow-left-bold" class="text-xs" /> Contratos
+          </Link>
+          <span className="text-neutral-700">/</span>
+          <span className="text-neutral-400 truncate max-w-[180px] text-xs font-mono">{contract.id}</span>
         </div>
-        
+
         <div className="flex items-center gap-2">
-          {!contract.stellarTxHash && contract.contractHash && (
+          {/* PRIMARY: Assinar */}
+          {myParty && (
+            <button
+              onClick={() => setShowSignModal(true)}
+              className="px-4 py-2 rounded-xl bg-emerald-500 text-black font-bold text-sm hover:bg-emerald-400 active:scale-95 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25"
+            >
+              <iconify-icon icon="solar:pen-bold" class="text-base" />
+              Assinar Documento
+            </button>
+          )}
+
+          {/* Blockchain status */}
+          {!contract.stellarTxHash ? (
             <button
               onClick={async () => {
-                const hasCredits = true; 
-                if (!hasCredits) {
-                  notify({ type: 'error', title: 'Créditos insuficientes', message: 'Faça uma recarga na página de Faturamento para ancorar novos documentos.' });
-                  return;
-                }
-
                 const result = await anchorContract(contract);
                 if (result.success && result.txHash) {
-                  updateMutation.mutate({ id: contract.id, data: { stellarTxHash: result.txHash } });
-                  notify({ type: 'success', title: 'Ancorado com Sucesso', message: `O documento foi registrado imutavelmente na Stellar.` });
-                  notify({ type: 'info', title: 'Faturamento', message: '1 Crédito de ancoragem foi deduzido da sua conta.' });
+                  const hash = await generateContractHash(serializeContract(contract));
+                  updateMutation.mutate({ id: contract.id, data: { stellarTxHash: result.txHash, contractHash: hash } as any });
+                  notify({ type: 'success', title: 'Ancorado com Sucesso!', message: 'Documento registrado na Stellar Testnet.' });
                 } else {
                   notify({ type: 'error', title: 'Falha na ancoragem', message: result.error });
                 }
               }}
               disabled={isAnchoring}
-              className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm hover:bg-emerald-500/20 transition-colors flex items-center gap-2"
+              className="px-3 py-2 rounded-xl bg-neutral-800 border border-white/8 text-neutral-300 text-sm hover:bg-neutral-700 hover:text-white transition-all flex items-center gap-2 disabled:opacity-50"
             >
-              {isAnchoring ? <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" /> : <iconify-icon icon="solar:shield-network-bold" />}
-              Ancorar na Blockchain
+              {isAnchoring
+                ? <div className="w-3.5 h-3.5 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin" />
+                : <iconify-icon icon="solar:shield-network-bold" class="text-neutral-500" />}
+              {isAnchoring ? 'Ancorando...' : 'Ancorar'}
             </button>
-          )}
-          {contract.stellarTxHash && (
-            <a href={getExplorerUrl(contract.stellarTxHash)} target="_blank" className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm hover:bg-emerald-500/20 transition-colors flex items-center gap-2">
-              <iconify-icon icon="solar:shield-check-bold" /> Ver na Blockchain
+          ) : (
+            <a
+              href={getExplorerUrl(contract.stellarTxHash)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm hover:bg-emerald-500/20 transition-colors flex items-center gap-1.5"
+            >
+              <iconify-icon icon="solar:shield-check-bold" class="text-sm" />
+              Blockchain
             </a>
           )}
-          {contract.parties.some(p => p.signedAt) && (
-            <button onClick={() => setShowCertificate(true)} className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm hover:bg-blue-500/20 transition-colors flex items-center gap-2">
-              <iconify-icon icon="solar:diploma-verified-bold" /> Certificado
-            </button>
-          )}
-          <button onClick={handleClone} className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-neutral-300 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
-            <iconify-icon icon="solar:copy-bold" /> Clonar
-          </button>
 
-          <button onClick={() => setShowAIAssistant(true)} className="px-3 py-1.5 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 text-sm hover:bg-fuchsia-500/20 transition-colors flex items-center gap-2">
-            <iconify-icon icon="solar:magic-stick-3-bold" /> Analisar com IA
-          </button>
-          
+          {/* More actions */}
           <div className="relative">
-            <button onClick={() => setShowExportMenu(!showExportMenu)} className="px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 text-sm hover:bg-violet-500/20 transition-colors flex items-center gap-2">
-              <iconify-icon icon="solar:file-download-bold" /> Exportar/Importar
+            <button
+              onClick={() => setShowMoreMenu(v => !v)}
+              className="px-3 py-2 rounded-xl bg-neutral-800 border border-white/8 text-neutral-400 text-sm hover:bg-neutral-700 hover:text-white transition-colors flex items-center gap-1.5"
+            >
+              <iconify-icon icon="solar:menu-dots-bold" class="text-base" />
+              <span>Ações</span>
+              <iconify-icon icon="solar:alt-arrow-down-bold" class="text-xs opacity-60" />
             </button>
             <AnimatePresence>
-              {showExportMenu && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute right-0 top-full mt-2 w-56 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-20">
-                  <div className="p-2 border-b border-white/5 bg-black/20">
-                    <p className="text-[10px] text-neutral-500 uppercase font-bold px-2">Exportar</p>
-                  </div>
-                  <button onClick={() => { downloadContractPDF(contract); setShowExportMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors">
-                    <iconify-icon icon="solar:file-text-bold" class="text-red-400" /> PDF (.pdf)
-                  </button>
-                  <button onClick={() => { exportContractToDOCX(contract); setShowExportMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors border-t border-white/5">
-                    <iconify-icon icon="solar:document-bold" class="text-blue-400" /> Word (.docx)
-                  </button>
-                  <button onClick={() => { exportContractToXML(contract); setShowExportMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors border-t border-white/5">
-                    <iconify-icon icon="solar:code-file-bold" class="text-emerald-400" /> XML (e-Social)
-                  </button>
-                  <div className="p-2 border-y border-white/5 bg-black/20 mt-1">
-                    <p className="text-[10px] text-neutral-500 uppercase font-bold px-2">Importar</p>
-                  </div>
-                  <label className="w-full text-left px-4 py-3 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 transition-colors cursor-pointer">
-                    <iconify-icon icon="solar:upload-track-2-bold" class="text-fuchsia-400" /> Importar de DOCX
-                    <input type="file" accept=".docx" className="hidden" onChange={() => {}} />
-                  </label>
-                </motion.div>
+              {showMoreMenu && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowMoreMenu(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-2 w-56 bg-[#161616] border border-white/10 rounded-2xl shadow-2xl z-30 overflow-hidden"
+                  >
+                    <div className="p-1.5">
+                      <button onClick={() => { setShowAIAssistant(true); setShowMoreMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 rounded-xl transition-colors">
+                        <iconify-icon icon="solar:magic-stick-3-bold" class="text-fuchsia-400 text-base flex-shrink-0" /> Analisar com IA
+                      </button>
+                    </div>
+                    <div className="h-px bg-white/5" />
+                    <div className="p-1.5">
+                      <button onClick={() => { handleClone(); setShowMoreMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 rounded-xl transition-colors">
+                        <iconify-icon icon="solar:copy-bold" class="text-blue-400 text-base flex-shrink-0" /> Clonar Documento
+                      </button>
+                      <button onClick={() => { downloadContractPDF(contract); setShowMoreMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 rounded-xl transition-colors">
+                        <iconify-icon icon="solar:file-text-bold" class="text-red-400 text-base flex-shrink-0" /> Exportar PDF
+                      </button>
+                      <button onClick={() => { exportContractToDOCX(contract); setShowMoreMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 rounded-xl transition-colors">
+                        <iconify-icon icon="solar:document-bold" class="text-blue-400 text-base flex-shrink-0" /> Exportar DOCX
+                      </button>
+                      <button onClick={() => { exportContractToXML(contract); setShowMoreMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 rounded-xl transition-colors">
+                        <iconify-icon icon="solar:code-file-bold" class="text-emerald-400 text-base flex-shrink-0" /> Exportar XML
+                      </button>
+                    </div>
+                    <div className="h-px bg-white/5" />
+                    <div className="p-1.5">
+                      {contract.parties.some(p => p.signedAt) && (
+                        <button onClick={() => { setShowCertificate(true); setShowMoreMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 rounded-xl transition-colors">
+                          <iconify-icon icon="solar:diploma-verified-bold" class="text-blue-400 text-base flex-shrink-0" /> Ver Certificado
+                        </button>
+                      )}
+                      <button onClick={() => { notify({ type: 'success', title: 'Relatório Gerado', message: 'Trilha de auditoria exportada.' }); setShowMoreMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 rounded-xl transition-colors">
+                        <iconify-icon icon="solar:file-check-bold" class="text-emerald-400 text-base flex-shrink-0" /> Relatório Compliance
+                      </button>
+                      <button onClick={() => {
+                        const isZen = document.body.classList.toggle('zen-mode');
+                        if (isZen) notify({ type: 'info', title: 'Modo Foco Ativado', message: 'Sidebars ocultas.' });
+                        setShowMoreMenu(false);
+                      }} className="w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-white/5 hover:text-white flex items-center gap-3 rounded-xl transition-colors">
+                        <iconify-icon icon="solar:mask-h-bold" class="text-neutral-400 text-base flex-shrink-0" /> Modo Zen
+                      </button>
+                    </div>
+                    <div className="h-px bg-white/5" />
+                    <div className="p-1.5">
+                      <button onClick={() => { setShowArchiveModal(true); setShowMoreMenu(false); }} className="w-full text-left px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-3 rounded-xl transition-colors">
+                        <iconify-icon icon="solar:archive-bold" class="text-base flex-shrink-0" /> Arquivar Documento
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
-
-          <button onClick={() => setShowArchiveModal(true)} className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm hover:bg-red-500/20 transition-all flex items-center gap-2 hover:scale-105 active:scale-95">
-            <iconify-icon icon="solar:archive-bold" /> Arquivar
-          </button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => {
-              const isZen = document.body.classList.toggle('zen-mode');
-              if(isZen) {
-                notify({ type: 'info', title: 'Modo Foco Ativado', message: 'Sidebars ocultas para maior concentração.' });
-              }
-            }}
-            className="px-4 py-2 rounded-xl bg-neutral-800 border border-white/10 text-neutral-400 text-sm hover:bg-neutral-700 hover:text-white transition-all flex items-center gap-2 hover:scale-105 active:scale-95"
-            title="Atalho: Alt+Z"
-          >
-            <iconify-icon icon="solar:mask-h-bold" /> Modo Zen
-          </button>
-          
-          <button 
-            onClick={() => {
-              notify({ type: 'success', title: 'Relatório Gerado', message: 'Trilha de auditoria completa exportada com validade jurídica.' });
-            }}
-            className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm hover:bg-emerald-500/20 transition-all flex items-center gap-2 hover:scale-105 active:scale-95"
-          >
-            <iconify-icon icon="solar:file-check-bold" /> Relatório Compliance
-          </button>
-        </div>
-      </div>
+      <div className="mb-2" />
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-start justify-between gap-4">
@@ -645,20 +680,27 @@ export default function ContractDetailPage() {
                     <span className="text-[11px] px-2 py-0.5 rounded bg-white/5 text-neutral-400 capitalize">{party.role}</span>
                     {party.signedAt ? (
                       <span className="text-[11px] text-emerald-400 flex items-center gap-1">
-                        <iconify-icon icon="solar:check-circle-bold" /> Assinado
+                        <iconify-icon icon="solar:check-circle-bold" /> Assinado em {new Date(party.signedAt).toLocaleDateString('pt-BR')}
                       </span>
+                    ) : party.email === currentUser?.email ? (
+                      <button
+                        onClick={() => setShowSignModal(true)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black font-bold text-xs hover:bg-emerald-400 transition-all flex items-center gap-1.5"
+                      >
+                        <iconify-icon icon="solar:pen-bold" /> Assinar Documento
+                      </button>
                     ) : (
                       <div className="flex items-center gap-3">
                         <span className="text-[11px] text-amber-400">Pendente</span>
                         <div className="flex items-center gap-1 border-l border-white/10 pl-3 ml-1">
-                          <button 
+                          <button
                             onClick={() => sendNotification('whatsapp', party.email)}
                             className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all hover:scale-110"
                             title="Lembrar via WhatsApp"
                           >
                             <iconify-icon icon="solar:whatsapp-bold" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => sendNotification('email', party.email)}
                             className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-all hover:scale-110"
                             title="Lembrar via E-mail"

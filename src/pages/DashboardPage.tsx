@@ -4,28 +4,33 @@ import { Link } from 'react-router-dom';
 import { useContracts } from '@/hooks/useContractQueries';
 import { useAuthStore } from '@/stores';
 import type { Contract } from '@/types';
-import { api } from '@/services/supabaseService';
+import { api, signingService } from '@/services/supabaseService';
 
-function StatCard({ title, value, icon, color, bg, delay = 0 }: { title: string; value: string; icon: string; color: string; bg: string; delay?: number }) {
+function StatCard({ title, value, icon, color, bg, to, subtext, delay = 0 }: {
+  title: string; value: string; icon: string; color: string; bg: string;
+  to: string; subtext?: string; delay?: number;
+}) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
-      className="bg-neutral-900 border border-white/5 rounded-2xl p-6 relative overflow-hidden"
-    >
-      <div className="flex items-center justify-between relative z-10">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
+      <Link
+        to={to}
+        className="flex flex-col bg-neutral-900 border border-white/5 rounded-2xl p-5 relative overflow-hidden hover:border-white/15 hover:bg-neutral-800/50 transition-all group cursor-pointer"
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className={`p-2.5 rounded-xl ${bg} group-hover:scale-110 transition-transform`}>
+            <iconify-icon icon={icon} class={`text-xl ${color}`} />
+          </div>
+          <iconify-icon icon="solar:arrow-right-up-bold" class="text-neutral-700 group-hover:text-neutral-400 text-sm transition-colors" />
+        </div>
         <div>
-          <p className="text-neutral-400 text-sm font-medium mb-1">{title}</p>
           <h4 className="text-3xl font-bold text-white font-bricolage">{value}</h4>
+          <p className="text-neutral-500 text-xs font-medium mt-1 uppercase tracking-wide">{title}</p>
+          {subtext && <p className="text-xs text-neutral-600 mt-0.5">{subtext}</p>}
         </div>
-        <div className={`p-4 rounded-xl ${bg}`}>
-          <iconify-icon icon={icon} class={`text-3xl ${color}`} />
+        <div className="absolute -bottom-3 -right-3 opacity-[0.04] group-hover:opacity-[0.07] transition-opacity">
+          <iconify-icon icon={icon} class="text-[100px]" />
         </div>
-      </div>
-      <div className="absolute -bottom-4 -right-4 opacity-[0.03]">
-        <iconify-icon icon={icon} class="text-[120px]" />
-      </div>
+      </Link>
     </motion.div>
   );
 }
@@ -70,6 +75,12 @@ export default function DashboardPage() {
   const { data: contracts = [], isLoading } = useContracts();
   const { user, organization } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
+  const [pendingSignatures, setPendingSignatures] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user?.email) return;
+    signingService.getPendingForUser(user.email).then(setPendingSignatures);
+  }, [user?.email]);
   const [visibleWidgets, setVisibleWidgets] = useState(() => {
     const saved = localStorage.getItem('dashboard_widgets');
     return saved ? JSON.parse(saved) : DEFAULT_WIDGETS;
@@ -84,6 +95,8 @@ export default function DashboardPage() {
 
   const active = contracts.filter((c) => c.status === 'active').length;
   const pending = contracts.filter((c) => c.status === 'pending').length;
+  const draft = contracts.filter((c) => c.status === 'draft').length;
+  const completed = contracts.filter((c) => c.status === 'completed').length;
   const anchored = contracts.filter((c) => c.stellarTxHash).length;
   const totalSignatures = contracts.reduce((sum, c) => sum + c.parties.filter(p => p.signedAt).length, 0);
 
@@ -151,18 +164,13 @@ export default function DashboardPage() {
 
       {/* Stats & AI Insight */}
       {visibleWidgets.stats && (
-        <>
-
-
-          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-all ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
-          <StatCard title="Total de Documentos" value={contracts.length.toString()} icon="solar:document-text-bold-duotone" color="text-emerald-500" bg="bg-emerald-500/10" delay={0} />
-          <StatCard title="Documentos Ativos" value={active.toString()} icon="solar:check-circle-bold-duotone" color="text-blue-500" bg="bg-blue-500/10" delay={0.05} />
-          <StatCard title="Aguardando Assinatura" value={pending.toString()} icon="solar:pen-bold-duotone" color="text-amber-500" bg="bg-amber-500/10" delay={0.1} />
-          <div className="block">
-            <StatCard title="Eficiência de Fechamento" value={`${contracts.length > 0 ? Math.round((active / contracts.length) * 100) : 0}%`} icon="solar:bolt-circle-bold-duotone" color="text-violet-500" bg="bg-violet-500/10" delay={0.15} />
-          </div>
+        <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 transition-all ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+          <StatCard title="Total" value={contracts.length.toString()} icon="solar:document-text-bold-duotone" color="text-neutral-300" bg="bg-white/5" to="/contracts" subtext="todos os documentos" delay={0} />
+          <StatCard title="Ativos" value={active.toString()} icon="solar:check-circle-bold-duotone" color="text-emerald-400" bg="bg-emerald-500/10" to="/contracts?status=active" subtext="em vigência" delay={0.04} />
+          <StatCard title="Rascunhos" value={draft.toString()} icon="solar:pen-new-round-bold-duotone" color="text-neutral-400" bg="bg-white/5" to="/contracts?status=draft" subtext="aguardando revisão" delay={0.08} />
+          <StatCard title="Assinatura Pendente" value={pending.toString()} icon="solar:hourglass-bold-duotone" color="text-amber-400" bg="bg-amber-500/10" to="/contracts?status=pending" subtext="aguardando partes" delay={0.12} />
+          <StatCard title="Concluídos" value={completed.toString()} icon="solar:diploma-verified-bold-duotone" color="text-blue-400" bg="bg-blue-500/10" to="/contracts?status=completed" subtext="todos assinaram" delay={0.16} />
         </div>
-        </>
       )}
 
       {/* Blockchain Stats */}
@@ -199,6 +207,45 @@ export default function DashboardPage() {
                 <p className="text-sm font-semibold text-emerald-400">Testnet Ativa</p>
               </div>
             </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Pending signatures for current user */}
+      {pendingSignatures.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-emerald-500/10 rounded-xl">
+              <iconify-icon icon="solar:pen-bold-duotone" class="text-xl text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white font-bricolage">Aguardando sua Assinatura</h3>
+              <p className="text-xs text-neutral-400">{pendingSignatures.length} documento(s) aguardam sua assinatura eletrônica.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {pendingSignatures.map((party: any) => (
+              <Link
+                key={party.id}
+                to={`/contracts/${party.contract_id}`}
+                className="flex items-center justify-between p-3 bg-black/30 border border-white/5 rounded-xl hover:border-emerald-500/30 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/20 flex items-center justify-center">
+                    <iconify-icon icon="solar:document-text-bold" class="text-emerald-400 text-sm" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-medium group-hover:text-emerald-400 transition-colors">
+                      {(party.contracts as any)?.title ?? 'Documento'}
+                    </p>
+                    <p className="text-xs text-neutral-500 capitalize">{party.role}</p>
+                  </div>
+                </div>
+                <span className="text-xs text-emerald-400 font-bold flex items-center gap-1 group-hover:gap-2 transition-all">
+                  Assinar <iconify-icon icon="solar:arrow-right-bold" />
+                </span>
+              </Link>
+            ))}
           </div>
         </motion.div>
       )}

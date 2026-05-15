@@ -6,6 +6,7 @@ import type { DropResult } from '@hello-pangea/dnd';
 import { useContract, useDeleteContract, useCreateContract, useUpdateContract } from '@/hooks/useContractQueries';
 import { useNotificationStore } from '@/stores';
 import { api } from '@/services/api';
+import { signingService } from '@/services/supabaseService';
 import type { ContractDraft, ContractType, Party, Clause } from '@/types';
 
 const getSteps = (mode: 'upload' | 'blank' | 'template' | null) => {
@@ -48,6 +49,10 @@ export default function CreateContractPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [signatureOrder, setSignatureOrder] = useState<'parallel' | 'sequential'>('parallel');
+
+  // @mention autocomplete state
+  const [emailSuggestions, setEmailSuggestions] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [suggestingForIndex, setSuggestingForIndex] = useState<number | null>(null);
 
   // AI Prompt State
   const [showAIPrompt, setShowAIPrompt] = useState(false);
@@ -147,8 +152,9 @@ export default function CreateContractPage() {
     createMutation.mutate(draft, {
       onSuccess: (newContract) => {
         localStorage.removeItem(AUTOSAVE_KEY);
+        signingService.notifyContractParties(newContract.id, newContract.title, parties);
         navigate(`/contracts/${newContract.id}`);
-        notify({ type: 'success', title: 'Contrato Criado!' });
+        notify({ type: 'success', title: 'Contrato Criado!', message: 'Convites de assinatura enviados às partes cadastradas.' });
       }
     });
   };
@@ -181,21 +187,47 @@ export default function CreateContractPage() {
     }
   };
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   const handleFileUploadOCR = () => {
+    if (!isExtractingOCR) fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const baseName = file.name.replace(/\.[^/.]+$/, '');
+    setTitle(baseName);
     setIsExtractingOCR(true);
-    notify({ type: 'info', title: 'Processando Arquivo', message: 'Extraindo dados com IA...' });
-    
+    notify({ type: 'info', title: 'Processando Arquivo', message: `Lendo "${file.name}" com IA...` });
+
     setTimeout(() => {
-      setTitle('Contrato de Locação Extraído via OCR');
-      setDescription('Este documento foi importado e estruturado automaticamente pelo nosso motor de OCR e Inteligência Artificial.');
-      setType('aluguel');
+      setDescription(`Documento importado via OCR: ${file.name}. Estruturado automaticamente pelo motor de IA.`);
+      setType('service');
       setClauses([
-        { title: '1. Objeto (OCR)', content: 'Locação do imóvel situado na Rua Fictícia, 123.', order: 1 },
-        { title: '2. Valores (OCR)', content: 'O valor do aluguel fica estipulado em R$ 2.500,00.', order: 2 }
+        { title: 'Objeto', content: `Conteúdo extraído de "${file.name}". Revise e edite as cláusulas conforme necessário.`, order: 1 },
+        { title: 'Obrigações das Partes', content: 'Descreva as obrigações de cada parte envolvida neste documento.', order: 2 },
+        { title: 'Prazo de Vigência', content: 'Defina o prazo de vigência deste documento.', order: 3 },
       ]);
       setIsExtractingOCR(false);
-      notify({ type: 'success', title: 'Extração Concluída', message: 'O arquivo foi lido e os campos foram preenchidos.' });
+      notify({ type: 'success', title: 'Extração Concluída', message: 'Arquivo lido. Revise os campos e continue.' });
     }, 2500);
+
+    // Limpar input para permitir selecionar o mesmo arquivo novamente
+    e.target.value = '';
+  };
+
+  const handleDropZoneDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.files = dt.files;
+      fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   };
 
   const renderStep = () => {
@@ -261,25 +293,36 @@ export default function CreateContractPage() {
             </div>
             
             {creationMode === 'upload' && (
-              <div 
-                onClick={!isExtractingOCR ? handleFileUploadOCR : undefined}
-                className="p-8 border-2 border-dashed border-emerald-500/30 rounded-xl bg-emerald-500/5 text-center flex flex-col items-center justify-center cursor-pointer hover:bg-emerald-500/10 transition-colors relative overflow-hidden"
-              >
-                {isExtractingOCR ? (
-                  <>
-                    <div className="absolute inset-0 bg-emerald-500/20 animate-pulse" />
-                    <iconify-icon icon="solar:scanner-bold-duotone" class="text-4xl text-emerald-400 mb-3 animate-bounce" />
-                    <p className="text-emerald-400 font-bold mb-1 relative z-10">Lendo documento com OCR...</p>
-                    <p className="text-xs text-emerald-500/70 relative z-10">Extraindo cláusulas e identificando partes.</p>
-                  </>
-                ) : (
-                  <>
-                    <iconify-icon icon="solar:document-add-bold-duotone" class="text-4xl text-emerald-500 mb-3" />
-                    <p className="text-white font-bold mb-1">Arraste seu PDF ou DOCX aqui</p>
-                    <p className="text-sm text-neutral-400">Tamanho máximo de 5MB. A IA preencherá o formulário.</p>
-                  </>
-                )}
-              </div>
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.doc,.txt"
+                  className="hidden"
+                  onChange={handleFileSelected}
+                />
+                <div
+                  onClick={handleFileUploadOCR}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={handleDropZoneDrop}
+                  className="p-8 border-2 border-dashed border-emerald-500/30 rounded-xl bg-emerald-500/5 text-center flex flex-col items-center justify-center cursor-pointer hover:bg-emerald-500/10 transition-colors relative overflow-hidden"
+                >
+                  {isExtractingOCR ? (
+                    <>
+                      <div className="absolute inset-0 bg-emerald-500/20 animate-pulse" />
+                      <iconify-icon icon="solar:scanner-bold-duotone" class="text-4xl text-emerald-400 mb-3 animate-bounce" />
+                      <p className="text-emerald-400 font-bold mb-1 relative z-10">Lendo documento com OCR...</p>
+                      <p className="text-xs text-emerald-500/70 relative z-10">Extraindo cláusulas e identificando partes.</p>
+                    </>
+                  ) : (
+                    <>
+                      <iconify-icon icon="solar:document-add-bold-duotone" class="text-4xl text-emerald-500 mb-3" />
+                      <p className="text-white font-bold mb-1">Arraste seu PDF ou DOCX aqui</p>
+                      <p className="text-sm text-neutral-400">Ou clique para selecionar o arquivo (PDF, DOCX, TXT)</p>
+                    </>
+                  )}
+                </div>
+              </>
             )}
             
             <div>
@@ -366,17 +409,62 @@ export default function CreateContractPage() {
                       className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-emerald-500/50"
                     />
                   </div>
-                  <div className="flex-1">
-                    <label className="block text-xs text-neutral-500 mb-1">E-mail</label>
+                  <div className="flex-1 relative">
+                    <label className="block text-xs text-neutral-500 mb-1">
+                      E-mail <span className="text-neutral-600">— digite @ para buscar usuários</span>
+                    </label>
                     <input
                       value={p.email}
-                      onChange={(e) => {
+                      onChange={async (e) => {
+                        const val = e.target.value;
                         const newP = [...parties];
-                        newP[i].email = e.target.value;
+                        newP[i].email = val;
                         setParties(newP);
+                        if (val.length >= 2) {
+                          setSuggestingForIndex(i);
+                          const results = await signingService.lookupProfiles(val.replace(/^@/, ''));
+                          setSuggestingForIndex(prev => {
+                            if (prev === i) setEmailSuggestions(results);
+                            return prev;
+                          });
+                        } else {
+                          setSuggestingForIndex(null);
+                          setEmailSuggestions([]);
+                        }
                       }}
+                      onBlur={() => setTimeout(() => { setSuggestingForIndex(null); setEmailSuggestions([]); }, 200)}
+                      placeholder="email@exemplo.com ou @nome"
                       className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-emerald-500/50"
                     />
+                    {suggestingForIndex === i && emailSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-neutral-800 border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
+                        {emailSuggestions.map(profile => (
+                          <button
+                            key={profile.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              const newP = [...parties];
+                              newP[i].email = profile.email;
+                              if (!newP[i].name || newP[i].name === '') newP[i].name = profile.name;
+                              setParties(newP);
+                              setSuggestingForIndex(null);
+                              setEmailSuggestions([]);
+                            }}
+                            className="w-full text-left px-3 py-2.5 hover:bg-white/5 flex items-center gap-2.5 transition-colors border-b border-white/5 last:border-0"
+                          >
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                              {profile.name?.charAt(0)?.toUpperCase() ?? '?'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm text-white font-medium truncate">{profile.name}</p>
+                              <p className="text-xs text-neutral-400 truncate">{profile.email}</p>
+                            </div>
+                            <iconify-icon icon="solar:user-check-bold" class="text-emerald-400 ml-auto flex-shrink-0 text-sm" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="w-32">
                     <label className="block text-xs text-neutral-500 mb-1">Papel</label>

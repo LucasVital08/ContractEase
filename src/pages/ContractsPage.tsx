@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useContracts, useDeleteContract, useFolders, useToggleFavorite, useMoveToFolder, useCreateFolder } from '@/hooks/useContractQueries';
 import { useNotificationStore } from '@/stores';
@@ -31,7 +31,10 @@ export default function ContractsPage() {
   const toggleFavMutation = useToggleFavorite();
   const createFolderMutation = useCreateFolder();
   
-  const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all');
+  const [searchParams] = useSearchParams();
+  const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>(() =>
+    (searchParams.get('status') as ContractStatus) || 'all'
+  );
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [folderFilter, setFolderFilter] = useState<string | null>(null);

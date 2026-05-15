@@ -54,7 +54,10 @@ export const authService = {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name } },
+      options: {
+        data: { full_name: name },
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
     });
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error('Erro ao criar conta. Verifique seu e-mail.');
@@ -821,6 +824,87 @@ export const userSettingsService = {
   },
 };
 
+// ─── Signing & Notifications ──────────────────────────────────
+export const signingService = {
+  lookupProfiles: async (query: string): Promise<{ id: string; name: string; email: string; avatar_url: string | null }[]> => {
+    if (query.length < 2) return [];
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, name, email, avatar_url')
+      .or(`email.ilike.%${query}%,name.ilike.%${query}%`)
+      .limit(6);
+    return data || [];
+  },
+
+  signParty: async (partyId: string, data: { cpf?: string; lgpdConsent: boolean }) => {
+    const { error } = await supabase
+      .from('contract_parties')
+      .update({
+        signed_at: new Date().toISOString(),
+        status: 'signed',
+        signature_type: 'type',
+        lgpd_consent: data.lgpdConsent,
+        cpf: data.cpf || null,
+        user_agent: navigator.userAgent,
+      })
+      .eq('id', partyId);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  },
+
+  notifyUser: async (userId: string, notification: { title: string; message: string; type: string; link?: string }) => {
+    const { error } = await supabase.from('notifications').insert({
+      user_id: userId,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      link: notification.link || null,
+      read: false,
+    });
+    if (error) console.error('[notifyUser]', error);
+  },
+
+  notifyContractParties: async (contractId: string, contractTitle: string, parties: { email: string }[]) => {
+    for (const party of parties) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', party.email)
+        .maybeSingle();
+      if (data?.id) {
+        await signingService.notifyUser(data.id, {
+          title: 'Convite para Assinar Documento',
+          message: `Você foi convidado(a) a assinar: "${contractTitle}".`,
+          type: 'signing_invite',
+          link: `/contracts/${contractId}`,
+        });
+      }
+    }
+  },
+
+  checkAndCompleteContract: async (contractId: string) => {
+    const { data: parties } = await supabase
+      .from('contract_parties')
+      .select('signed_at')
+      .eq('contract_id', contractId);
+    if (parties && parties.length > 0 && parties.every(p => p.signed_at)) {
+      await supabase
+        .from('contracts')
+        .update({ status: 'active' })
+        .eq('id', contractId);
+    }
+  },
+
+  getPendingForUser: async (userEmail: string) => {
+    const { data } = await supabase
+      .from('contract_parties')
+      .select('id, contract_id, name, email, role, contracts(id, title, status)')
+      .eq('email', userEmail)
+      .is('signed_at', null);
+    return data || [];
+  },
+};
+
 // ─── Unified API export (drop-in replacement) ────────────────
 export const api = {
   auth: authService,
@@ -831,4 +915,5 @@ export const api = {
   analytics: analyticsService,
   folders: foldersService,
   settings: userSettingsService,
+  signing: signingService,
 };
