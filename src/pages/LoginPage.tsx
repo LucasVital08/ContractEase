@@ -225,7 +225,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <OTPModal 
+      <OTPModal
         isOpen={isOTPModalOpen} 
         onClose={() => setIsOTPModalOpen(false)} 
         onSuccess={handleOTPVerifySuccess}

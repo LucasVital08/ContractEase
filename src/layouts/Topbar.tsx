@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '@/stores';
 import { useInbox } from '@/hooks/useInbox';
@@ -17,6 +17,7 @@ const ROUTE_TITLES: Record<string, string> = {
 
 export default function Topbar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const { user, logout, activeProfile, setActiveProfile } = useAuthStore();
@@ -84,29 +85,42 @@ export default function Topbar() {
                     </div>
                   ) : (
                     notifications.map((notif) => (
-                      <div 
+                      <div
                         key={notif.id}
-                        onClick={() => markAsRead(notif.id)}
+                        onClick={() => {
+                          markAsRead(notif.id);
+                          if (notif.link) {
+                            setShowNotifs(false);
+                            navigate(notif.link);
+                          }
+                        }}
                         className={`p-4 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer relative ${!notif.read ? 'bg-emerald-500/5' : ''}`}
                       >
                         {!notif.read && <div className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full bg-emerald-500" />}
                         <p className="text-xs font-bold text-white flex items-center gap-2">
-                          <iconify-icon 
+                          <iconify-icon
                             icon={
+                              (notif.type as string) === 'signing_invite' ? 'solar:pen-bold' :
                               notif.type === 'success' ? 'solar:check-circle-bold' :
                               notif.type === 'warning' ? 'solar:danger-triangle-bold' :
                               notif.type === 'error' ? 'solar:close-circle-bold' : 'solar:info-circle-bold'
-                            } 
+                            }
                             class={
+                              (notif.type as string) === 'signing_invite' ? 'text-emerald-400' :
                               notif.type === 'success' ? 'text-emerald-400' :
                               notif.type === 'warning' ? 'text-amber-400' :
                               notif.type === 'error' ? 'text-red-400' : 'text-blue-400'
                             }
-                          /> 
+                          />
                           {notif.title}
                         </p>
                         <p className="text-xs text-neutral-400 mt-1">{notif.message}</p>
-                        <p className="text-[10px] text-neutral-500 mt-2">
+                        {notif.link && (
+                          <p className="text-[10px] text-emerald-500 mt-1 flex items-center gap-1">
+                            <iconify-icon icon="solar:arrow-right-bold" /> Clique para abrir
+                          </p>
+                        )}
+                        <p className="text-[10px] text-neutral-500 mt-1">
                           {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: ptBR })}
                         </p>
                       </div>

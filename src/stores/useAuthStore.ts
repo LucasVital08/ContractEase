@@ -3,6 +3,19 @@ import { persist } from 'zustand/middleware';
 import type { User, Organization } from '@/types';
 import { supabase } from '@/lib/supabase';
 
+let profileChannel: ReturnType<typeof supabase.channel> | null = null;
+
+function subscribeToProfile(userId: string, onUpdate: (payload: any) => void) {
+  if (profileChannel) {
+    supabase.removeChannel(profileChannel);
+    profileChannel = null;
+  }
+  profileChannel = supabase
+    .channel(`profile:${userId}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, onUpdate)
+    .subscribe((status, err) => { if (err) console.warn('[realtime:profile]', err); });
+}
+
 interface AuthStore {
   user: User | null;
   organization: Organization | null;
@@ -112,24 +125,9 @@ export const useAuthStore = create<AuthStore>()(
 
             set({ user, organization, isAuthenticated: true, isLoading: false, initialized: true });
 
-            // Subscribe to real-time profile changes (credits, etc)
-            supabase
-              .channel(`profile-init:${session.user.id}`)
-              .on('postgres_changes', { 
-                event: 'UPDATE', 
-                schema: 'public', 
-                table: 'profiles',
-                filter: `id=eq.${session.user.id}`
-              }, (payload) => {
-                if (payload.new) {
-                  get().updateUser({ 
-                    credits: payload.new.credits,
-                    plan: payload.new.plan,
-                    name: payload.new.name
-                  });
-                }
-              })
-              .subscribe();
+            subscribeToProfile(session.user.id, (payload) => {
+              if (payload.new) get().updateUser({ credits: payload.new.credits, plan: payload.new.plan, name: payload.new.name });
+            });
           } else {
             set({ user: null, organization: null, isAuthenticated: false, isLoading: false, initialized: true });
           }
@@ -190,24 +188,9 @@ export const useAuthStore = create<AuthStore>()(
 
             set({ user, organization, isAuthenticated: true, isLoading: false });
 
-            // Subscribe to real-time profile changes (credits, etc)
-            supabase
-              .channel(`profile:${session.user.id}`)
-              .on('postgres_changes', { 
-                event: 'UPDATE', 
-                schema: 'public', 
-                table: 'profiles',
-                filter: `id=eq.${session.user.id}`
-              }, (payload) => {
-                if (payload.new) {
-                  get().updateUser({ 
-                    credits: payload.new.credits,
-                    plan: payload.new.plan,
-                    name: payload.new.name
-                  });
-                }
-              })
-              .subscribe();
+            subscribeToProfile(session.user.id, (payload) => {
+              if (payload.new) get().updateUser({ credits: payload.new.credits, plan: payload.new.plan, name: payload.new.name });
+            });
           }
         });
       },

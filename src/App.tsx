@@ -22,6 +22,8 @@ const VerifyPage = React.lazy(() => import('@/pages/VerifyPage'));
 const AdminDashboardPage = React.lazy(() => import('@/pages/AdminDashboardPage'));
 const PricingPage = React.lazy(() => import('@/pages/PricingPage'));
 const IntegrationsPage = React.lazy(() => import('@/pages/IntegrationsPage'));
+const SeedPage = React.lazy(() => import('@/pages/SeedPage'));
+const StellarAnchorPage = React.lazy(() => import('@/pages/StellarAnchorPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,6 +63,8 @@ export default function App() {
                 <Route path="pricing" element={<PricingPage />} />
                 <Route path="pricing" element={<PricingPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="seed" element={<SeedPage />} />
+                <Route path="stellar-anchor" element={<StellarAnchorPage />} />
               </Route>
               <Route path="*" element={<NotFoundPage />} />
             </Route>

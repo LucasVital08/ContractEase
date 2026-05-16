@@ -54,7 +54,10 @@ export const authService = {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name } },
+      options: {
+        data: { full_name: name },
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
     });
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error('Erro ao criar conta. Verifique seu e-mail.');
@@ -370,19 +373,41 @@ function mapDbToContract(row: DbContract): Contract {
 // ─── Contracts ───────────────────────────────────────────────
 export const contractsService = {
   list: async (orgId?: string): Promise<Contract[]> => {
+    // Query 1: contracts owned/visible to the user via RLS
     let query = supabase
       .from('contracts')
       .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)');
-    
+
     if (orgId && orgId !== 'personal') {
       query = query.eq('organization_id', orgId);
     } else {
       query = query.is('organization_id', null);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data: ownContracts, error } = await query.order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return (data as DbContract[]).map(mapDbToContract);
+
+    // Query 2: contracts where current user is a party but not visible via RLS
+    // Works via Edge Function (service role bypasses RLS) when deployed.
+    // Also works after applying the SQL migration in supabase/migrations/20260515_party_contracts_rls.sql
+    const ownIds = new Set((ownContracts as DbContract[]).map(c => c.id));
+    let partyContracts: DbContract[] = [];
+
+    try {
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('get-party-contracts');
+      if (!fnError && Array.isArray(fnData)) {
+        partyContracts = (fnData as DbContract[]).filter(c => !ownIds.has(c.id));
+      }
+    } catch {
+      // Edge function not yet deployed — RLS migration is the permanent fix
+    }
+
+    // Fallback: if RLS migration was applied, the first query already returns party contracts,
+    // so we deduplicate by ID before merging
+    const all = [...(ownContracts as DbContract[]), ...partyContracts];
+    const seen = new Set<string>();
+    const deduped = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    return deduped.map(mapDbToContract);
   },
 
   get: async (id: string): Promise<Contract | undefined> => {
@@ -821,6 +846,105 @@ export const userSettingsService = {
   },
 };
 
+// ─── Signing & Notifications ──────────────────────────────────
+export const signingService = {
+  lookupProfiles: async (query: string): Promise<{ id: string; name: string; email: string; avatar_url: string | null }[]> => {
+    if (query.length < 2) return [];
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, name, email, avatar_url')
+      .or(`email.ilike.%${query}%,name.ilike.%${query}%`)
+      .limit(6);
+    return data || [];
+  },
+
+  signParty: async (partyId: string, data: { cpf?: string; lgpdConsent: boolean }) => {
+    const { error } = await supabase
+      .from('contract_parties')
+      .update({
+        signed_at: new Date().toISOString(),
+        status: 'signed',
+        signature_type: 'type',
+        lgpd_consent: data.lgpdConsent,
+        cpf: data.cpf || null,
+        user_agent: navigator.userAgent,
+      })
+      .eq('id', partyId);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  },
+
+  notifyUser: async (userId: string, notification: { title: string; message: string; type: string; link?: string }) => {
+    const { error } = await supabase.from('notifications').insert({
+      user_id: userId,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      link: notification.link || null,
+      read: false,
+    });
+    if (error) console.error('[notifyUser]', error);
+  },
+
+  notifyContractParties: async (
+    contractId: string,
+    contractTitle: string,
+    parties: { name?: string; email: string }[]
+  ) => {
+    for (const party of parties) {
+      // 1. In-app notification (for users already registered)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', party.email)
+        .maybeSingle();
+
+      if (profile?.id) {
+        await signingService.notifyUser(profile.id, {
+          title: 'Convite para Assinar Documento',
+          message: `Você foi convidado(a) a assinar: "${contractTitle}".`,
+          type: 'signing_invite',
+          link: `/contracts/${contractId}`,
+        });
+      }
+
+      // 2. Email notification (works for any email, registered or not)
+      supabase.functions
+        .invoke('send-signing-email', {
+          body: {
+            to: party.email,
+            signerName: party.name ?? '',
+            contractTitle,
+            contractId,
+          },
+        })
+        .catch(err => console.warn('[notifyContractParties] email error:', err));
+    }
+  },
+
+  checkAndCompleteContract: async (contractId: string) => {
+    const { data: parties } = await supabase
+      .from('contract_parties')
+      .select('signed_at')
+      .eq('contract_id', contractId);
+    if (parties && parties.length > 0 && parties.every(p => p.signed_at)) {
+      await supabase
+        .from('contracts')
+        .update({ status: 'active' })
+        .eq('id', contractId);
+    }
+  },
+
+  getPendingForUser: async (userEmail: string) => {
+    const { data } = await supabase
+      .from('contract_parties')
+      .select('id, contract_id, name, email, role, contracts(id, title, status)')
+      .eq('email', userEmail)
+      .is('signed_at', null);
+    return data || [];
+  },
+};
+
 // ─── Unified API export (drop-in replacement) ────────────────
 export const api = {
   auth: authService,
@@ -831,4 +955,5 @@ export const api = {
   analytics: analyticsService,
   folders: foldersService,
   settings: userSettingsService,
+  signing: signingService,
 };
