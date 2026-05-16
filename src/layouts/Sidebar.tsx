@@ -3,22 +3,27 @@ import { useUIStore, useAuthStore, useNotificationStore } from '@/stores';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { api } from '@/services/api';
+import { animations } from '@/tokens';
 
 const WorkspaceSetupWizard = lazy(() => import('@/components/WorkspaceSetupWizard'));
 const WorkspaceSettingsModal = lazy(() => import('@/components/WorkspaceSettingsModal'));
 
 const NAV_ITEMS = [
-  // Business Items
-  { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Dashboard', profile: 'business' },
-  { to: '/contracts', icon: 'solar:document-text-bold-duotone', label: 'Documentos', profile: 'business' },
-  { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo Documento', profile: 'business' },
-  { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Templates', profile: 'business' },
-  { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Faturamento & Créditos', profile: 'business' },
-  { to: '/analytics', icon: 'solar:chart-2-bold-duotone', label: 'Analytics', profile: 'business' },
-  
+  // Business Items - Core
+  { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Dashboard', profile: 'business', section: 'core' },
+  { to: '/contracts', icon: 'solar:document-text-bold-duotone', label: 'Documentos', profile: 'business', section: 'core' },
+
+  // Business Items - Actions
+  { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo Documento', profile: 'business', section: 'actions' },
+  { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Templates', profile: 'business', section: 'actions' },
+
+  // Business Items - Analytics
+  { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Faturamento & Créditos', profile: 'business', section: 'analytics' },
+  { to: '/analytics', icon: 'solar:chart-2-bold-duotone', label: 'Analytics', profile: 'business', section: 'analytics' },
+
   // Developer Items
-  { to: '/integrations', icon: 'solar:plug-bold-duotone', label: 'Integrações & API', profile: 'developer' },
-  { to: '/verify', icon: 'solar:shield-check-bold-duotone', label: 'Verificação Blockchain', profile: 'developer' },
+  { to: '/integrations', icon: 'solar:plug-bold-duotone', label: 'Integrações & API', profile: 'developer', section: 'developer' },
+  { to: '/verify', icon: 'solar:shield-check-bold-duotone', label: 'Verificação Blockchain', profile: 'developer', section: 'developer' },
 ];
 
 const ADMIN_ITEMS = [
@@ -310,27 +315,84 @@ export default function Sidebar() {
       </AnimatePresence>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.filter(item => item.profile === activeProfile).map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${
-                isActive
-                  ? 'bg-emerald-500/10 text-emerald-400'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/5'
-              }`
+      <nav className="flex-1 py-4 px-3 overflow-y-auto space-y-0.5">
+        {(() => {
+          const sections = {
+            core: 'Principal',
+            actions: 'Ações',
+            analytics: 'Análise & Faturamento',
+            developer: 'Desenvolvimento',
+          };
+
+          const filteredItems = NAV_ITEMS.filter(item => item.profile === activeProfile);
+          const groupedItems: Record<string, typeof NAV_ITEMS> = {};
+
+          filteredItems.forEach(item => {
+            const section = item.section || 'core';
+            if (!groupedItems[section]) {
+              groupedItems[section] = [];
             }
-          >
-            <iconify-icon icon={item.icon} class="text-xl shrink-0" />
-            {!sidebarCollapsed && (
-              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="whitespace-nowrap">
-                {item.label}
-              </motion.span>
-            )}
-          </NavLink>
-        ))}
+            groupedItems[section].push(item);
+          });
+
+          const sectionOrder = ['core', 'actions', 'analytics', 'developer'];
+
+          return sectionOrder.map((sectionKey) => {
+            if (!groupedItems[sectionKey] || groupedItems[sectionKey].length === 0) return null;
+
+            return (
+              <div key={sectionKey}>
+                {sectionKey !== 'core' && !sidebarCollapsed && (
+                  <p className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider px-3 py-2">
+                    {sections[sectionKey as keyof typeof sections]}
+                  </p>
+                )}
+                {sectionKey !== 'core' && sidebarCollapsed && (
+                  <div className="h-px bg-white/5 my-2 mx-2" />
+                )}
+
+                <motion.div className="space-y-1">
+                  {groupedItems[sectionKey].map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
+                          isActive
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : 'text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent'
+                        }`
+                      }
+                      title={sidebarCollapsed ? item.label : ''}
+                    >
+                      <iconify-icon icon={item.icon} class="text-lg shrink-0" />
+                      {!sidebarCollapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="whitespace-nowrap flex-1 text-left"
+                        >
+                          {item.label}
+                        </motion.span>
+                      )}
+
+                      {/* Tooltip for collapsed state */}
+                      {sidebarCollapsed && (
+                        <motion.div
+                          initial={{ opacity: 0, x: 10 }}
+                          whileHover={{ opacity: 1, x: 0 }}
+                          className="absolute left-full ml-2 px-3 py-2 rounded-lg bg-neutral-800 text-white text-xs font-medium whitespace-nowrap z-50 pointer-events-none"
+                        >
+                          {item.label}
+                        </motion.div>
+                      )}
+                    </NavLink>
+                  ))}
+                </motion.div>
+              </div>
+            );
+          });
+        })()}
         
         {/* Conditional Admin Section */}
         {user?.role === 'admin' && (

@@ -4,6 +4,7 @@ import type { Contract, Party } from '@/types';
 import { signingService } from '@/services/supabaseService';
 import { generateContractHash, serializeContract, anchorOnStellar, getStellarExplorerUrl } from '@/services/stellar';
 import { supabase } from '@/lib/supabase';
+import { animations } from '@/tokens';
 
 type Step = 'form' | 'anchoring' | 'done';
 
@@ -195,44 +196,74 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
           </motion.div>
         )}
 
-        {/* ── ANCORANDO (loading) ────────────────────────── */}
+        {/* ── ANCORANDO (loading) com Timeline ────────────────────────── */}
         {step === 'anchoring' && (
           <motion.div
             key="anchoring"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-neutral-900 border border-white/10 p-10 rounded-2xl w-full max-w-md shadow-2xl flex flex-col items-center text-center"
+            className="bg-neutral-900 border border-white/10 p-8 rounded-2xl w-full max-w-lg shadow-2xl"
           >
-            {/* Checkmark animado */}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="w-20 h-20 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 flex items-center justify-center mb-6"
-            >
-              <iconify-icon icon="solar:check-circle-bold" class="text-4xl text-emerald-400" />
-            </motion.div>
+            <h2 className="text-xl font-bold text-white mb-6 font-bricolage">Processando Assinatura</h2>
 
-            <h2 className="text-xl font-bold text-white mb-1">Assinatura Registrada!</h2>
-            <p className="text-neutral-400 text-sm mb-2">{party.name}</p>
-            <p className="text-xs text-neutral-600 mb-8">
-              {new Date(signedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-            </p>
+            {/* Timeline de processo */}
+            <div className="space-y-4 mb-8">
+              {[
+                { step: 1, label: 'Assinatura Eletrônica', desc: 'Registrando dados no banco de dados', icon: 'solar:pen-bold', done: true },
+                { step: 2, label: 'Geração de Hash', desc: 'Criando SHA-256 do documento', icon: 'solar:lock-password-bold', done: true },
+                { step: 3, label: 'Blockchain Stellar', desc: 'Ancorando na Stellar Testnet', icon: 'solar:globus-bold', done: false },
+              ].map((item, idx) => (
+                <motion.div
+                  key={item.step}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.15 }}
+                  className="flex gap-4"
+                >
+                  {/* Connector line */}
+                  {idx < 2 && (
+                    <motion.div
+                      className="absolute left-6 w-0.5 h-12 bg-gradient-to-b from-emerald-500/50 to-emerald-500/10"
+                      animate={{ background: item.done ? 'linear-gradient(180deg, rgb(16,185,129,0.5) 0%, rgb(16,185,129,0.1) 100%)' : undefined }}
+                    />
+                  )}
 
-            <div className="w-full bg-black/40 border border-white/5 rounded-xl p-4 mb-2">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-                  <iconify-icon icon="solar:globus-bold" class="text-violet-400 text-sm" />
-                </div>
-                <div className="text-left">
-                  <p className="text-xs font-bold text-white">Ancorando na Stellar Testnet</p>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">Gerando hash SHA-256 e submetendo transação...</p>
-                </div>
-                <div className="ml-auto w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              </div>
+                  {/* Step indicator */}
+                  <motion.div
+                    className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 relative z-10 ${
+                      item.done
+                        ? 'bg-emerald-500/20 border-emerald-500/50'
+                        : 'bg-emerald-500/10 border-emerald-500/30'
+                    }`}
+                    animate={!item.done ? { scale: [1, 1.1, 1] } : {}}
+                    transition={!item.done ? { duration: 1.5, repeat: Infinity } : {}}
+                  >
+                    {item.done ? (
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                        <iconify-icon icon="solar:check-circle-bold" class="text-xl text-emerald-400" />
+                      </motion.div>
+                    ) : (
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity }}>
+                        <iconify-icon icon={item.icon} class="text-lg text-emerald-400" />
+                      </motion.div>
+                    )}
+                  </motion.div>
+
+                  {/* Content */}
+                  <div className="flex-1 pt-1">
+                    <p className="text-sm font-medium text-white">{item.label}</p>
+                    <p className="text-xs text-neutral-500">{item.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
             </div>
-            <p className="text-[10px] text-neutral-600">Isso garante auditabilidade imutável do documento.</p>
+
+            <div className="p-4 bg-white/5 rounded-lg border border-white/5">
+              <p className="text-xs text-neutral-400 text-center">
+                Não feche esta janela. O processo está em andamento e pode levar alguns momentos.
+              </p>
+            </div>
           </motion.div>
         )}
 

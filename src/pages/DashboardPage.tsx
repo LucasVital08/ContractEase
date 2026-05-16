@@ -5,31 +5,66 @@ import { useContracts } from '@/hooks/useContractQueries';
 import { useAuthStore } from '@/stores';
 import type { Contract } from '@/types';
 import { api, signingService } from '@/services/supabaseService';
+import { animations } from '@/tokens';
 
 function StatCard({ title, value, icon, color, bg, to, subtext, delay = 0 }: {
   title: string; value: string; icon: string; color: string; bg: string;
   to: string; subtext?: string; delay?: number;
 }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay, type: 'spring', stiffness: 300, damping: 30 }}
+    >
       <Link
         to={to}
         className="flex flex-col bg-neutral-900 border border-white/5 rounded-2xl p-5 relative overflow-hidden hover:border-white/15 hover:bg-neutral-800/50 transition-all group cursor-pointer"
       >
-        <div className="flex items-start justify-between mb-3">
-          <div className={`p-2.5 rounded-xl ${bg} group-hover:scale-110 transition-transform`}>
+        {/* Background blur effect on hover */}
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/0 opacity-0 group-hover:opacity-5 transition-opacity"
+          initial={{ opacity: 0 }}
+          whileHover={{ opacity: 0.05 }}
+        />
+
+        <div className="flex items-start justify-between mb-3 relative z-10">
+          <motion.div
+            className={`p-2.5 rounded-xl ${bg} transition-transform`}
+            whileHover={{ scale: 1.15, rotate: 5 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <iconify-icon icon={icon} class={`text-xl ${color}`} />
-          </div>
-          <iconify-icon icon="solar:arrow-right-up-bold" class="text-neutral-700 group-hover:text-neutral-400 text-sm transition-colors" />
+          </motion.div>
+          <motion.div
+            animate={{ x: 0, opacity: 0 }}
+            whileHover={{ x: 4, opacity: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <iconify-icon icon="solar:arrow-right-up-bold" class={`text-neutral-600 group-hover:text-neutral-400 text-sm transition-colors`} />
+          </motion.div>
         </div>
-        <div>
-          <h4 className="text-3xl font-bold text-white font-bricolage">{value}</h4>
+
+        <div className="relative z-10">
+          <motion.h4
+            className="text-3xl font-bold text-white font-bricolage"
+            animate={{ y: 0 }}
+            whileHover={{ y: -2 }}
+          >
+            {value}
+          </motion.h4>
           <p className="text-neutral-500 text-xs font-medium mt-1 uppercase tracking-wide">{title}</p>
           {subtext && <p className="text-xs text-neutral-600 mt-0.5">{subtext}</p>}
         </div>
-        <div className="absolute -bottom-3 -right-3 opacity-[0.04] group-hover:opacity-[0.07] transition-opacity">
+
+        {/* Decorative background */}
+        <motion.div
+          className="absolute -bottom-3 -right-3 opacity-[0.04] group-hover:opacity-[0.07] transition-opacity"
+          animate={{ rotate: 0, scale: 1 }}
+          whileHover={{ rotate: 10, scale: 1.1 }}
+        >
           <iconify-icon icon={icon} class="text-[100px]" />
-        </div>
+        </motion.div>
       </Link>
     </motion.div>
   );
@@ -102,8 +137,48 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />
+      <div className="space-y-8">
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <motion.div className="h-8 w-48 bg-white/10 rounded-lg" animate={{ opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
+            <motion.div className="h-4 w-32 bg-white/5 rounded-lg" animate={{ opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
+          </div>
+          <motion.div className="h-10 w-32 bg-white/10 rounded-lg" animate={{ opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
+        </div>
+
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="h-32 bg-neutral-900 border border-white/5 rounded-2xl"
+              animate={{ opacity: [0.5, 0.8, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 }}
+            />
+          ))}
+        </div>
+
+        {/* Blockchain section skeleton */}
+        <motion.div
+          className="h-48 bg-neutral-900 border border-white/5 rounded-2xl"
+          animate={{ opacity: [0.5, 0.8, 0.5] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        />
+
+        {/* Content sections skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <motion.div
+            className="lg:col-span-2 h-64 bg-neutral-900 border border-white/5 rounded-2xl"
+            animate={{ opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+          <motion.div
+            className="h-64 bg-neutral-900 border border-white/5 rounded-2xl"
+            animate={{ opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+        </div>
       </div>
     );
   }

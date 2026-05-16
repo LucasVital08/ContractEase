@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { useCreateContract } from '@/hooks/useContractQueries';
 import { useNotificationStore } from '@/stores';
 import { signingService } from '@/services/supabaseService';
+import ModeSelectionModal from '@/components/ModeSelectionModal';
+import AdvancedDocumentEditor from '@/components/AdvancedDocumentEditor';
+import CreateContractForm from '@/components/CreateContractForm';
 import type { ContractType, Party, Clause } from '@/types';
 
 export default function CreateContractPage() {
   const navigate = useNavigate();
   const createMutation = useCreateContract();
   const notify = useNotificationStore(s => s.add);
+
+  const [showModeSelection, setShowModeSelection] = useState(true);
+  const [selectedMode, setSelectedMode] = useState<'blank' | 'upload' | 'template' | null>(null);
+  const [documentContent, setDocumentContent] = useState('');
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -63,11 +71,51 @@ export default function CreateContractPage() {
     setClauses(prev => prev.map((c, idx) => idx === i ? { ...c, ...patch } : c));
   };
 
+  if (showModeSelection && !selectedMode) {
+    return (
+      <AnimatePresence>
+        <ModeSelectionModal
+          onSelect={(mode) => {
+            setSelectedMode(mode);
+            setShowModeSelection(false);
+          }}
+          onCancel={() => navigate(-1)}
+        />
+      </AnimatePresence>
+    );
+  }
+
+  if (selectedMode && selectedMode !== 'blank') {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 pb-20">
+        <div className="flex items-center justify-between">
+          <div>
+            <button onClick={() => { setSelectedMode(null); setShowModeSelection(true); }} className="text-neutral-500 hover:text-white text-sm flex items-center gap-1 mb-3 transition-colors">
+              <iconify-icon icon="solar:arrow-left-bold" class="text-xs" /> Voltar
+            </button>
+            <h1 className="text-2xl font-bold text-white font-bricolage">
+              {selectedMode === 'upload' ? 'Importar Documento' : 'Usar Template'}
+            </h1>
+          </div>
+        </div>
+
+        <AdvancedDocumentEditor
+          mode={selectedMode}
+          onSave={async (content, tags) => {
+            setDocumentContent(content);
+            setSelectedMode('blank');
+            notify({ type: 'success', title: 'Documento processado!', message: 'Agora preencha os dados do contrato' });
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
       {/* Header */}
       <div>
-        <button onClick={() => navigate(-1)} className="text-neutral-500 hover:text-white text-sm flex items-center gap-1 mb-3 transition-colors">
+        <button onClick={() => { setSelectedMode(null); setShowModeSelection(true); }} className="text-neutral-500 hover:text-white text-sm flex items-center gap-1 mb-3 transition-colors">
           <iconify-icon icon="solar:arrow-left-bold" class="text-xs" /> Voltar
         </button>
         <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>Novo Documento</h1>
