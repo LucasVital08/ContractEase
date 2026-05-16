@@ -54,6 +54,8 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
       await signingService.signParty(party.id, {
         cpf: cpf.replace(/\D/g, '') || undefined,
         lgpdConsent,
+        signatureType: 'type',
+        contractId: contract.id,
       });
       await signingService.checkAndCompleteContract(contract.id);
       onSuccess(); // dispara refetch silencioso no pai
@@ -116,7 +118,7 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
                   <p className="text-xs text-neutral-500">Assinatura Eletrônica · Stellar Blockchain</p>
                 </div>
               </div>
-              <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-white transition-colors">
+              <button type="button" onClick={onClose} aria-label="Fechar" className="p-2 rounded-lg hover:bg-white/5 text-neutral-400 hover:text-white transition-colors">
                 <iconify-icon icon="solar:close-bold" class="text-lg" />
               </button>
             </div>
@@ -358,9 +360,9 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
               {/* Selos de segurança */}
               <div className="flex items-center justify-center gap-6 py-1">
                 {[
-                  { icon: 'solar:shield-check-bold', label: 'ICP-Brasil' },
+                  { icon: 'solar:shield-check-bold', label: 'Assinatura Eletrônica' },
                   { icon: 'solar:lock-password-bold', label: 'SHA-256' },
-                  { icon: 'solar:server-bold', label: 'Imutável' },
+                  { icon: 'solar:server-bold', label: 'Stellar Network' },
                 ].map(s => (
                   <div key={s.label} className="flex items-center gap-1.5 text-[10px] text-neutral-600">
                     <iconify-icon icon={s.icon} class="text-neutral-500 text-sm" />

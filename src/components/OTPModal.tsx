@@ -34,7 +34,6 @@ export function OTPModal({ isOpen, onClose, onSuccess, purpose, email, digits = 
         email: email, 
         purpose 
       });
-      console.log('OTP Gerado (Simulação de e-mail):', generatedCode);
       notify({ type: 'info', title: 'Código enviado', message: `Um código de ${digits} dígitos foi enviado para ${email || 'seu e-mail'}.` });
     } catch (e: any) {
       notify({ type: 'error', title: 'Erro ao gerar código', message: e.message });

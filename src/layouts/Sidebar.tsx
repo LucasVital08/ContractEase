@@ -156,8 +156,10 @@ export default function Sidebar() {
               isWorkspaceOpen ? 'bg-white/10 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/10'
             }`}
           >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
-              {organization.name.charAt(0)}
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xs shrink-0 overflow-hidden">
+              {(organization as any).logo_url
+                ? <img src={(organization as any).logo_url} alt={organization.name} className="w-full h-full object-cover" />
+                : organization.name.charAt(0)}
             </div>
             <div className="flex-1 text-left">
               <p className="text-xs font-bold text-white truncate">{organization.name}</p>

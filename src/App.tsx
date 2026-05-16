@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppLayout from '@/layouts/AppLayout';
 import AuthGuard from '@/layouts/AuthGuard';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
 const ContractsPage = React.lazy(() => import('@/pages/ContractsPage'));
@@ -38,10 +39,11 @@ const LoadingFallback = () => <div className="p-8 text-neutral-500">Carregando..
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -61,7 +63,6 @@ export default function App() {
                 <Route path="verify" element={<VerifyPage />} />
                 <Route path="integrations" element={<IntegrationsPage />} />
                 <Route path="pricing" element={<PricingPage />} />
-                <Route path="pricing" element={<PricingPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="seed" element={<SeedPage />} />
                 <Route path="stellar-anchor" element={<StellarAnchorPage />} />
@@ -69,8 +70,9 @@ export default function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
-        </Suspense>
-      </BrowserRouter>
-    </QueryClientProvider>
+          </Suspense>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

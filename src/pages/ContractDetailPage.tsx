@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useContract, useDeleteContract, useCreateContract, useUpdateContract, useToggleFavorite } from '@/hooks/useContractQueries';
@@ -9,6 +9,7 @@ import SignatureCertificate from '@/components/SignatureCertificate';
 import { downloadContractPDF } from '@/services/pdfGenerator';
 import { exportContractToDOCX, exportContractToXML } from '@/services/documentExport';
 import { AIAssistantModal } from '@/components/AIAssistantModal';
+import { supabase } from '@/lib/supabase';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   draft: { label: 'Rascunho', cls: 'bg-neutral-500/20 text-neutral-400 border-neutral-500/30' },
@@ -50,6 +51,106 @@ export default function ContractDetailPage() {
   const [showCertificate, setShowCertificate] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+
+  // Comments
+  const [comments, setComments] = useState<any[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [savingComment, setSavingComment] = useState(false);
+
+  // Attachments
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+
+  // Privacy
+  const [privacy, setPrivacy] = useState<'private' | 'organization'>('private');
+
+  // Realtime + load tabs data
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`contract-detail-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contract_parties', filter: `contract_id=eq.${id}` }, () => refetch())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contracts', filter: `id=eq.${id}` }, () => refetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contract_comments', filter: `contract_id=eq.${id}` }, () => loadComments())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, refetch]);
+
+  useEffect(() => {
+    if (contract) setPrivacy((contract as any).privacy || 'private');
+  }, [contract]);
+
+  useEffect(() => {
+    if (activeTab === 'comments') loadComments();
+    if (activeTab === 'attachments') loadAttachments();
+  }, [activeTab, id]);
+
+  const loadComments = async () => {
+    const { data } = await supabase
+      .from('contract_comments')
+      .select('*, profiles(name, avatar_url)')
+      .eq('contract_id', id!)
+      .order('created_at', { ascending: true });
+    setComments(data || []);
+  };
+
+  const addComment = async () => {
+    if (!newComment.trim() || !currentUser) return;
+    setSavingComment(true);
+    const { error } = await supabase.from('contract_comments').insert({
+      contract_id: id!,
+      user_id: currentUser.id,
+      content: newComment.trim(),
+    });
+    if (!error) { setNewComment(''); loadComments(); }
+    else notify({ type: 'error', title: 'Erro ao comentar', message: error.message });
+    setSavingComment(false);
+  };
+
+  const loadAttachments = async () => {
+    const { data } = await supabase
+      .from('attachments')
+      .select('*')
+      .eq('contract_id', id!)
+      .order('created_at', { ascending: false });
+    setAttachments(data || []);
+  };
+
+  const uploadAttachment = async (files: FileList | null) => {
+    if (!files || !currentUser) return;
+    setUploadingFile(true);
+    for (const file of Array.from(files)) {
+      const path = `${currentUser.id}/${id}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from('attachments').upload(path, file);
+      if (!uploadError) {
+        await supabase.from('attachments').insert({
+          contract_id: id!, name: file.name, file_path: path,
+          mime_type: file.type, size_bytes: file.size, uploaded_by: currentUser.id,
+        });
+      }
+    }
+    loadAttachments();
+    setUploadingFile(false);
+    notify({ type: 'success', title: 'Anexo(s) enviado(s)' });
+  };
+
+  const deleteAttachment = async (attachment: any) => {
+    await supabase.storage.from('attachments').remove([attachment.file_path]);
+    await supabase.from('attachments').delete().eq('id', attachment.id);
+    loadAttachments();
+  };
+
+  const savePrivacy = async (value: 'private' | 'organization') => {
+    setPrivacy(value);
+    await supabase.from('contracts').update({ privacy: value }).eq('id', id!);
+    notify({ type: 'success', title: 'Privacidade atualizada' });
+  };
+
+  function formatFileSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
 
   if (isLoading) {
     return (
@@ -425,38 +526,110 @@ export default function ContractDetailPage() {
 
         {/* Attachments Tab */}
         {activeTab === 'attachments' && (
-          <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-sm font-bold text-white mb-5">Anexos</h2>
-            <div className="border-2 border-dashed border-white/10 rounded-2xl p-8 text-center">
-              <iconify-icon icon="solar:upload-minimalistic-bold-duotone" class="text-4xl text-neutral-600 mx-auto mb-2" />
-              <p className="text-sm text-neutral-400">Arraste arquivos aqui ou clique para adicionar anexos</p>
-              <input type="file" multiple hidden className="hidden" />
+          <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-neutral-900 border border-white/5 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-white">Anexos</h2>
+              <label className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg hover:bg-emerald-500/20 transition-colors cursor-pointer flex items-center gap-1.5">
+                {uploadingFile
+                  ? <><div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                  : <><iconify-icon icon="solar:upload-bold" /> Adicionar arquivo</>}
+                <input type="file" multiple className="hidden" onChange={e => uploadAttachment(e.target.files)} />
+              </label>
             </div>
+            <label
+              className="border-2 border-dashed border-white/10 rounded-2xl p-8 text-center cursor-pointer hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all block"
+              onDrop={e => { e.preventDefault(); uploadAttachment(e.dataTransfer.files); }}
+              onDragOver={e => e.preventDefault()}
+            >
+              <iconify-icon icon="solar:upload-minimalistic-bold-duotone" class="text-4xl text-neutral-600 mx-auto mb-2 block" />
+              <p className="text-sm text-neutral-400">Arraste arquivos aqui ou clique para adicionar</p>
+              <p className="text-xs text-neutral-600 mt-1">Qualquer tipo de arquivo</p>
+              <input type="file" multiple className="hidden" onChange={e => uploadAttachment(e.target.files)} />
+            </label>
+            {attachments.length > 0 && (
+              <div className="space-y-2">
+                {attachments.map(att => (
+                  <div key={att.id} className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl">
+                    <iconify-icon icon="solar:file-bold-duotone" class="text-2xl text-blue-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{att.name}</p>
+                      <p className="text-xs text-neutral-500">{formatFileSize(att.size_bytes || 0)} • {new Date(att.created_at).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <a href={supabase.storage.from('attachments').getPublicUrl(att.file_path).data.publicUrl} target="_blank" rel="noopener noreferrer"
+                        className="p-1.5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-white transition-colors" title="Baixar">
+                        <iconify-icon icon="solar:download-minimalistic-bold" />
+                      </a>
+                      <button type="button" onClick={() => deleteAttachment(att)} className="p-1.5 hover:bg-red-500/10 rounded-lg text-neutral-600 hover:text-red-400 transition-colors" title="Remover">
+                        <iconify-icon icon="solar:trash-bin-bold" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {attachments.length === 0 && !uploadingFile && (
+              <p className="text-center text-xs text-neutral-600 py-2">Nenhum anexo ainda.</p>
+            )}
           </motion.section>
         )}
 
         {/* Comments Tab */}
         {activeTab === 'comments' && (
-          <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-sm font-bold text-white mb-5">Comentários</h2>
-            <div className="space-y-4">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {currentUser?.name.charAt(0)}
-                </div>
-                <div className="flex-1">
-                  <textarea
-                    placeholder="Adicione um comentário..."
-                    className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 resize-none"
-                    rows={3}
-                  />
-                  <button className="mt-2 px-4 py-1.5 rounded-lg bg-emerald-500 text-black text-sm font-bold hover:bg-emerald-400 transition-colors">
-                    Comentar
-                  </button>
-                </div>
+          <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-neutral-900 border border-white/5 rounded-2xl p-6 space-y-5">
+            <h2 className="text-sm font-bold text-white">Comentários</h2>
+            {/* Novo comentário */}
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+                {currentUser?.avatar
+                  ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" />
+                  : currentUser?.name.charAt(0)}
               </div>
-              <p className="text-center text-neutral-500 text-sm py-8">Nenhum comentário ainda</p>
+              <div className="flex-1">
+                <textarea
+                  value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment(); }}
+                  placeholder="Adicione um comentário... (Ctrl+Enter para enviar)"
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 resize-none transition-colors"
+                  rows={3}
+                />
+                <button type="button" onClick={addComment} disabled={savingComment || !newComment.trim()}
+                  className="mt-2 px-4 py-1.5 rounded-lg bg-emerald-500 text-black text-sm font-bold hover:bg-emerald-400 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                  {savingComment ? <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" /> : null}
+                  Comentar
+                </button>
+              </div>
             </div>
+            {/* Lista de comentários */}
+            {comments.length === 0
+              ? <p className="text-center text-neutral-500 text-sm py-6">Nenhum comentário ainda. Seja o primeiro!</p>
+              : (
+                <div className="space-y-4">
+                  {comments.map(c => (
+                    <div key={c.id} className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-neutral-600 to-neutral-800 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+                        {c.profiles?.avatar_url
+                          ? <img src={c.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                          : (c.profiles?.name || '?').charAt(0)}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <span className="text-sm font-bold text-white">{c.profiles?.name || 'Usuário'}</span>
+                          <span className="text-[10px] text-neutral-500">{new Date(c.created_at).toLocaleString('pt-BR')}</span>
+                        </div>
+                        <p className="text-sm text-neutral-300 leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                        {c.user_id === currentUser?.id && (
+                          <button type="button" onClick={async () => { await supabase.from('contract_comments').delete().eq('id', c.id); loadComments(); }}
+                            className="mt-1 text-[10px] text-neutral-600 hover:text-red-400 transition-colors">
+                            Excluir
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
           </motion.section>
         )}
 
@@ -464,33 +637,54 @@ export default function ContractDetailPage() {
         {activeTab === 'security' && (
           <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
             <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
-              <h3 className="text-sm font-bold text-white mb-4">Privacidade</h3>
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-3 rounded-lg transition-colors">
-                  <input type="radio" name="privacy" defaultChecked className="cursor-pointer" />
-                  <div>
-                    <p className="text-sm font-medium text-white">Privado</p>
-                    <p className="text-xs text-neutral-500">Apenas você e signatários podem ver</p>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-3 rounded-lg transition-colors">
-                  <input type="radio" name="privacy" className="cursor-pointer" />
-                  <div>
-                    <p className="text-sm font-medium text-white">Interno</p>
-                    <p className="text-xs text-neutral-500">Sua equipe pode ver</p>
-                  </div>
-                </label>
+              <h3 className="text-sm font-bold text-white mb-4">Privacidade do Contrato</h3>
+              <div className="space-y-2">
+                {([
+                  { value: 'private', label: 'Privado', desc: 'Apenas você e os signatários podem visualizar' },
+                  { value: 'organization', label: 'Interno', desc: 'Toda a sua equipe/organização pode visualizar' },
+                ] as const).map(opt => (
+                  <label key={opt.value} onClick={() => savePrivacy(opt.value)}
+                    className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl border transition-all ${
+                      privacy === opt.value ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/5'
+                    }`}>
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      privacy === opt.value ? 'border-emerald-500' : 'border-neutral-600'
+                    }`}>
+                      {privacy === opt.value && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">{opt.label}</p>
+                      <p className="text-xs text-neutral-500">{opt.desc}</p>
+                    </div>
+                  </label>
+                ))}
               </div>
             </div>
-
             <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
-              <h3 className="text-sm font-bold text-white mb-4">Encriptação</h3>
-              <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                <iconify-icon icon="solar:lock-bold" class="text-emerald-400 text-lg" />
-                <div>
-                  <p className="text-sm font-medium text-emerald-400">Criptografado End-to-End</p>
-                  <p className="text-xs text-emerald-600">Todos os dados estão protegidos</p>
+              <h3 className="text-sm font-bold text-white mb-4">Informações de Segurança</h3>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                  <iconify-icon icon="solar:lock-bold" class="text-emerald-400 text-lg" />
+                  <div>
+                    <p className="text-sm font-medium text-emerald-400">Criptografia em trânsito</p>
+                    <p className="text-xs text-emerald-600">TLS 1.3 — dados protegidos na rede</p>
+                  </div>
                 </div>
+                {contract.contractHash && (
+                  <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-lg">
+                    <p className="text-xs font-bold text-blue-400 mb-1">Hash SHA-256 do documento</p>
+                    <code className="text-[10px] text-neutral-400 font-mono break-all">{contract.contractHash}</code>
+                  </div>
+                )}
+                {contract.stellarTxHash && (
+                  <div className="p-3 bg-fuchsia-500/5 border border-fuchsia-500/10 rounded-lg">
+                    <p className="text-xs font-bold text-fuchsia-400 mb-1">Transação Stellar (prova de existência)</p>
+                    <a href={getExplorerUrl(contract.stellarTxHash)} target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] text-neutral-400 font-mono break-all hover:text-fuchsia-400 transition-colors">
+                      {contract.stellarTxHash}
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           </motion.section>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCreateContract } from '@/hooks/useContractQueries';
 import { useNotificationStore } from '@/stores';
@@ -11,12 +11,26 @@ import type { ContractType, Party, Clause } from '@/types';
 
 export default function CreateContractPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const createMutation = useCreateContract();
   const notify = useNotificationStore(s => s.add);
 
   const [showModeSelection, setShowModeSelection] = useState(true);
   const [selectedMode, setSelectedMode] = useState<'blank' | 'upload' | 'template' | null>(null);
   const [documentContent, setDocumentContent] = useState('');
+
+  // Se vier de /templates com estado, pré-popula o formulário
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.fromTemplate) {
+      setShowModeSelection(false);
+      setSelectedMode('blank');
+      if (state.title) setTitle(state.title);
+      if (state.description) setDescription(state.description);
+      if (state.type) setType(state.type);
+      if (state.clauses?.length) setClauses(state.clauses);
+    }
+  }, []);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -56,7 +70,8 @@ export default function CreateContractPage() {
 
     createMutation.mutate(draft, {
       onSuccess: (newContract) => {
-        signingService.notifyContractParties(newContract.id, newContract.title, parties);
+        // Usa newContract.parties (com IDs do banco) para que o link /sign/:contractId/:partyId seja correto
+        signingService.notifyContractParties(newContract.id, newContract.title, newContract.parties);
         navigate(`/contracts/${newContract.id}`);
         notify({ type: 'success', title: 'Documento criado!', message: 'Notificações enviadas aos signatários.' });
       },
@@ -76,6 +91,11 @@ export default function CreateContractPage() {
       <AnimatePresence>
         <ModeSelectionModal
           onSelect={(mode) => {
+            if (mode === 'template') {
+              // Navega para /templates que já tem a interface completa
+              navigate('/templates');
+              return;
+            }
             setSelectedMode(mode);
             setShowModeSelection(false);
           }}
@@ -85,26 +105,31 @@ export default function CreateContractPage() {
     );
   }
 
-  if (selectedMode && selectedMode !== 'blank') {
+  if (selectedMode === 'upload') {
     return (
       <div className="max-w-4xl mx-auto space-y-6 pb-20">
-        <div className="flex items-center justify-between">
-          <div>
-            <button onClick={() => { setSelectedMode(null); setShowModeSelection(true); }} className="text-neutral-500 hover:text-white text-sm flex items-center gap-1 mb-3 transition-colors">
-              <iconify-icon icon="solar:arrow-left-bold" class="text-xs" /> Voltar
-            </button>
-            <h1 className="text-2xl font-bold text-white font-bricolage">
-              {selectedMode === 'upload' ? 'Importar Documento' : 'Usar Template'}
-            </h1>
-          </div>
+        <div>
+          <button onClick={() => { setSelectedMode(null); setShowModeSelection(true); }} className="text-neutral-500 hover:text-white text-sm flex items-center gap-1 mb-3 transition-colors">
+            <iconify-icon icon="solar:arrow-left-bold" class="text-xs" /> Voltar
+          </button>
+          <h1 className="text-2xl font-bold text-white font-bricolage">Importar Documento</h1>
         </div>
-
         <AdvancedDocumentEditor
-          mode={selectedMode}
+          mode="upload"
           onSave={async (content, tags) => {
-            setDocumentContent(content);
+            // Aplica o conteúdo extraído ao formulário
+            const lines = content.split('\n').filter(Boolean);
+            if (lines[0]) setTitle(lines[0].replace(/^#+\s*/, '').trim());
+            if (lines[1]) setDescription(lines[1].trim());
+            // Tenta extrair cláusulas de linhas numeradas ou seções
+            const extractedClauses = lines
+              .slice(2)
+              .filter(l => l.trim().length > 10)
+              .slice(0, 10)
+              .map((l, i) => ({ order: i + 1, title: `Cláusula ${i + 1}`, content: l.trim() }));
+            if (extractedClauses.length > 0) setClauses(extractedClauses);
             setSelectedMode('blank');
-            notify({ type: 'success', title: 'Documento processado!', message: 'Agora preencha os dados do contrato' });
+            notify({ type: 'success', title: 'Documento importado!', message: 'Conteúdo extraído. Revise e complete os dados.' });
           }}
         />
       </div>

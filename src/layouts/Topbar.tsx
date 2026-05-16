@@ -223,8 +223,10 @@ export default function Topbar() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold">
-              {user?.name.charAt(0)}
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold overflow-hidden">
+              {user?.avatar
+                ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                : user?.name.charAt(0)}
             </div>
             <div className="hidden md:block text-left shrink-0">
               <p className="text-[11px] font-bold text-white leading-none">{user?.name.split(' ')[0]}</p>

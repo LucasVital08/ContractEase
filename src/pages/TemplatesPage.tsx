@@ -83,9 +83,13 @@ export default function TemplatesPage() {
     setPreviewMode(false);
   };
 
+  const CATEGORY_TO_TYPE: Record<string, string> = {
+    servico: 'service', nda: 'nda', supply: 'supply', employment: 'employment',
+    rental: 'rental', real_estate: 'sale', family: 'declaration',
+  };
+
   const handleUseTemplate = () => {
     if (!selectedTemplate) return;
-
     const clauses = selectedTemplate.clauses
       .filter(c => !c.conditional || variableValues[c.conditional] === 'true')
       .map(c => ({
@@ -93,32 +97,19 @@ export default function TemplatesPage() {
         title: mergeVariables(c.title, variableValues),
         content: mergeVariables(c.content, variableValues),
       }));
-
     const title = mergeVariables(selectedTemplate.name, variableValues);
-
-    createMutation.mutate(
-      {
+    // Navega para criação de contrato com dados do template pré-preenchidos
+    // O usuário ainda pode adicionar parties, expiração, etc.
+    navigate('/contracts/new', {
+      state: {
+        fromTemplate: true,
         title,
-        description: selectedTemplate.description,
-        type: selectedTemplate.category === 'servico' ? 'service' : 
-              selectedTemplate.category === 'nda' ? 'nda' : 
-              selectedTemplate.category === 'supply' ? 'supply' : 
-              selectedTemplate.category === 'employment' ? 'employment' : 
-              selectedTemplate.category === 'rental' ? 'rental' : 
-              selectedTemplate.category === 'real_estate' ? 'sale' : 
-              selectedTemplate.category === 'family' ? 'declaration' : 'partnership',
-        parties: [],
+        description: selectedTemplate.description || '',
+        type: CATEGORY_TO_TYPE[selectedTemplate.category] || 'partnership',
         clauses,
-        expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-        tags: selectedTemplate.tags,
+        tags: selectedTemplate.tags || [],
       },
-      {
-        onSuccess: (contract) => {
-          notify({ type: 'success', title: 'Contrato criado a partir do template!' });
-          navigate(`/contracts/${contract.id}`);
-        },
-      }
-    );
+    });
   };
 
   return (
@@ -222,29 +213,26 @@ export default function TemplatesPage() {
                 {/* Action Buttons */}
                 <div className="flex gap-3">
                   <button
+                    type="button"
                     onClick={() => setPreviewMode(!previewMode)}
-                    className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition-colors flex items-center justify-center gap-2 lg:hidden"
                   >
                     <iconify-icon icon={previewMode ? "solar:document-text-bold" : "solar:eye-bold"} />
                     {previewMode ? 'Editar Variáveis' : 'Preview'}
                   </button>
                   <button
+                    type="button"
                     onClick={handleUseTemplate}
-                    disabled={createMutation.isPending}
-                    className="flex-1 py-3 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="flex-1 py-3 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-colors flex items-center justify-center gap-2"
                   >
-                    {createMutation.isPending ? (
-                      <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <iconify-icon icon="solar:file-check-bold" />
-                    )}
+                    <iconify-icon icon="solar:arrow-right-up-bold" />
                     Usar Template
                   </button>
                 </div>
               </div>
 
-              {/* Preview */}
-              <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              {/* Preview — sempre visível em desktop, toggled no mobile */}
+              <div className={`bg-neutral-900 border border-white/10 rounded-2xl p-6 max-h-[80vh] overflow-y-auto custom-scrollbar ${previewMode ? 'block' : 'hidden lg:block'}`}>
                 <div className="flex items-center justify-between mb-6">
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
                     <iconify-icon icon="solar:document-text-bold" class="text-emerald-500" />

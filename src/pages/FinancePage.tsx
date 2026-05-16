@@ -57,12 +57,12 @@ export default function FinancePage() {
           .maybeSingle();
 
         if (existingPayment) {
+          // Mostra dados do pagamento pendente existente (endereço real virá da Edge Function abaixo)
           setStellarData({
             memo: existingPayment.stellar_memo,
-            walletAddress: 'GDT...', // O endereço será corrigido pela função se necessário, mas aqui mostramos o cache
+            walletAddress: '',
             instruction: 'Aguardando transferência via rede Stellar.'
           });
-          // Ainda chamamos a function para garantir que o endereço da carteira venha da env do servidor
         }
 
         // Fluxo Stellar
