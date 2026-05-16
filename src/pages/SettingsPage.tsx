@@ -54,6 +54,7 @@ export default function SettingsPage() {
 
   // Wallet
   const [walletAddress, setWalletAddress] = useState<string | null>(user?.walletAddress || null);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // Security
@@ -190,13 +191,11 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = () => {
-    if (window.confirm('Tem certeza absoluta? Esta ação é irreversível e todos os seus contratos serão arquivados.')) {
-      notify({ 
-        type: 'error', 
-        title: 'Ação Bloqueada', 
-        message: 'Para sua segurança, a exclusão de conta via painel está temporariamente desativada. Entre em contato com o suporte.' 
-      });
-    }
+    notify({
+      type: 'error',
+      title: 'Ação Bloqueada',
+      message: 'A exclusão de conta via painel está desativada por segurança. Entre em contato com o suporte: suporte@contractease.com',
+    });
   };
 
   const handleToggle2FA = () => {
@@ -204,7 +203,6 @@ export default function SettingsPage() {
   };
 
   const handleDisable2FA = async (factorId: string) => {
-    if (!window.confirm('Tem certeza que deseja desativar o 2FA? Isso tornará sua conta menos segura.')) return;
     try {
       await api.auth.mfa.unenroll(factorId);
       setMfaFactors(prev => prev.filter(f => f.id !== factorId));
@@ -460,15 +458,14 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-white mb-2">Histórico de Login</h3>
-                <p className="text-sm text-neutral-400 mb-4">Últimos acessos à sua conta.</p>
-                <div className="space-y-2">
-                  {['Agora', '2 horas atrás', 'Ontem às 14:30'].map((t, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl">
-                      <iconify-icon icon="solar:login-bold" class="text-lg text-neutral-500" />
-                      <div className="flex-1"><p className="text-xs text-white">Login bem-sucedido</p><p className="text-[10px] text-neutral-500">{t}</p></div>
-                    </div>
-                  ))}
+                <h3 className="text-lg font-bold text-white mb-2">Sessão Atual</h3>
+                <p className="text-sm text-neutral-400 mb-4">Informações da sessão ativa neste dispositivo.</p>
+                <div className="flex items-center gap-3 p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
+                  <iconify-icon icon="solar:login-bold" class="text-lg text-emerald-400" />
+                  <div className="flex-1">
+                    <p className="text-xs text-white">Login ativo — {user?.email}</p>
+                    <p className="text-[10px] text-neutral-500">Histórico completo de sessões não está disponível ainda.</p>
+                  </div>
                 </div>
               </div>
             </motion.div>

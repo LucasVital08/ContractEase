@@ -75,7 +75,8 @@ export function exportContractToDOCX(contract: Contract) {
 }
 
 /**
- * Exporta o contrato para XML no padrão genérico (preparado para e-Social/SPED).
+ * Exporta o contrato para XML no schema proprietário ContractEase v1.
+ * NOTA: Este formato NÃO é compatível com e-Social/SPED (que requerem schemas governamentais específicos).
  */
 export function exportContractToXML(contract: Contract) {
   const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>

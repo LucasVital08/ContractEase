@@ -206,7 +206,42 @@ export function generateContractPDF(contract: Contract, options: PDFOptions = {}
       theme: 'grid',
     });
 
-    y = doc.lastAutoTable.finalY + 10;
+    y = doc.lastAutoTable.finalY + 8;
+
+    // Renderizar imagens de assinatura para parties que já assinaram
+    for (const p of contract.parties) {
+      if (!p.signedAt || !p.signatureImage) continue;
+      // signatureImage pode ser base64 PNG (draw/upload) ou texto digitado
+      const isBase64 = p.signatureImage.startsWith('data:image');
+      checkPageBreak(35);
+      doc.setFontSize(8);
+      doc.setTextColor(...COLORS.text);
+      doc.text(`Assinatura — ${p.name}:`, margin, y);
+      y += 4;
+      if (isBase64) {
+        try {
+          doc.addImage(p.signatureImage, 'PNG', margin, y, 60, 20);
+          y += 24;
+        } catch {
+          doc.text('[Imagem de assinatura indisponível]', margin, y);
+          y += 6;
+        }
+      } else {
+        // Assinatura digitada — exibir como texto cursivo
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(...COLORS.primary);
+        doc.text(p.signatureImage, margin + 4, y + 10);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...COLORS.text);
+        y += 16;
+      }
+      // Linha separadora
+      doc.setDrawColor(220, 220, 220);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 6;
+    }
   }
 
   // --- Audit Trail ---

@@ -97,18 +97,8 @@ export default function LoginPage() {
     }
   };
 
-  const handlePasskeyLogin = async () => {
-    setLoading(true);
-    try {
-      // Simulação de WebAuthn / Passkey
-      await new Promise(r => setTimeout(r, 1500));
-      notify({ type: 'success', title: 'Biometria Reconhecida', message: 'Acesso liberado via Passkey.' });
-      navigate('/dashboard');
-    } catch (e) {
-      setError('Falha na autenticação biométrica.');
-    } finally {
-      setLoading(false);
-    }
+  const handlePasskeyLogin = () => {
+    notify({ type: 'info', title: 'Em breve', message: 'Autenticação por Passkey/Biometria está em desenvolvimento (WebAuthn - Fase 3).' });
   };
 
   return (

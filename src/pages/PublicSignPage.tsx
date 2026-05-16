@@ -135,6 +135,17 @@ export default function PublicSignPage() {
     );
   }
 
+  const handleStartLiveness = () => {
+    setShowLivenessModal(true);
+    setLivenessStatus('scanning');
+    // Simulate liveness check completing after 2.5s
+    // Replace this with a real liveness SDK (e.g. iProov, Facetec) when available
+    setTimeout(() => {
+      setLivenessStatus('passed');
+      setTimeout(() => setShowLivenessModal(false), 1500);
+    }, 2500);
+  };
+
   const handleVerifyIdentity = () => {
     if (!validateCPF(cpf)) {
       notify({ type: 'error', title: 'CPF Inválido', message: 'O CPF informado não é válido. Verifique os dígitos.' });

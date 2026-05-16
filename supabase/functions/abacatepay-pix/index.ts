@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const ABACATE_API = "https://api.abacatepay.com/v2";
 const ABACATE_KEY = Deno.env.get("ABACATEPAY_API_KEY") || "";
+const APP_URL = Deno.env.get("APP_URL") || "https://contractease.com";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,8 +62,8 @@ Deno.serve(async (req: Request) => {
             quantity: 1
           }
         ],
-        returnUrl: "http://localhost:5173/finance",
-        completionUrl: "http://localhost:5173/finance?success=true",
+        returnUrl: `${APP_URL}/finance`,
+        completionUrl: `${APP_URL}/finance?success=true`,
         metadata: metadata || undefined,
       }),
     });
@@ -84,13 +85,13 @@ Deno.serve(async (req: Request) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro interno";
     console.error("🔥 Erro Crítico na Função:", message);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       success: false,
-      error: message, 
+      error: message,
       context: "abacatepay-v2-flow",
       timestamp: new Date().toISOString()
     }), {
-      status: 200, 
+      status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

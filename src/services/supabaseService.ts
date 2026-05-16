@@ -470,6 +470,15 @@ export const contractsService = {
     // 4. Re-fetch full contract with relations
     const full = await contractsService.get(contract.id);
     if (!full) throw new Error('Erro ao buscar contrato criado');
+
+    // 5. Audit log
+    await supabase.from('contract_logs').insert({
+      contract_id: contract.id,
+      user_id: session.user.id,
+      action: 'created',
+      details: { title: draft.title, parties_count: draft.parties.length },
+    });
+
     return full;
   },
 
@@ -574,12 +583,10 @@ export const aiService = {
     });
     if (error) throw error;
     try {
-      // O Gemini as vezes retorna blocos markdown tipo ```json ... ```
       const cleanedText = data.text.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanedText);
     } catch(e) {
-      console.error('Failed to parse AI response', data.text);
-      return { score: 80, summary: "Análise concluída, mas falhou ao extrair os dados estruturados.", risks: [] };
+      throw new Error('IA retornou resposta em formato inesperado. Tente novamente.');
     }
   },
   chat: async (contract: any, message: string) => {
@@ -627,9 +634,18 @@ export const aiService = {
     if (error) throw error;
     return data.text;
   },
-  calculateHealthScore: async (contract: any): Promise<number> => 85,
-  detectAbusiveClauses: async (clauses: any[]) => [],
-  generateSummary: async (contract: any): Promise<string> => "Resumo do contrato."
+  calculateHealthScore: async (contract: any): Promise<number> => {
+    const result = await aiService.analyzeContract(contract);
+    return result?.score ?? 0;
+  },
+  detectAbusiveClauses: async (clauses: any[]) => {
+    const result = await aiService.analyzeContract({ clauses });
+    return result?.risks ?? [];
+  },
+  generateSummary: async (contract: any): Promise<string> => {
+    const result = await aiService.analyzeContract(contract);
+    return result?.summary ?? '';
+  },
 };
 
 // ─── Organizations & Team ──────────────────────────────────
@@ -858,19 +874,34 @@ export const signingService = {
     return data || [];
   },
 
-  signParty: async (partyId: string, data: { cpf?: string; lgpdConsent: boolean }) => {
+  signParty: async (partyId: string, data: { cpf?: string; lgpdConsent: boolean; signatureType?: string; signatureImage?: string; ipAddress?: string; geolocation?: string; contractId?: string }) => {
+    const { data: { session } } = await supabase.auth.getSession();
     const { error } = await supabase
       .from('contract_parties')
       .update({
         signed_at: new Date().toISOString(),
         status: 'signed',
-        signature_type: 'type',
+        signature_type: data.signatureType || 'draw',
+        signature_image: data.signatureImage || null,
         lgpd_consent: data.lgpdConsent,
         cpf: data.cpf || null,
+        ip_address: data.ipAddress || null,
+        geolocation: data.geolocation || null,
         user_agent: navigator.userAgent,
       })
       .eq('id', partyId);
     if (error) throw new Error(error.message);
+
+    // Audit log
+    if (session && data.contractId) {
+      await supabase.from('contract_logs').insert({
+        contract_id: data.contractId,
+        user_id: session.user.id,
+        action: 'signed',
+        details: { party_id: partyId, signature_type: data.signatureType || 'draw', lgpd_consent: data.lgpdConsent },
+      });
+    }
+
     return { success: true };
   },
 
@@ -908,17 +939,21 @@ export const signingService = {
         });
       }
 
-      // 2. Email notification (works for any email, registered or not)
-      supabase.functions
-        .invoke('send-signing-email', {
+      // 2. Email notification — awaited so failures surface to the caller
+      try {
+        const { error: emailError } = await supabase.functions.invoke('send-signing-email', {
           body: {
             to: party.email,
             signerName: party.name ?? '',
             contractTitle,
             contractId,
+            partyId: (party as any).id ?? undefined,
           },
-        })
-        .catch(err => console.warn('[notifyContractParties] email error:', err));
+        });
+        if (emailError) console.warn('[notifyContractParties] email error:', emailError);
+      } catch (err) {
+        console.warn('[notifyContractParties] email invocation failed:', err);
+      }
     }
   },
 

@@ -12,7 +12,9 @@ const INTEGRATIONS = [
 
 export default function IntegrationsPage() {
   const notify = useNotificationStore(s => s.add);
-  const [apiKey, setApiKey] = useState('sk_stellar_' + Math.random().toString(36).substring(7).toUpperCase());
+  // Lazy initializer ensures the key is generated once per mount, not on every render.
+  // TODO: replace with a real API key fetched from the backend (profiles.settings or a dedicated api_keys table).
+  const [apiKey, setApiKey] = useState(() => 'sk_stellar_' + Math.random().toString(36).substring(7).toUpperCase());
 
   return (
     <div className="max-w-5xl mx-auto space-y-10">

@@ -16,8 +16,9 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 const TESTNET_HORIZON = 'https://horizon-testnet.stellar.org';
 const TESTNET_PASSPHRASE = StellarSdk.Networks.TESTNET;
 
-// Keypair de demonstração (Testnet-only). Em produção, use Freighter ou um cofre seguro.
-const DEMO_SECRET = 'S...TESTNET-DEMO-KEY-REDACTED';
+// NOTA: O keypair de ancoragem custodial NÃO fica mais no cliente.
+// A ancoragem padrão é delegada ao Edge Function `anchor-on-stellar`,
+// que mantém a chave privada em variável de ambiente segura no servidor.
 
 export interface AnchorResult {
   success: boolean;
@@ -60,44 +61,18 @@ export function serializeContract(contract: {
 
 /**
  * Ancora o hash de um contrato na Stellar Testnet via Memo.
- * 
- * NOTA: Esta função usa um par de chaves de demonstração.
- * Em produção, utilize a Freighter Wallet para assinar a transação
- * e a rede principal (Mainnet) da Stellar.
+ * Delega ao Edge Function `anchor-on-stellar`, que assina a transação
+ * com o keypair custodial mantido em variável de ambiente segura no servidor.
  */
-export async function anchorOnStellar(contractHash: string): Promise<AnchorResult> {
+export async function anchorOnStellar(contractHash: string, contractId?: string): Promise<AnchorResult> {
   try {
-    const server = new StellarSdk.Horizon.Server(TESTNET_HORIZON);
-    const keypair = StellarSdk.Keypair.fromSecret(DEMO_SECRET);
-    const publicKey = keypair.publicKey();
-
-    // Carregar conta do remetente
-    const account = await server.loadAccount(publicKey);
-
-    // SHA-256 = 64 hex chars = 32 bytes — Memo.hash aceita hex string diretamente
-    const tx = new StellarSdk.TransactionBuilder(account, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: TESTNET_PASSPHRASE,
-    })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination: publicKey,
-          asset: StellarSdk.Asset.native(),
-          amount: '0.0000001',
-        })
-      )
-      .addMemo(StellarSdk.Memo.hash(contractHash))
-      .setTimeout(30)
-      .build();
-
-    tx.sign(keypair);
-
-    const result = await server.submitTransaction(tx);
-    return {
-      success: true,
-      txHash: (result as any).hash,
-      ledger: (result as any).ledger,
-    };
+    const { supabase } = await import('@/lib/supabase');
+    const { data, error } = await supabase.functions.invoke('anchor-on-stellar', {
+      body: { contractHash, contractId, network: 'testnet' },
+    });
+    if (error) throw error;
+    if (!data?.success) return { success: false, error: data?.error || 'Falha ao ancorar' };
+    return { success: true, txHash: data.txHash, ledger: data.ledger };
   } catch (error: any) {
     console.error('Stellar anchor error:', error);
     return {
@@ -199,44 +174,24 @@ export async function verifyOnStellar(txHash: string): Promise<{
 }
 
 /**
- * Cria uma conta Multi-Sig na Stellar (Simulação)
+ * Multi-Sig na Stellar — Fase 2 (não implementado)
  */
-export async function createMultiSig(signers: string[], threshold: number) {
-  await new Promise(r => setTimeout(r, 2000));
-  return {
-    success: true,
-    address: 'GA...' + Math.random().toString(36).substring(7).toUpperCase(),
-    signers: signers,
-    threshold: threshold,
-    txHash: 'multi_sig_' + Date.now()
-  };
+export async function createMultiSig(_signers: string[], _threshold: number): Promise<never> {
+  throw new Error('Contas Multi-Sig ainda não estão disponíveis. Previsto para a Fase 2.');
 }
 
 /**
- * Emite um NFT representando a propriedade de um contrato (Simulação)
+ * NFT de contrato na Stellar — Fase 3 (não implementado)
  */
-export async function mintContractNFT(contractId: string, ownerAddress: string) {
-  await new Promise(r => setTimeout(r, 2500));
-  return {
-    success: true,
-    assetCode: 'CTRT' + contractId.substring(0, 4),
-    issuer: 'GA_ISSUER...',
-    txHash: 'nft_mint_' + Date.now()
-  };
+export async function mintContractNFT(_contractId: string, _ownerAddress: string): Promise<never> {
+  throw new Error('NFT de contratos ainda não está disponível. Previsto para a Fase 3.');
 }
 
 /**
- * Cria um contrato de Escrow (Smart Clause) na Stellar (Simulação)
+ * Escrow (Claimable Balance) na Stellar — Fase 2 (não implementado)
  */
-export async function createEscrow(amount: string, releaseConditions: string) {
-  await new Promise(r => setTimeout(r, 3000));
-  return {
-    success: true,
-    escrowAddress: 'GE...' + Math.random().toString(36).substring(7).toUpperCase(),
-    lockedAmount: amount,
-    conditions: releaseConditions,
-    txHash: 'escrow_tx_' + Date.now()
-  };
+export async function createEscrow(_amount: string, _releaseConditions: string): Promise<never> {
+  throw new Error('Escrow via Stellar ainda não está disponível. Previsto para a Fase 2.');
 }
 
 /**

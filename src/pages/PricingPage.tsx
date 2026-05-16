@@ -48,7 +48,7 @@ export default function PricingPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {PLAN_LIST.map((plan, i) => {
           const isPopular = plan.id === 'pro';
-          const isCurrent = plan.id === 'free'; // TODO: check user's actual plan
+          const isCurrent = plan.id === (user?.plan || 'free');
           const isLoading = loading === plan.id;
 
           return (

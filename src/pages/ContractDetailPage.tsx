@@ -8,7 +8,6 @@ import { useStellar } from '@/hooks/useStellar';
 import SignatureCertificate from '@/components/SignatureCertificate';
 import { downloadContractPDF } from '@/services/pdfGenerator';
 import { exportContractToDOCX, exportContractToXML } from '@/services/documentExport';
-import { createMultiSig, mintContractNFT, createEscrow } from '@/services/stellar';
 import { AIAssistantModal } from '@/components/AIAssistantModal';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
