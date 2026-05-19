@@ -9,6 +9,7 @@ const ContractsPage = React.lazy(() => import('@/pages/ContractsPage'));
 const CreateContractPage = React.lazy(() => import('@/pages/CreateContractPage'));
 const ContractDetailPage = React.lazy(() => import('@/pages/ContractDetailPage'));
 const TemplatesPage = React.lazy(() => import('@/pages/TemplatesPage'));
+const SmartContractsPage = React.lazy(() => import('@/pages/SmartContractsPage'));
 const AnalyticsPage = React.lazy(() => import('@/pages/AnalyticsPage'));
 const FinancePage = React.lazy(() => import('@/pages/FinancePage'));
 const SettingsPage = React.lazy(() => import('@/pages/SettingsPage'));
@@ -55,6 +56,7 @@ export default function App() {
                 <Route path="contracts/new" element={<CreateContractPage />} />
                 <Route path="contracts/:id" element={<ContractDetailPage />} />
                 <Route path="templates" element={<TemplatesPage />} />
+                <Route path="smart-contracts" element={<SmartContractsPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="finance" element={<FinancePage />} />
                 <Route path="admin" element={<AdminDashboardPage />} />

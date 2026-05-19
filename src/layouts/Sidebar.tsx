@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/contracts', icon: 'solar:document-text-bold-duotone', label: 'Documentos', profile: 'business' },
   { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo Documento', profile: 'business' },
   { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Templates', profile: 'business' },
+  { to: '/smart-contracts', icon: 'solar:cpu-bolt-bold-duotone', label: 'Smart Contracts IA', profile: 'business', badge: 'NOVO' },
   { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Faturamento & Créditos', profile: 'business' },
   { to: '/analytics', icon: 'solar:chart-2-bold-duotone', label: 'Analytics', profile: 'business' },
   
@@ -325,8 +326,13 @@ export default function Sidebar() {
           >
             <iconify-icon icon={item.icon} class="text-xl shrink-0" />
             {!sidebarCollapsed && (
-              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="whitespace-nowrap">
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="whitespace-nowrap flex items-center gap-2 flex-1">
                 {item.label}
+                {(item as any).badge && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">
+                    {(item as any).badge}
+                  </span>
+                )}
               </motion.span>
             )}
           </NavLink>
