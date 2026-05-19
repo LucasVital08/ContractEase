@@ -184,20 +184,39 @@ export function AIAssistantModal({ contract, onClose }: AIAssistantModalProps) {
                   </div>
 
                   <div>
-                    <h4 className="text-sm font-bold text-white mb-3">Pontos Chave Identificados</h4>
+                    <h4 className="text-sm font-bold text-white mb-3">Pontos Chave do Documento</h4>
                     <ul className="space-y-2">
                       <li className="flex items-start gap-2 text-sm text-neutral-400">
-                        <iconify-icon icon="solar:check-circle-bold" class="text-emerald-500 mt-0.5" />
-                        Objeto do documento claramente definido.
+                        <iconify-icon icon="solar:document-text-bold" class="text-blue-400 mt-0.5 flex-shrink-0" />
+                        {contract.clauses.length} cláusula{contract.clauses.length !== 1 ? 's' : ''} identificada{contract.clauses.length !== 1 ? 's' : ''}.
                       </li>
                       <li className="flex items-start gap-2 text-sm text-neutral-400">
-                        <iconify-icon icon="solar:check-circle-bold" class="text-emerald-500 mt-0.5" />
-                        Qualificação das partes está completa.
+                        <iconify-icon icon="solar:users-group-rounded-bold" class="text-blue-400 mt-0.5 flex-shrink-0" />
+                        {contract.parties.length} parte{contract.parties.length !== 1 ? 's' : ''} envolvida{contract.parties.length !== 1 ? 's' : ''} — {contract.parties.filter(p => p.signedAt).length} já assinaram.
                       </li>
-                      <li className="flex items-start gap-2 text-sm text-neutral-400">
-                        <iconify-icon icon="solar:danger-triangle-bold" class="text-amber-500 mt-0.5" />
-                        Falta foro de eleição explícito para resolução de conflitos.
-                      </li>
+                      {contract.expiresAt && (
+                        <li className="flex items-start gap-2 text-sm text-neutral-400">
+                          <iconify-icon icon="solar:calendar-bold" class="text-amber-400 mt-0.5 flex-shrink-0" />
+                          Validade até {new Date(contract.expiresAt).toLocaleDateString('pt-BR')}.
+                        </li>
+                      )}
+                      {contract.stellarTxHash ? (
+                        <li className="flex items-start gap-2 text-sm text-neutral-400">
+                          <iconify-icon icon="solar:shield-check-bold" class="text-emerald-500 mt-0.5 flex-shrink-0" />
+                          Documento ancorado na blockchain Stellar.
+                        </li>
+                      ) : (
+                        <li className="flex items-start gap-2 text-sm text-neutral-400">
+                          <iconify-icon icon="solar:clock-circle-bold" class="text-neutral-500 mt-0.5 flex-shrink-0" />
+                          Ancoragem Stellar pendente (ocorre ao concluir assinaturas).
+                        </li>
+                      )}
+                      {abusiveClauses.length > 0 && (
+                        <li className="flex items-start gap-2 text-sm text-neutral-400">
+                          <iconify-icon icon="solar:danger-triangle-bold" class="text-red-400 mt-0.5 flex-shrink-0" />
+                          {abusiveClauses.length} cláusula{abusiveClauses.length !== 1 ? 's' : ''} de atenção identificada{abusiveClauses.length !== 1 ? 's' : ''} pela IA.
+                        </li>
+                      )}
                     </ul>
                   </div>
                 </div>
@@ -208,7 +227,7 @@ export function AIAssistantModal({ contract, onClose }: AIAssistantModalProps) {
                   <div className="flex items-center justify-between bg-black/30 p-4 rounded-xl border border-white/5">
                     <div>
                       <p className="text-sm text-neutral-400">Score de Segurança</p>
-                      <h3 className="text-3xl font-bold text-emerald-400 font-bricolage">85<span className="text-lg text-neutral-500">/100</span></h3>
+                      <h3 className="text-3xl font-bold text-emerald-400 font-bricolage">{healthScore ?? '—'}<span className="text-lg text-neutral-500">/100</span></h3>
                     </div>
                     <div className="w-16 h-16 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 flex items-center justify-center transform -rotate-45">
                       <iconify-icon icon="solar:shield-check-bold" class="text-2xl text-emerald-500 rotate-45" />

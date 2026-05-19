@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useContracts, useDeleteContract, useFolders, useToggleFavorite, useMoveToFolder, useCreateFolder } from '@/hooks/useContractQueries';
 import { useNotificationStore } from '@/stores';
@@ -25,6 +25,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function ContractsPage() {
   const notify = useNotificationStore(s => s.add);
+  const navigate = useNavigate();
   const { data: contracts = [], isLoading } = useContracts();
   const { data: folders = [] } = useFolders();
   const deleteMutation = useDeleteContract();
@@ -132,21 +133,21 @@ export default function ContractsPage() {
               <iconify-icon icon="solar:kanban-bold" />
             </button>
           </div>
-          <button 
-            onClick={() => {
-              notify({ type: 'info', title: 'Importação em Lote', message: 'Selecione um arquivo CSV ou Excel com as colunas: Título, Descrição, Partes.' });
-            }}
-            className="px-4 py-2 bg-white/5 text-neutral-400 font-bold rounded-xl hover:bg-white/10 transition-all text-sm border border-white/10 flex items-center gap-2"
-          >
+          <label className="px-4 py-2 bg-white/5 text-neutral-400 font-bold rounded-xl hover:bg-white/10 transition-all text-sm border border-white/10 flex items-center gap-2 cursor-pointer"
+            title="Importe contratos a partir de um arquivo CSV com colunas: Título, Descrição">
             <iconify-icon icon="solar:file-send-bold" /> Importação em Lote
-          </button>
-          <button 
-            onClick={() => {
-              notify({ type: 'success', title: 'Assinatura em Lote', message: 'Assinando 12 documentos pendentes via Stellar Network...' });
-            }}
+            <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) notify({ type: 'info', title: 'Arquivo recebido', message: `"${file.name}" — processamento em lote será implementado em breve.` });
+              e.target.value = '';
+            }} />
+          </label>
+          <button type="button"
+            onClick={() => navigate('/contracts?status=pending')}
             className="px-4 py-2 bg-blue-500/10 text-blue-400 font-bold rounded-xl hover:bg-blue-500/20 transition-all text-sm border border-blue-500/20 flex items-center gap-2"
+            title="Ver todos os contratos pendentes de assinatura"
           >
-            <iconify-icon icon="solar:pen-2-bold" /> Assinar em Lote
+            <iconify-icon icon="solar:pen-2-bold" /> Pendentes de Assinatura
           </button>
           <Link
             to="/contracts/new"

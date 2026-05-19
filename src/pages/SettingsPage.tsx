@@ -54,6 +54,7 @@ export default function SettingsPage() {
 
   // Wallet
   const [walletAddress, setWalletAddress] = useState<string | null>(user?.walletAddress || null);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // Security
@@ -181,6 +182,15 @@ export default function SettingsPage() {
     finally { setIsConnecting(false); }
   };
 
+  const disconnectWallet = async () => {
+    try {
+      await supabase.from('profiles').update({ wallet_address: null }).eq('id', user!.id);
+      setWalletAddress(null);
+      updateUser({ walletAddress: undefined });
+      notify({ type: 'info', title: 'Carteira desconectada' });
+    } catch { notify({ type: 'error', title: 'Erro ao desconectar carteira' }); }
+  };
+
   const handleExportData = () => {
     notify({ 
       type: 'success', 
@@ -190,13 +200,11 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = () => {
-    if (window.confirm('Tem certeza absoluta? Esta ação é irreversível e todos os seus contratos serão arquivados.')) {
-      notify({ 
-        type: 'error', 
-        title: 'Ação Bloqueada', 
-        message: 'Para sua segurança, a exclusão de conta via painel está temporariamente desativada. Entre em contato com o suporte.' 
-      });
-    }
+    notify({
+      type: 'error',
+      title: 'Ação Bloqueada',
+      message: 'A exclusão de conta via painel está desativada por segurança. Entre em contato com o suporte: suporte@contractease.com',
+    });
   };
 
   const handleToggle2FA = () => {
@@ -204,7 +212,6 @@ export default function SettingsPage() {
   };
 
   const handleDisable2FA = async (factorId: string) => {
-    if (!window.confirm('Tem certeza que deseja desativar o 2FA? Isso tornará sua conta menos segura.')) return;
     try {
       await api.auth.mfa.unenroll(factorId);
       setMfaFactors(prev => prev.filter(f => f.id !== factorId));
@@ -312,7 +319,7 @@ export default function SettingsPage() {
                 <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
                   <div>
                     <label className="block text-xs text-neutral-400 mb-1.5">Senha atual</label>
-                    <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                    <input type="password" placeholder="••••••••" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600" />
                   </div>
                   <div>
                     <label className="block text-xs text-neutral-400 mb-1.5">Nova senha</label>
@@ -403,7 +410,7 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <label className="block text-sm text-neutral-400 mb-1.5">Idioma</label>
-                    <select value={language} onChange={e => { setLanguage(e.target.value); saveAppearance('language', e.target.value); }} className="bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none w-full max-w-xs">
+                    <select title="Idioma" value={language} onChange={e => { setLanguage(e.target.value); saveAppearance('language', e.target.value); }} className="bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none w-full max-w-xs">
                       <option value="pt-BR">Português (Brasil)</option>
                       <option value="en">English</option>
                       <option value="es">Español</option>
@@ -460,15 +467,14 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-white mb-2">Histórico de Login</h3>
-                <p className="text-sm text-neutral-400 mb-4">Últimos acessos à sua conta.</p>
-                <div className="space-y-2">
-                  {['Agora', '2 horas atrás', 'Ontem às 14:30'].map((t, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl">
-                      <iconify-icon icon="solar:login-bold" class="text-lg text-neutral-500" />
-                      <div className="flex-1"><p className="text-xs text-white">Login bem-sucedido</p><p className="text-[10px] text-neutral-500">{t}</p></div>
-                    </div>
-                  ))}
+                <h3 className="text-lg font-bold text-white mb-2">Sessão Atual</h3>
+                <p className="text-sm text-neutral-400 mb-4">Informações da sessão ativa neste dispositivo.</p>
+                <div className="flex items-center gap-3 p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
+                  <iconify-icon icon="solar:login-bold" class="text-lg text-emerald-400" />
+                  <div className="flex-1">
+                    <p className="text-xs text-white">Login ativo — {user?.email}</p>
+                    <p className="text-[10px] text-neutral-500">Histórico completo de sessões não está disponível ainda.</p>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -481,10 +487,19 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-bold text-white mb-2">Consentimento LGPD</h3>
                 <p className="text-sm text-neutral-400 mb-4">Gerencie como seus dados são utilizados na plataforma.</p>
                 <div className="space-y-3">
-                  {['Coleta de dados de uso', 'Analytics de comportamento', 'Comunicações de marketing'].map(item => (
-                    <label key={item} className="flex items-center justify-between p-3 bg-white/[0.03] border border-white/5 rounded-xl cursor-pointer">
-                      <p className="text-sm text-white">{item}</p>
-                      <input type="checkbox" defaultChecked className="accent-emerald-500 w-4 h-4" />
+                  {([
+                    { key: 'lgpdUsageData', label: 'Coleta de dados de uso' },
+                    { key: 'lgpdAnalytics', label: 'Analytics de comportamento' },
+                    { key: 'lgpdMarketing', label: 'Comunicações de marketing' },
+                  ] as const).map(item => (
+                    <label key={item.key} className="flex items-center justify-between p-3 bg-white/[0.03] border border-white/5 rounded-xl cursor-pointer hover:bg-white/[0.05] transition-colors">
+                      <p className="text-sm text-white">{item.label}</p>
+                      <input
+                        type="checkbox"
+                        className="accent-emerald-500 w-4 h-4"
+                        checked={(settingsLoaded && user?.settings?.[item.key] !== false) ?? true}
+                        onChange={e => saveNotificationPref(item.key, e.target.checked)}
+                      />
                     </label>
                   ))}
                 </div>
@@ -548,8 +563,9 @@ export default function SettingsPage() {
                   <code className="block bg-black/40 p-3 rounded-lg text-xs text-neutral-300 break-all mb-6">
                     {walletAddress}
                   </code>
-                  <button 
-                    onClick={() => { setWalletAddress(null); notify({ type: 'info', title: 'Carteira desconectada' }); }}
+                  <button
+                    type="button"
+                    onClick={disconnectWallet}
                     className="text-xs font-bold text-red-400 hover:text-red-300"
                   >
                     Desconectar Carteira
@@ -566,7 +582,7 @@ export default function SettingsPage() {
                     Conectar Freighter
                   </button>
                   <p className="text-[10px] text-neutral-500">
-                    Não tem uma carteira? <a href="https://www.freighter.app/" target="_blank" rel="noreferrer" className="text-emerald-500 hover:underline">Instale o Freighter</a>
+                    Não tem uma carteira? <a href="https://www.freighter.app/" target="_blank" rel="noreferrer noopener" className="text-emerald-500 hover:underline">Instale o Freighter</a>
                   </p>
                 </div>
               )}

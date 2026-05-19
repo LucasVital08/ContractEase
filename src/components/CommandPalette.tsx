@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { Icon } from '@iconify/react';
 
 interface CommandItem {
   id: string;
@@ -107,7 +108,7 @@ export default function CommandPalette() {
             >
               {/* Search Input */}
               <div className="flex items-center px-4 py-4 border-b border-white/10 bg-black/20">
-                <iconify-icon icon="solar:magnifer-linear" class="text-xl text-neutral-500 mr-3" />
+                <Icon icon="solar:magnifer-linear" className="text-xl text-neutral-500 mr-3" />
                 <input 
                   ref={inputRef}
                   value={query}
@@ -147,7 +148,7 @@ export default function CommandPalette() {
                                 }`}
                               >
                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? 'bg-emerald-500 text-black' : 'bg-white/5 text-neutral-400'}`}>
-                                  <iconify-icon icon={item.icon} class="text-xl" />
+                                  <Icon icon={item.icon} className="text-xl" />
                                 </div>
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2">
@@ -160,7 +161,7 @@ export default function CommandPalette() {
                                   </div>
                                   <p className="text-xs text-neutral-500">{item.description}</p>
                                 </div>
-                                {isSelected && <iconify-icon icon="solar:arrow-right-linear" class="text-lg text-emerald-500" />}
+                                {isSelected && <Icon icon="solar:arrow-right-linear" className="text-lg text-emerald-500" />}
                               </button>
                             );
                           })}
@@ -184,7 +185,7 @@ export default function CommandPalette() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <iconify-icon icon="solar:command-bold" class="text-sm text-neutral-500" />
+                  <Icon icon="solar:command-bold" className="text-sm text-neutral-500" />
                   <span className="text-[10px] text-neutral-500">Spotlight Search</span>
                 </div>
               </div>

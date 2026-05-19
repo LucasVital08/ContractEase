@@ -474,6 +474,15 @@ export const contractsService = {
     // 4. Re-fetch full contract with relations
     const full = await contractsService.get(contract.id);
     if (!full) throw new Error('Erro ao buscar contrato criado');
+
+    // 5. Audit log
+    await supabase.from('contract_logs').insert({
+      contract_id: contract.id,
+      user_id: session.user.id,
+      action: 'created',
+      details: { title: draft.title, parties_count: draft.parties.length },
+    });
+
     return full;
   },
 
@@ -578,12 +587,10 @@ export const aiService = {
     });
     if (error) throw error;
     try {
-      // O Gemini as vezes retorna blocos markdown tipo ```json ... ```
       const cleanedText = data.text.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanedText);
     } catch(e) {
-      console.error('Failed to parse AI response', data.text);
-      return { score: 80, summary: "Análise concluída, mas falhou ao extrair os dados estruturados.", risks: [] };
+      throw new Error('IA retornou resposta em formato inesperado. Tente novamente.');
     }
   },
   chat: async (contract: any, message: string) => {
@@ -631,9 +638,18 @@ export const aiService = {
     if (error) throw error;
     return data.text;
   },
-  calculateHealthScore: async (contract: any): Promise<number> => 85,
-  detectAbusiveClauses: async (clauses: any[]) => [],
-  generateSummary: async (contract: any): Promise<string> => "Resumo do contrato."
+  calculateHealthScore: async (contract: any): Promise<number> => {
+    const result = await aiService.analyzeContract(contract);
+    return result?.score ?? 0;
+  },
+  detectAbusiveClauses: async (clauses: any[]) => {
+    const result = await aiService.analyzeContract({ clauses });
+    return result?.risks ?? [];
+  },
+  generateSummary: async (contract: any): Promise<string> => {
+    const result = await aiService.analyzeContract(contract);
+    return result?.summary ?? '';
+  },
 };
 
 // ─── Organizations & Team ──────────────────────────────────
@@ -862,19 +878,41 @@ export const signingService = {
     return data || [];
   },
 
-  signParty: async (partyId: string, data: { cpf?: string; lgpdConsent: boolean }) => {
+  signParty: async (partyId: string, data: { cpf?: string; lgpdConsent: boolean; signatureType?: string; signatureImage?: string; ipAddress?: string; geolocation?: string; contractId?: string }) => {
+    const { data: { session } } = await supabase.auth.getSession();
     const { error } = await supabase
       .from('contract_parties')
       .update({
         signed_at: new Date().toISOString(),
         status: 'signed',
-        signature_type: 'type',
+        signature_type: data.signatureType || 'draw',
+        signature_image: data.signatureImage || null,
         lgpd_consent: data.lgpdConsent,
         cpf: data.cpf || null,
+        ip_address: data.ipAddress || null,
+        geolocation: data.geolocation || null,
         user_agent: navigator.userAgent,
       })
       .eq('id', partyId);
     if (error) throw new Error(error.message);
+
+    // Audit log + webhook dispatch
+    if (session && data.contractId) {
+      await supabase.from('contract_logs').insert({
+        contract_id: data.contractId,
+        user_id: session.user.id,
+        action: 'signed',
+        details: { party_id: partyId, signature_type: data.signatureType || 'draw', lgpd_consent: data.lgpdConsent },
+      });
+      // Disparar webhook contract.signed (fire-and-forget)
+      const { data: contract } = await supabase.from('contracts').select('owner_id, title').eq('id', data.contractId).single();
+      if (contract) {
+        supabase.functions.invoke('webhook-dispatcher', {
+          body: { event: 'contract.signed', contractId: data.contractId, userId: contract.owner_id, payload: { title: contract.title, party_id: partyId } },
+        }).catch(() => {});
+      }
+    }
+
     return { success: true };
   },
 
@@ -893,7 +931,7 @@ export const signingService = {
   notifyContractParties: async (
     contractId: string,
     contractTitle: string,
-    parties: { name?: string; email: string }[]
+    parties: { id?: string; name?: string; email: string }[]
   ) => {
     for (const party of parties) {
       // 1. In-app notification (for users already registered)
@@ -912,17 +950,21 @@ export const signingService = {
         });
       }
 
-      // 2. Email notification (works for any email, registered or not)
-      supabase.functions
-        .invoke('send-signing-email', {
+      // 2. Email notification — awaited so failures surface to the caller
+      try {
+        const { error: emailError } = await supabase.functions.invoke('send-signing-email', {
           body: {
             to: party.email,
             signerName: party.name ?? '',
             contractTitle,
             contractId,
+            partyId: party.id ?? undefined,
           },
-        })
-        .catch(err => console.warn('[notifyContractParties] email error:', err));
+        });
+        if (emailError) console.warn('[notifyContractParties] email error:', emailError);
+      } catch (err) {
+        console.warn('[notifyContractParties] email invocation failed:', err);
+      }
     }
   },
 
@@ -931,11 +973,21 @@ export const signingService = {
       .from('contract_parties')
       .select('signed_at')
       .eq('contract_id', contractId);
-    if (parties && parties.length > 0 && parties.every(p => p.signed_at)) {
-      await supabase
-        .from('contracts')
-        .update({ status: 'active' })
-        .eq('id', contractId);
+    if (!parties || parties.length === 0) return;
+    const allSigned = parties.every(p => p.signed_at);
+    const someSigned = parties.some(p => p.signed_at);
+    const newStatus = allSigned ? 'completed' : someSigned ? 'pending' : undefined;
+    if (newStatus) {
+      await supabase.from('contracts').update({ status: newStatus }).eq('id', contractId);
+      // Disparar webhook se todos assinaram
+      if (allSigned) {
+        const { data: contract } = await supabase.from('contracts').select('owner_id, title, type').eq('id', contractId).single();
+        if (contract) {
+          supabase.functions.invoke('webhook-dispatcher', {
+            body: { event: 'contract.completed', contractId, userId: contract.owner_id, payload: { title: contract.title, type: contract.type, status: 'completed' } },
+          }).catch(() => {});
+        }
+      }
     }
   },
 

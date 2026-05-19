@@ -2,6 +2,67 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '@/services/api';
 import { useAuthStore, useNotificationStore } from '@/stores';
+import { supabase } from '@/lib/supabase';
+
+function AuditTab({ orgId, isTeam, accent }: { orgId?: string; isTeam: boolean; accent: string }) {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!orgId) { setLoading(false); return; }
+    supabase
+      .from('contract_logs')
+      .select('*, profiles(name), contracts(title)')
+      .in('contract_id',
+        supabase.from('contracts').select('id').eq('organization_id', orgId) as any
+      )
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then(({ data }) => { setLogs(data || []); setLoading(false); });
+  }, [orgId]);
+
+  const ACTION_ICONS: Record<string, string> = {
+    created: 'solar:add-circle-bold',
+    signed: 'solar:pen-bold',
+    completed: 'solar:check-circle-bold',
+    cancelled: 'solar:close-circle-bold',
+    archived: 'solar:archive-bold',
+  };
+
+  if (loading) return <div className="flex justify-center py-10"><iconify-icon icon="svg-spinners:ring-resize" class="text-2xl text-neutral-500" /></div>;
+
+  return (
+    <motion.div key="audit" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+      <h3 className="text-lg font-bold text-white">{isTeam ? 'Atividade Recente' : 'Log de Auditoria'}</h3>
+      {logs.length === 0 ? (
+        <div className="text-center py-10 text-neutral-500">
+          <iconify-icon icon="solar:clipboard-list-bold-duotone" class="text-3xl mb-2 block" />
+          <p className="text-sm">Nenhuma atividade registrada ainda.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {logs.map(log => (
+            <div key={log.id} className="flex items-center gap-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTeam ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                <iconify-icon icon={ACTION_ICONS[log.action] || 'solar:document-bold'} class="text-sm" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white truncate">
+                  {log.action === 'created' ? 'Criou' : log.action === 'signed' ? 'Assinou' : log.action === 'completed' ? 'Concluiu' : log.action}{' '}
+                  <span className="text-neutral-400">{log.contracts?.title || 'contrato'}</span>
+                </p>
+                <p className="text-[10px] text-neutral-500">por {log.profiles?.name || 'usuário'}</p>
+              </div>
+              <span className="text-[10px] text-neutral-600 shrink-0">
+                {new Date(log.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+}
 
 type Tab = 'general' | 'members' | 'permissions' | 'billing' | 'webhooks' | 'audit' | 'danger';
 
@@ -173,7 +234,7 @@ export default function WorkspaceSettingsModal({ onClose }: Props) {
                     <div className="flex-1 space-y-3">
                       <div>
                         <label className="block text-xs text-neutral-400 mb-1">{isTeam ? 'Nome do Grupo' : 'Nome da Empresa'}</label>
-                        <input value={org?.name || ''} onChange={e => setOrg({ ...org, name: e.target.value })} className={`w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none ${isTeam ? 'focus:border-blue-500/50' : 'focus:border-emerald-500/50'}`} />
+                        <input value={org?.name || ''} onChange={e => setOrg({ ...org, name: e.target.value })} placeholder={isTeam ? 'Nome do grupo' : 'Nome da empresa'} className={`w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none ${isTeam ? 'focus:border-blue-500/50' : 'focus:border-emerald-500/50'}`} />
                       </div>
                       {!isTeam && (
                         <div>
@@ -240,19 +301,45 @@ export default function WorkspaceSettingsModal({ onClose }: Props) {
                 <motion.div key="perms" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
                   <h3 className="text-lg font-bold text-white">Permissões por Cargo</h3>
                   <p className="text-sm text-neutral-400">Defina o que cada cargo pode fazer dentro do workspace.</p>
-                  {['Admin', 'Membro', 'Viewer'].map(role => (
-                    <div key={role} className="p-4 bg-white/[0.03] border border-white/5 rounded-xl space-y-3">
-                      <p className="text-sm font-bold text-white">{role}</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {['Criar contratos', 'Assinar contratos', 'Deletar contratos', 'Convidar membros', 'Ver analytics', 'Gerenciar templates'].map(perm => (
-                          <label key={perm} className="flex items-center gap-2 text-xs text-neutral-300 cursor-pointer">
-                            <input type="checkbox" defaultChecked={role !== 'Viewer' || perm === 'Ver analytics'} className="accent-emerald-500 rounded" /> {perm}
-                          </label>
-                        ))}
+                  {(['member', 'viewer'] as const).map(role => {
+                    const roleLabel = role === 'member' ? 'Membro' : 'Viewer';
+                    const perms = org?.member_permissions?.[role] || {};
+                    const permKeys: Record<string, string> = {
+                      can_create: 'Criar contratos',
+                      can_sign: 'Assinar contratos',
+                      can_view_all: 'Ver todos os contratos',
+                      can_delete: 'Deletar contratos',
+                    };
+                    return (
+                      <div key={role} className="p-4 bg-white/[0.03] border border-white/5 rounded-xl space-y-3">
+                        <p className="text-sm font-bold text-white">{roleLabel}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(permKeys).map(([key, label]) => (
+                            <label key={key} className="flex items-center gap-2 text-xs text-neutral-300 cursor-pointer">
+                              <input type="checkbox" className="accent-emerald-500 rounded"
+                                checked={perms[key] ?? false}
+                                onChange={e => {
+                                  const updated = {
+                                    ...org.member_permissions,
+                                    [role]: { ...perms, [key]: e.target.checked },
+                                  };
+                                  setOrg({ ...org, member_permissions: updated });
+                                }}
+                              /> {label}
+                            </label>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  <button className="px-5 py-2.5 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 text-sm">Salvar Permissões</button>
+                    );
+                  })}
+                  <button type="button" onClick={async () => {
+                    try {
+                      await api.organization.update(org.id, { member_permissions: org.member_permissions } as any);
+                      notify({ type: 'success', title: 'Permissões salvas' });
+                    } catch (e: any) { notify({ type: 'error', title: 'Erro', message: e.message }); }
+                  }} className="px-5 py-2.5 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 text-sm">
+                    Salvar Permissões
+                  </button>
                 </motion.div>
               )}
 
@@ -280,40 +367,24 @@ export default function WorkspaceSettingsModal({ onClose }: Props) {
               {tab === 'webhooks' && !isTeam && (
                 <motion.div key="hooks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
                   <h3 className="text-lg font-bold text-white">Webhooks</h3>
-                  <p className="text-sm text-neutral-400">Receba notificações em tempo real.</p>
-                  <div className="p-4 bg-white/[0.03] border border-white/5 rounded-xl space-y-3">
-                    <label className="block text-xs text-neutral-400 mb-1">URL</label>
-                    <input placeholder="https://api.seusite.com/webhook" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600" />
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {['contract.created', 'contract.signed', 'contract.completed', 'member.joined'].map(ev => (
-                        <label key={ev} className="flex items-center gap-1.5 text-[11px] text-neutral-300 bg-white/5 px-2.5 py-1 rounded-lg cursor-pointer">
-                          <input type="checkbox" defaultChecked className="accent-emerald-500" /> {ev}
-                        </label>
-                      ))}
+                  <p className="text-sm text-neutral-400">Receba notificações HTTP em tempo real quando eventos ocorrem nos seus contratos.</p>
+                  <div className="p-6 bg-blue-500/5 border border-blue-500/10 rounded-2xl text-center space-y-4">
+                    <iconify-icon icon="solar:bell-bing-bold-duotone" class="text-4xl text-blue-400 block mx-auto" />
+                    <div>
+                      <p className="text-sm font-bold text-white mb-1">Gerencie webhooks na página de Integrações</p>
+                      <p className="text-xs text-neutral-400">Crie, configure, teste e monitore o histórico de entregas dos seus webhooks.</p>
                     </div>
+                    <button type="button" onClick={() => { onClose(); window.location.href = '/integrations'; }}
+                      className="px-5 py-2.5 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-400 text-sm flex items-center gap-2 mx-auto">
+                      <iconify-icon icon="solar:arrow-right-bold" /> Ir para Integrações & API
+                    </button>
                   </div>
-                  <button className="px-5 py-2.5 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 text-sm">Salvar</button>
                 </motion.div>
               )}
 
               {/* ── AUDITORIA ── */}
               {tab === 'audit' && (
-                <motion.div key="audit" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-                  <h3 className="text-lg font-bold text-white">{isTeam ? 'Atividade Recente' : 'Log de Auditoria'}</h3>
-                  <div className="space-y-2">
-                    {[
-                      { action: 'Workspace criado', who: user?.name, time: 'Recentemente', icon: 'solar:add-circle-bold' },
-                    ].map((log, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isTeam ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                          <iconify-icon icon={log.icon} class="text-sm" />
-                        </div>
-                        <div className="flex-1"><p className="text-xs font-medium text-white">{log.action}</p><p className="text-[10px] text-neutral-500">por {log.who}</p></div>
-                        <span className="text-[10px] text-neutral-600">{log.time}</span>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
+                <AuditTab orgId={org?.id} isTeam={isTeam} accent={accent} />
               )}
 
               {/* ── ZONA DE PERIGO ── */}

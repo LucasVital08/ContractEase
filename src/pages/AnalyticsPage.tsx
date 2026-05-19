@@ -1,10 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/stores';
+
+const MONTH_LABELS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const user = useAuthStore(s => s.user);
+  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
     loadStats();
@@ -22,17 +27,51 @@ export default function AnalyticsPage() {
     }
   }
 
+  const handleExportReport = () => {
+    if (!stats?.contracts) return;
+    const rows = [
+      ['ID', 'Título', 'Status', 'Data de Criação', 'Ancorado na Stellar'],
+      ...stats.contracts.map((c: any) => [
+        c.id,
+        `"${c.title}"`,
+        c.status,
+        new Date(c.created_at).toLocaleDateString('pt-BR'),
+        c.stellar_tx_hash ? 'Sim' : 'Não',
+      ]),
+    ];
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `relatorio-contractease-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Contratos expirando nos próximos 45 dias
+  const expiringContracts = useMemo(() => {
+    if (!stats?.contracts) return [];
+    const now = new Date();
+    const deadline = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+    return stats.contracts.filter((c: any) => {
+      if (!c.expires_at || c.status === 'completed' || c.status === 'cancelled') return false;
+      const exp = new Date(c.expires_at);
+      return exp > now && exp <= deadline;
+    });
+  }, [stats]);
+
   const monthlyData = useMemo(() => {
     if (!stats?.contracts) return Array(12).fill(0);
     const months = Array(12).fill(0);
     stats.contracts.forEach((c: any) => {
       const date = new Date(c.created_at);
-      if (date.getFullYear() === 2025) {
+      if (date.getFullYear() === currentYear) {
         months[date.getMonth()]++;
       }
     });
     return months;
-  }, [stats]);
+  }, [stats, currentYear]);
 
   const maxContracts = Math.max(...monthlyData, 1);
 
@@ -60,7 +99,9 @@ export default function AnalyticsPage() {
           <p className="text-neutral-400 mt-1">Métricas, predições e insights dos seus documentos gerados por IA.</p>
         </div>
         <div className="flex gap-2">
-          <button className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-medium text-white hover:bg-white/10 transition-colors">Exportar Relatório</button>
+          <button onClick={handleExportReport} disabled={!stats} className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-medium text-white hover:bg-white/10 transition-colors disabled:opacity-40 flex items-center gap-2">
+            <iconify-icon icon="solar:download-minimalistic-bold" /> Exportar CSV
+          </button>
         </div>
       </div>
       
@@ -121,7 +162,7 @@ export default function AnalyticsPage() {
         {/* Bar Chart (Contratos por Mês) */}
         <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6 lg:col-span-2 flex flex-col">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-white font-bricolage">Documentos Registrados (2025)</h3>
+            <h3 className="text-lg font-bold text-white font-bricolage">Documentos Registrados ({currentYear})</h3>
             <div className="text-xs text-neutral-500">Filtrado por: Ano Atual</div>
           </div>
           <div className="flex-1 flex items-end gap-2 h-48 mt-auto">
@@ -178,67 +219,70 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Insights Section */}
+        {/* Insights Section — dados reais */}
         <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
           <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <iconify-icon icon="solar:lightbulb-bolt-bold" class="text-fuchsia-500" /> 
-            Insights Gerados por IA
+            <iconify-icon icon="solar:lightbulb-bolt-bold" class="text-fuchsia-500" />
+            Resumo da Conta
           </h3>
-          <div className="space-y-4">
-            <div className="p-4 bg-fuchsia-500/5 border border-fuchsia-500/10 rounded-xl">
-              <h4 className="text-sm font-bold text-fuchsia-400 mb-1">Padrão de Rescisão Desfavorável</h4>
-              <p className="text-sm text-neutral-400">Notamos que 68% dos seus contratos de "Prestação de Serviços" assinados nos últimos 30 dias não incluem cláusula clara de multa compensatória. Sugerimos atualizar o template padrão.</p>
-              <button className="mt-3 text-xs bg-fuchsia-500/20 text-fuchsia-300 px-3 py-1.5 rounded-lg font-medium hover:bg-fuchsia-500/30 transition-colors">
-                Revisar Templates Afetados
-              </button>
+          <div className="space-y-3">
+            <div className="p-4 bg-white/[0.03] border border-white/5 rounded-xl">
+              <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Blockchain</h4>
+              <p className="text-sm text-neutral-300">
+                {stats?.anchored > 0
+                  ? `${stats.anchored} de ${stats.total} contratos estão ancorados na Stellar (${Math.round((stats.anchored / Math.max(stats.total, 1)) * 100)}% de taxa de ancoragem).`
+                  : 'Nenhum contrato foi ancorado ainda. A ancoragem acontece automaticamente quando todos os signatários assinam.'}
+              </p>
             </div>
-            <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl">
-              <h4 className="text-sm font-bold text-blue-400 mb-1">Eficiência de Assinatura</h4>
-              <p className="text-sm text-neutral-400">A maioria das assinaturas está ocorrendo dentro de 24h após o envio. Documentos enviados entre 09:00 e 11:00 têm uma taxa de conversão 40% mais rápida.</p>
+            <div className="p-4 bg-white/[0.03] border border-white/5 rounded-xl">
+              <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Assinaturas</h4>
+              <p className="text-sm text-neutral-300">
+                {stats?.totalSignatures > 0
+                  ? `${stats.totalSignatures} assinaturas coletadas em ${stats.total} contratos (média de ${(stats.totalSignatures / Math.max(stats.total, 1)).toFixed(1)} por contrato).`
+                  : 'Ainda não há assinaturas registradas.'}
+              </p>
+            </div>
+            <div className="p-4 bg-fuchsia-500/5 border border-fuchsia-500/10 rounded-xl flex items-center gap-3">
+              <iconify-icon icon="solar:magic-stick-3-bold" class="text-fuchsia-400 text-xl shrink-0" />
+              <p className="text-xs text-neutral-400">
+                Análise de IA por contrato disponível na página de detalhes de cada documento.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Predictive & Alerts */}
+        {/* Alertas reais de vencimento */}
         <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
           <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <iconify-icon icon="solar:radar-bold" class="text-emerald-500" /> 
-            Previsões & Alertas
+            <iconify-icon icon="solar:radar-bold" class="text-emerald-500" />
+            Alertas de Vencimento (próximos 45 dias)
           </h3>
-          <div className="space-y-4">
-            <div className="flex items-start gap-4 p-3 hover:bg-white/5 rounded-xl transition-colors cursor-pointer">
-              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 shrink-0">
-                <iconify-icon icon="solar:danger-triangle-bold" class="text-xl" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-white">Alto Risco de Disputa Detectado</h4>
-                <p className="text-xs text-neutral-400 mt-1">O documento "Contrato_Fornecimento_TechCorp" (Score: 42) possui termos ambíguos na cláusula de entrega.</p>
-                <p className="text-xs text-neutral-500 mt-2">Hoje, 10:30</p>
-              </div>
+          {expiringContracts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center text-neutral-500">
+              <iconify-icon icon="solar:check-circle-bold" class="text-3xl text-emerald-500 mb-2" />
+              <p className="text-sm">Nenhum contrato vencendo nos próximos 45 dias.</p>
             </div>
-            
-            <div className="flex items-start gap-4 p-3 hover:bg-white/5 rounded-xl transition-colors cursor-pointer">
-              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
-                <iconify-icon icon="solar:calendar-date-bold" class="text-xl" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-white">Renovações Próximas</h4>
-                <p className="text-xs text-neutral-400 mt-1">A IA identificou 5 contratos que devem ser renegociados nos próximos 45 dias com base em cláusulas de vigência extraídas.</p>
-                <p className="text-xs text-neutral-500 mt-2">Ontem, 16:45</p>
-              </div>
+          ) : (
+            <div className="space-y-3">
+              {expiringContracts.slice(0, 4).map((c: any) => {
+                const daysLeft = Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                return (
+                  <div key={c.id} className="flex items-start gap-3 p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
+                    <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
+                      <iconify-icon icon="solar:calendar-date-bold" class="text-lg" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-white truncate">{c.title}</h4>
+                      <p className="text-xs text-amber-400 mt-0.5">Vence em {daysLeft} dia{daysLeft !== 1 ? 's' : ''} — {new Date(c.expires_at).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              {expiringContracts.length > 4 && (
+                <p className="text-xs text-neutral-500 text-center">+ {expiringContracts.length - 4} outros</p>
+              )}
             </div>
-
-            <div className="flex items-start gap-4 p-3 hover:bg-white/5 rounded-xl transition-colors cursor-pointer">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
-                <iconify-icon icon="solar:shield-check-bold" class="text-xl" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-white">Análise em Lote Concluída</h4>
-                <p className="text-xs text-neutral-400 mt-1">125 documentos históricos foram escaneados via OCR. Nenhuma anomalia crítica foi encontrada.</p>
-                <p className="text-xs text-neutral-500 mt-2">Segunda-feira, 09:00</p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </motion.div>
