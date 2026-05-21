@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Contract, ContractDraft, Party, Clause } from '@/types';
+import { isHandle, normalizeHandle, resolveHandle } from './handleResolver';
 
 // ─── Auth ────────────────────────────────────────────────────
 export const authService = {
@@ -373,41 +374,53 @@ function mapDbToContract(row: DbContract): Contract {
 // ─── Contracts ───────────────────────────────────────────────
 export const contractsService = {
   list: async (orgId?: string): Promise<Contract[]> => {
-    // Query 1: contracts owned/visible to the user via RLS
+    const isPersonal = !orgId || orgId === 'personal';
+
+    // Query 1: contracts owned/visible to the user via RLS.
+    // After applying 20260520140000 migration, signatories can also see contracts
+    // they were invited to sign — so this single query covers both roles.
     let query = supabase
       .from('contracts')
       .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)');
 
-    if (orgId && orgId !== 'personal') {
+    if (!isPersonal) {
       query = query.eq('organization_id', orgId);
     } else {
       query = query.is('organization_id', null);
     }
 
     const { data: ownContracts, error } = await query.order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error('[contractsService.list] query error:', error);
+      throw new Error(error.message);
+    }
 
-    // Query 2: contracts where current user is a party but not visible via RLS
-    // Works via Edge Function (service role bypasses RLS) when deployed.
-    // Also works after applying the SQL migration in supabase/migrations/20260515_party_contracts_rls.sql
-    const ownIds = new Set((ownContracts as DbContract[]).map(c => c.id));
+    const rows = (ownContracts ?? []) as DbContract[];
+    const ownIds = new Set(rows.map(c => c.id));
+
+    // Query 2 (fallback): edge function with service-role bypasses RLS for cases
+    // where the RLS migration hasn't been deployed yet, or as belt-and-suspenders.
+    // Results are filtered to the same org scope and deduped against Query 1.
     let partyContracts: DbContract[] = [];
-
     try {
       const { data: fnData, error: fnError } = await supabase.functions.invoke('get-party-contracts');
       if (!fnError && Array.isArray(fnData)) {
-        partyContracts = (fnData as DbContract[]).filter(c => !ownIds.has(c.id));
+        partyContracts = (fnData as DbContract[]).filter(c => {
+          if (ownIds.has(c.id)) return false;                  // already in Query 1
+          const orgMatch = isPersonal
+            ? c.organization_id == null
+            : c.organization_id === orgId;
+          return orgMatch;
+        });
       }
     } catch {
-      // Edge function not yet deployed — RLS migration is the permanent fix
+      // Edge function not deployed — RLS migration is the permanent path.
     }
 
-    // Fallback: if RLS migration was applied, the first query already returns party contracts,
-    // so we deduplicate by ID before merging
-    const all = [...(ownContracts as DbContract[]), ...partyContracts];
     const seen = new Set<string>();
-    const deduped = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
-    return deduped.map(mapDbToContract);
+    return [...rows, ...partyContracts]
+      .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
+      .map(mapDbToContract);
   },
 
   get: async (id: string): Promise<Contract | undefined> => {
@@ -931,18 +944,43 @@ export const signingService = {
   notifyContractParties: async (
     contractId: string,
     contractTitle: string,
-    parties: { id?: string; name?: string; email: string }[]
+    parties: { id?: string; name?: string; email: string; handle?: string }[]
   ) => {
     for (const party of parties) {
-      // 1. In-app notification (for users already registered)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', party.email)
-        .maybeSingle();
+      // Resolve @handle se o campo email ou handle for um username.
+      // Permite mencionar @lucas e enviar o aviso para o e-mail cadastrado dele.
+      let resolvedEmail = party.email;
+      let resolvedName = party.name;
+      let resolvedUserId: string | undefined;
 
-      if (profile?.id) {
-        await signingService.notifyUser(profile.id, {
+      const handleCandidate = party.handle ?? (isHandle(party.email) ? party.email : null);
+      if (handleCandidate) {
+        const resolved = await resolveHandle(handleCandidate);
+        if (resolved?.email) {
+          resolvedEmail = resolved.email;
+          resolvedName = resolvedName || resolved.displayName;
+          resolvedUserId = resolved.userId;
+        } else if (isHandle(party.email)) {
+          // Handle informado mas sem perfil cadastrado — não há e-mail para notificar.
+          console.warn(`[notifyContractParties] @${normalizeHandle(handleCandidate)} sem e-mail cadastrado, pulando notificação`);
+          continue;
+        }
+      }
+
+      // 1. In-app notification (para usuários já registrados).
+      // Usa userId resolvido via handle quando disponível; caso contrário, lookup
+      // por e-mail via RPC SECURITY DEFINER (bypassa a RLS "view own profile",
+      // que impediria o caller de encontrar o destinatário).
+      let profileId = resolvedUserId;
+      if (!profileId) {
+        const { data: profile } = await supabase
+          .rpc('lookup_profile_by_email', { p_email: resolvedEmail })
+          .maybeSingle();
+        profileId = (profile as { id?: string } | null)?.id;
+      }
+
+      if (profileId) {
+        await signingService.notifyUser(profileId, {
           title: 'Convite para Assinar Documento',
           message: `Você foi convidado(a) a assinar: "${contractTitle}".`,
           type: 'signing_invite',
@@ -954,8 +992,8 @@ export const signingService = {
       try {
         const { error: emailError } = await supabase.functions.invoke('send-signing-email', {
           body: {
-            to: party.email,
-            signerName: party.name ?? '',
+            to: resolvedEmail,
+            signerName: resolvedName ?? '',
             contractTitle,
             contractId,
             partyId: party.id ?? undefined,

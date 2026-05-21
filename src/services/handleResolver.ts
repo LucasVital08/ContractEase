@@ -9,12 +9,14 @@
  *
  * Estratégia de resolução (em ordem):
  *   1. Diretório curado de demo handles (para o hackathon e onboarding)
- *   2. Perfis do Supabase com handle cadastrado (futuro: extensão da tabela profiles)
+ *   2. Perfis do Supabase com handle cadastrado (RPC lookup_profile_by_handle)
  *   3. SocialPay handles directory (futuro: cross-app via edge function)
  *
- * Para plugar lookup real depois, basta atender as funções `resolveHandle`
- * e `searchHandles` mantendo a mesma interface — o front continua igual.
+ * O diretório curado segue como fast-path para demos sem rede; perfis reais
+ * caem no fallback assíncrono que consulta a tabela profiles via RPC seguro.
  */
+
+import { supabase } from '@/lib/supabase';
 
 export interface ResolvedHandle {
   handle: string;            // ex: "lucas" (sem o @)
@@ -23,6 +25,9 @@ export interface ResolvedHandle {
   avatar?: string;           // emoji ou URL
   verified?: boolean;        // ✓ azul se for conta verificada
   kind?: 'person' | 'company' | 'project' | 'supplier';
+  email?: string;            // e-mail do perfil (quando vindo do Supabase)
+  userId?: string;           // profiles.id (quando vindo do Supabase)
+  source?: 'demo' | 'profile';
 }
 
 // ─── Diretório curado de demos ───────────────────────────────────────
@@ -151,19 +156,56 @@ export function normalizeHandle(handle: string): string {
  * Resolve um handle (@lucas ou lucas) para um endereço Stellar.
  * Retorna null se não encontrar.
  *
- * Para integração real com Supabase no futuro:
- *   1. Buscar no diretório curado primeiro
- *   2. Se não achar, query no Supabase: `select * from profiles where handle = $1`
- *   3. Se não achar, retornar null
+ * Ordem:
+ *   1. Diretório curado (fast-path, sem rede)
+ *   2. Perfil real no Supabase via RPC lookup_profile_by_handle
  */
 export async function resolveHandle(handle: string): Promise<ResolvedHandle | null> {
   const normalized = normalizeHandle(handle);
   if (!normalized) return null;
 
-  // Latência simulada — dá sensação de "buscando"
-  await new Promise(r => setTimeout(r, 80));
+  const demo = HANDLES_BY_NAME.get(normalized);
+  if (demo) return { ...demo, source: 'demo' };
 
-  return HANDLES_BY_NAME.get(normalized) || null;
+  return resolveHandleFromProfiles(normalized);
+}
+
+/**
+ * Consulta direta à tabela profiles via RPC `lookup_profile_by_handle`.
+ * O RPC roda como SECURITY DEFINER e expõe apenas campos seguros (id, nome,
+ * e-mail, avatar, wallet_address). Falhas de rede retornam null em vez de
+ * lançar — quem chama trata como "não encontrado".
+ */
+async function resolveHandleFromProfiles(normalized: string): Promise<ResolvedHandle | null> {
+  try {
+    const { data, error } = await supabase
+      .rpc('lookup_profile_by_handle', { p_handle: normalized })
+      .maybeSingle();
+    if (error || !data) return null;
+
+    const row = data as {
+      id: string;
+      handle: string;
+      name: string;
+      email: string | null;
+      avatar_url: string | null;
+      wallet_address: string | null;
+    };
+
+    return {
+      handle: row.handle,
+      address: row.wallet_address ?? '',
+      displayName: row.name,
+      avatar: row.avatar_url ?? undefined,
+      verified: false,
+      kind: 'person',
+      email: row.email ?? undefined,
+      userId: row.id,
+      source: 'profile',
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -201,15 +243,51 @@ export async function searchHandles(query: string, limit = 6): Promise<ResolvedH
     const lower = h.handle.toLowerCase();
     const dnLower = h.displayName.toLowerCase();
     if (lower.startsWith(normalized)) {
-      startsWith.push(h);
+      startsWith.push({ ...h, source: 'demo' });
     } else if (lower.includes(normalized)) {
-      containsHandle.push(h);
+      containsHandle.push({ ...h, source: 'demo' });
     } else if (dnLower.includes(normalized)) {
-      containsName.push(h);
+      containsName.push({ ...h, source: 'demo' });
     }
   }
 
-  return [...startsWith, ...containsHandle, ...containsName].slice(0, limit);
+  const demoResults = [...startsWith, ...containsHandle, ...containsName];
+  const profileResults = await searchProfileHandles(normalized, limit);
+
+  // Dedup por handle — demo tem prioridade (avatar curado, verified, etc.)
+  const seen = new Set(demoResults.map(h => h.handle.toLowerCase()));
+  const merged = [...demoResults];
+  for (const p of profileResults) {
+    if (!seen.has(p.handle.toLowerCase())) {
+      merged.push(p);
+      seen.add(p.handle.toLowerCase());
+    }
+  }
+
+  return merged.slice(0, limit);
+}
+
+async function searchProfileHandles(normalized: string, limit: number): Promise<ResolvedHandle[]> {
+  try {
+    const { data, error } = await supabase.rpc('search_profile_handles', {
+      p_query: normalized,
+      p_limit: limit,
+    });
+    if (error || !Array.isArray(data)) return [];
+
+    return (data as Array<{ id: string; handle: string; name: string; avatar_url: string | null }>).map(row => ({
+      handle: row.handle,
+      address: '',
+      displayName: row.name,
+      avatar: row.avatar_url ?? undefined,
+      verified: false,
+      kind: 'person' as const,
+      userId: row.id,
+      source: 'profile' as const,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /**
