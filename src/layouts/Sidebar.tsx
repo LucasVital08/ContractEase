@@ -16,10 +16,12 @@ const NAV_ITEMS = [
   // Business Items - Actions
   { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo Documento', profile: 'business', section: 'actions' },
   { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Templates', profile: 'business', section: 'actions' },
+  { to: '/smart-contracts', icon: 'solar:cpu-bolt-bold-duotone', label: 'Smart Contracts IA', profile: 'business', section: 'actions', badge: 'NOVO' },
 
   // Business Items - Analytics
   { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Faturamento & Créditos', profile: 'business', section: 'analytics' },
   { to: '/analytics', icon: 'solar:chart-2-bold-duotone', label: 'Analytics', profile: 'business', section: 'analytics' },
+
 
   // Developer Items
   { to: '/integrations', icon: 'solar:plug-bold-duotone', label: 'Integrações & API', profile: 'developer', section: 'developer' },
@@ -372,9 +374,14 @@ export default function Sidebar() {
                         <motion.span
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="whitespace-nowrap flex-1 text-left"
+                          className="whitespace-nowrap flex-1 text-left flex items-center gap-2"
                         >
                           {item.label}
+                          {(item as any).badge && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">
+                              {(item as any).badge}
+                            </span>
+                          )}
                         </motion.span>
                       )}
 

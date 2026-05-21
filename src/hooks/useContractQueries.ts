@@ -10,9 +10,13 @@ export const contractKeys = {
 
 export function useContracts() {
   const org = useAuthStore(s => s.organization);
+  const initialized = useAuthStore(s => s.initialized);
   return useQuery({
-    queryKey: [...contractKeys.all, org?.id],
+    queryKey: [...contractKeys.all, org?.id ?? 'personal'],
     queryFn: () => api.contracts.list(org?.id),
+    // Never fire before the Supabase session is confirmed — prevents empty
+    // results from unauthenticated requests racing the initialization flow.
+    enabled: initialized,
   });
 }
 
@@ -35,10 +39,10 @@ export function useCreateContract() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: contractKeys.all });
-      notify({ type: 'success', title: 'Contrato criado com sucesso!' });
     },
-    onError: () => {
-      notify({ type: 'error', title: 'Erro ao criar contrato' });
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Tente novamente.';
+      notify({ type: 'error', title: 'Erro ao criar contrato', message: msg });
     },
   });
 }

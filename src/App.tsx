@@ -4,12 +4,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppLayout from '@/layouts/AppLayout';
 import AuthGuard from '@/layouts/AuthGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { setSessionClearedCallback } from '@/stores/useAuthStore';
 
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
 const ContractsPage = React.lazy(() => import('@/pages/ContractsPage'));
 const CreateContractPage = React.lazy(() => import('@/pages/CreateContractPage'));
 const ContractDetailPage = React.lazy(() => import('@/pages/ContractDetailPage'));
 const TemplatesPage = React.lazy(() => import('@/pages/TemplatesPage'));
+const SmartContractsPage = React.lazy(() => import('@/pages/SmartContractsPage'));
 const AnalyticsPage = React.lazy(() => import('@/pages/AnalyticsPage'));
 const FinancePage = React.lazy(() => import('@/pages/FinancePage'));
 const SettingsPage = React.lazy(() => import('@/pages/SettingsPage'));
@@ -29,11 +31,17 @@ const StellarAnchorPage = React.lazy(() => import('@/pages/StellarAnchorPage'));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60,
+      staleTime: 1000 * 30,
       retry: 1,
+      // Keep showing cached data while refetching — prevents empty flicker
+      placeholderData: (prev: unknown) => prev,
     },
   },
 });
+
+// Clear all cached data when the user logs out or switches accounts,
+// so the next user never sees stale data from the previous session.
+setSessionClearedCallback(() => queryClient.clear());
 
 const LoadingFallback = () => <div className="p-8 text-neutral-500">Carregando...</div>;
 
@@ -57,6 +65,7 @@ export default function App() {
                 <Route path="contracts/new" element={<CreateContractPage />} />
                 <Route path="contracts/:id" element={<ContractDetailPage />} />
                 <Route path="templates" element={<TemplatesPage />} />
+                <Route path="smart-contracts" element={<SmartContractsPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="finance" element={<FinancePage />} />
                 <Route path="admin" element={<AdminDashboardPage />} />

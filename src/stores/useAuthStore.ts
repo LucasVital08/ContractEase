@@ -5,6 +5,11 @@ import { supabase } from '@/lib/supabase';
 
 let profileChannel: ReturnType<typeof supabase.channel> | null = null;
 
+// Injected by App.tsx so the auth store can clear React Query cache on logout/user-switch.
+// Using a callback avoids a circular import between the store and QueryClient.
+let _onSessionCleared: (() => void) | null = null;
+export function setSessionClearedCallback(cb: () => void) { _onSessionCleared = cb; }
+
 function subscribeToProfile(userId: string, onUpdate: (payload: any) => void) {
   if (profileChannel) {
     supabase.removeChannel(profileChannel);
@@ -138,6 +143,7 @@ export const useAuthStore = create<AuthStore>()(
         // Listen for auth state changes (login/logout/token refresh)
         supabase.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_OUT' || !session) {
+            _onSessionCleared?.();   // clear React Query cache on logout/switch
             set({ user: null, organization: null, isAuthenticated: false });
           } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
             const { data: profile } = await supabase
@@ -195,6 +201,20 @@ export const useAuthStore = create<AuthStore>()(
         });
       },
     }),
-    { name: 'contractease-auth' }
+    {
+      name: 'contractease-auth',
+      // Never persist `initialized` or `isLoading` — they must be derived fresh
+      // on every tab/page load so that `initialize()` always re-validates the
+      // Supabase session and registers onAuthStateChange.
+      // Without this, a second tab hydrates with initialized=true, skips session
+      // verification, and data queries fire before the auth token is ready → RLS
+      // silently blocks them and pages show "not found" for the same user.
+      partialize: (state) => ({
+        user: state.user,
+        organization: state.organization,
+        isAuthenticated: state.isAuthenticated,
+        activeProfile: state.activeProfile,
+      }),
+    }
   )
 );

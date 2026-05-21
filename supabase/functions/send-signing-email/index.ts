@@ -2,6 +2,11 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const APP_URL = Deno.env.get("APP_URL") || "https://contractease.com";
+// RESEND_FROM must be an address on a domain you verified in Resend.
+// Defaults to the Resend sandbox sender so the function works out of the box;
+// override with a verified domain (e.g. "ContractEase <noreply@yourdomain.com>")
+// once DNS is configured.
+const RESEND_FROM = Deno.env.get("RESEND_FROM") || "ContractEase <onboarding@resend.dev>";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +47,7 @@ Deno.serve(async (req: Request) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "ContractEase <noreply@contractease.com>",
+        from: RESEND_FROM,
         to: [to],
         subject: `Convite para Assinar: ${contractTitle}`,
         html: `
@@ -70,8 +75,20 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || "Falha ao enviar email");
+      // Surface the actual Resend error (e.g. "domain not verified", "invalid api key")
+      // both in the response body and Supabase function logs.
+      const errorBody = await res.text();
+      console.error("[send-signing-email] Resend error", { status: res.status, body: errorBody, from: RESEND_FROM });
+      let parsed: Record<string, unknown> = {};
+      try { parsed = JSON.parse(errorBody); } catch { /* keep as-is */ }
+      return new Response(JSON.stringify({
+        error: parsed.message ?? "Falha ao enviar email",
+        resend_status: res.status,
+        resend_body: parsed,
+      }), {
+        status: res.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ success: true }), {
@@ -79,7 +96,8 @@ Deno.serve(async (req: Request) => {
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error("[send-signing-email] unexpected error", err);
+    return new Response(JSON.stringify({ error: (err as Error).message ?? String(err) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
