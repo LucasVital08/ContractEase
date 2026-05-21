@@ -9,9 +9,15 @@ export default function AuthGuard() {
   const initialize = useAuthStore((s) => s.initialize);
 
   useEffect(() => {
+    // initialize() is idempotent only within a session — `initialized` is no
+    // longer persisted, so it starts as false on every tab/page load and this
+    // effect always runs the full Supabase session check before rendering routes.
     initialize();
   }, [initialize]);
 
+  // Always show the spinner until initialize() has finished verifying the
+  // Supabase session. This prevents queries from firing with a missing token
+  // on fresh tab loads where the Supabase client hasn't restored the session yet.
   if (!initialized || isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">

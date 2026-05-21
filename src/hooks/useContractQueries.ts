@@ -10,9 +10,13 @@ export const contractKeys = {
 
 export function useContracts() {
   const org = useAuthStore(s => s.organization);
+  const initialized = useAuthStore(s => s.initialized);
   return useQuery({
-    queryKey: [...contractKeys.all, org?.id],
+    queryKey: [...contractKeys.all, org?.id ?? 'personal'],
     queryFn: () => api.contracts.list(org?.id),
+    // Never fire before the Supabase session is confirmed — prevents empty
+    // results from unauthenticated requests racing the initialization flow.
+    enabled: initialized,
   });
 }
 

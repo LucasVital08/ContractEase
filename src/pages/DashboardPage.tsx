@@ -107,7 +107,8 @@ const DEFAULT_WIDGETS = {
 };
 
 export default function DashboardPage() {
-  const { data: contracts = [], isLoading } = useContracts();
+  const { data: contracts = [], isLoading, error: contractsError } = useContracts();
+  if (contractsError) console.error('[Dashboard] contracts query failed:', contractsError);
   const { user, organization } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
   const [pendingSignatures, setPendingSignatures] = useState<any[]>([]);

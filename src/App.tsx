@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppLayout from '@/layouts/AppLayout';
 import AuthGuard from '@/layouts/AuthGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { setSessionClearedCallback } from '@/stores/useAuthStore';
 
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
 const ContractsPage = React.lazy(() => import('@/pages/ContractsPage'));
@@ -30,11 +31,17 @@ const StellarAnchorPage = React.lazy(() => import('@/pages/StellarAnchorPage'));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60,
+      staleTime: 1000 * 30,
       retry: 1,
+      // Keep showing cached data while refetching — prevents empty flicker
+      placeholderData: (prev: unknown) => prev,
     },
   },
 });
+
+// Clear all cached data when the user logs out or switches accounts,
+// so the next user never sees stale data from the previous session.
+setSessionClearedCallback(() => queryClient.clear());
 
 const LoadingFallback = () => <div className="p-8 text-neutral-500">Carregando...</div>;
 
