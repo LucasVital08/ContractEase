@@ -32,11 +32,12 @@ export class ErrorBoundary extends Component<Props, State> {
               <p className="text-neutral-400 text-sm">
                 Ocorreu um erro inesperado. Tente recarregar a página.
               </p>
-              {import.meta.env.DEV && (
-                <pre className="mt-4 p-4 bg-black/50 border border-red-500/20 rounded-xl text-left text-xs text-red-400 overflow-auto max-h-40">
+              <details className="mt-4 text-left">
+                <summary className="text-xs text-neutral-500 cursor-pointer hover:text-neutral-400">Detalhes do erro</summary>
+                <pre className="mt-2 p-4 bg-black/50 border border-red-500/20 rounded-xl text-xs text-red-400 overflow-auto max-h-40">
                   {this.state.error.message}
                 </pre>
-              )}
+              </details>
             </div>
             <div className="flex gap-3 justify-center">
               <button
