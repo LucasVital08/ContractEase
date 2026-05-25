@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import type { Contract, Party } from '@/types';
 import { signingService } from '@/services/supabaseService';
 import { generateContractHash, serializeContract, anchorOnStellar, getStellarExplorerUrl } from '@/services/stellar';
+import { signAsContractParty, shortenAddress } from '@/services/stellarWallet';
+import { useWalletStore } from '@/stores';
 import { supabase } from '@/lib/supabase';
 import { animations } from '@/tokens';
 
@@ -31,6 +33,8 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
   const [signedAt, setSignedAt] = useState('');
   const [txHash, setTxHash] = useState('');
   const [anchorFailed, setAnchorFailed] = useState(false);
+  const [signedWithWallet, setSignedWithWallet] = useState(false);
+  const wallet = useWalletStore();
 
   const roleLabel: Record<string, string> = {
     creator: 'Contratante',
@@ -38,9 +42,13 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
     witness: 'Testemunha',
   };
 
-  const handleSign = async () => {
+  const handleSign = async (opts: { withWallet?: boolean } = {}) => {
     if (!lgpdConsent) {
       setError('Você precisa consentir com a política de dados (LGPD) para prosseguir.');
+      return;
+    }
+    if (opts.withWallet && !wallet.isConnected) {
+      setError('Conecte sua carteira Freighter no topo da página para assinar on-chain.');
       return;
     }
     setError('');
@@ -48,13 +56,14 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
     const now = new Date().toISOString();
     setSignedAt(now);
     setStep('anchoring');
+    setSignedWithWallet(!!opts.withWallet);
 
     // 1. Registrar assinatura no banco
     try {
       await signingService.signParty(party.id, {
         cpf: cpf.replace(/\D/g, '') || undefined,
         lgpdConsent,
-        signatureType: 'type',
+        signatureType: opts.withWallet ? 'wallet' : 'type',
         contractId: contract.id,
       });
       await signingService.checkAndCompleteContract(contract.id);
@@ -65,7 +74,7 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
       return;
     }
 
-    // 2. Ancorar na Stellar Testnet
+    // 2. Gera o hash do documento e ancora on-chain
     try {
       const hash = await generateContractHash(
         serializeContract({
@@ -76,7 +85,11 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
         })
       );
 
-      const result = await anchorOnStellar(hash);
+      // Caminho on-chain real: usuário assina ManageData com sua Freighter
+      // Caminho custodial: ContractEase assina via edge function
+      const result = opts.withWallet
+        ? await signAsContractParty(hash, party.role === 'witness' ? 'witness' : 'signer')
+        : await anchorOnStellar(hash);
 
       if (result.success && result.txHash) {
         setTxHash(result.txHash);
@@ -84,7 +97,7 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
           .from('contracts')
           .update({ stellar_tx_hash: result.txHash, contract_hash: hash })
           .eq('id', contract.id);
-        onSuccess(); // segundo refetch com tx hash
+        onSuccess();
       } else {
         setAnchorFailed(true);
       }
@@ -181,14 +194,26 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
                 Cancelar
               </button>
               <button
-                onClick={handleSign}
+                onClick={() => handleSign()}
                 disabled={!lgpdConsent}
                 className="flex-[2] py-3 rounded-xl bg-emerald-500 text-black font-bold text-sm hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <iconify-icon icon="solar:pen-bold" class="text-base" />
-                Assinar Documento
+                Assinar (Eletrônica)
               </button>
             </div>
+
+            {/* Assinatura on-chain via Freighter — opção avançada */}
+            <button
+              onClick={() => handleSign({ withWallet: true })}
+              disabled={!lgpdConsent || !wallet.isConnected}
+              className="w-full mt-3 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.05] text-emerald-300 font-medium text-sm hover:bg-emerald-500/[0.1] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <iconify-icon icon="solar:wallet-2-bold-duotone" class="text-base" />
+              {wallet.isConnected
+                ? <>Assinar on-chain como <span className="font-mono">{shortenAddress(wallet.address ?? '')}</span></>
+                : 'Conecte sua carteira Stellar para assinar on-chain'}
+            </button>
 
             <div className="mt-4 flex items-center justify-center gap-5 text-[10px] text-neutral-600">
               <span className="flex items-center gap-1"><iconify-icon icon="solar:shield-check-bold" /> Assinatura Eletrônica</span>
@@ -328,8 +353,15 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <iconify-icon icon="solar:shield-check-bold-duotone" class="text-lg text-emerald-400" />
-                    <p className="text-sm font-bold text-emerald-400">Ancorado na Stellar Testnet</p>
+                    <p className="text-sm font-bold text-emerald-400">
+                      {signedWithWallet ? 'Assinado on-chain com sua carteira' : 'Ancorado na Stellar Testnet'}
+                    </p>
                   </div>
+                  {signedWithWallet && wallet.address && (
+                    <p className="text-[11px] text-neutral-500 mb-2">
+                      Assinante: <span className="text-neutral-300 font-mono">{shortenAddress(wallet.address)}</span>
+                    </p>
+                  )}
                   <p className="text-[11px] text-neutral-500 mb-1">Hash da transação</p>
                   <p className="text-xs text-neutral-300 font-mono break-all leading-relaxed">{txHash}</p>
                   <a

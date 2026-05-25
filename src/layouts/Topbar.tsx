@@ -6,6 +6,7 @@ import { useInbox } from '@/hooks/useInbox';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { animations, colors } from '@/tokens';
+import WalletConnectButton from '@/components/WalletConnectButton';
 
 const ROUTE_TITLES: Record<string, { title: string; icon?: string; breadcrumb?: string[] }> = {
   '/dashboard': { title: 'Dashboard', icon: 'solar:widget-5-bold-duotone', breadcrumb: ['Dashboard'] },
@@ -62,6 +63,11 @@ export default function Topbar() {
       </motion.div>
 
       <div className="flex items-center gap-3">
+        {/* Wallet connect (Freighter) */}
+        <div className="hidden sm:block">
+          <WalletConnectButton />
+        </div>
+
         {/* Search */}
         <motion.button
           onClick={() => window.dispatchEvent(new CustomEvent('open-global-search'))}
@@ -230,7 +236,10 @@ export default function Topbar() {
             </div>
             <div className="hidden md:block text-left shrink-0">
               <p className="text-[11px] font-bold text-white leading-none">{user?.name.split(' ')[0]}</p>
-              <p className="text-[9px] text-emerald-500 font-bold leading-none mt-1">{user?.credits} créditos</p>
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-[9px] text-cyan-400 font-bold leading-none">{user?.handle ? `@${user.handle}` : user?.email}</p>
+                <p className="text-[9px] text-emerald-500 font-bold leading-none">{user?.credits} créditos</p>
+              </div>
             </div>
             <iconify-icon icon="solar:alt-arrow-down-bold" class={`text-[10px] text-neutral-500 transition-transform ${showProfile ? 'rotate-180' : ''}`} />
           </motion.button>
@@ -254,7 +263,13 @@ export default function Topbar() {
                 >
                 <div className="p-3 mb-2 border-b border-white/5">
                   <p className="text-xs font-bold text-white">{user?.name}</p>
+                  {user?.handle && (
+                    <p className="mt-1 inline-flex items-center rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-300">@{user.handle}</p>
+                  )}
                   <p className="text-[10px] text-neutral-500">{user?.email}</p>
+                  {user?.walletAddress && (
+                    <p className="mt-2 text-[10px] text-neutral-500">Carteira: {`${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">

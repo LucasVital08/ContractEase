@@ -3,6 +3,9 @@ import { persist } from 'zustand/middleware';
 import type { User, Organization } from '@/types';
 import { supabase } from '@/lib/supabase';
 
+const PROFILE_BOOTSTRAP_SELECT = 'id, name, handle, role, avatar_url, organization_id, credits, wallet_address, plan';
+const ORGANIZATION_BOOTSTRAP_SELECT = 'id, name, plan, created_at';
+
 let profileChannel: ReturnType<typeof supabase.channel> | null = null;
 
 // Injected by App.tsx so the auth store can clear React Query cache on logout/user-switch.
@@ -83,7 +86,7 @@ export const useAuthStore = create<AuthStore>()(
             // 1. Fetch user profile
             const { data: profile } = await supabase
               .from('profiles')
-              .select('*')
+              .select(PROFILE_BOOTSTRAP_SELECT)
               .eq('id', session.user.id)
               .single();
 
@@ -92,7 +95,7 @@ export const useAuthStore = create<AuthStore>()(
             if (profile?.organization_id && profile.organization_id !== 'personal') {
               const { data: orgData } = await supabase
                 .from('organizations')
-                .select('*')
+                .select(ORGANIZATION_BOOTSTRAP_SELECT)
                 .eq('id', profile.organization_id)
                 .single();
               
@@ -110,6 +113,7 @@ export const useAuthStore = create<AuthStore>()(
               id: session.user.id,
               name: profile?.name ?? session.user.user_metadata?.name ?? session.user.email?.split('@')[0] ?? 'Usuário',
               email: session.user.email!,
+              handle: profile?.handle ?? session.user.user_metadata?.handle,
               role: (profile?.role ?? 'user') as User['role'],
               avatar: profile?.avatar_url ?? session.user.user_metadata?.avatar_url,
               organizationId: profile?.organization_id ?? 'personal',
@@ -131,7 +135,16 @@ export const useAuthStore = create<AuthStore>()(
             set({ user, organization, isAuthenticated: true, isLoading: false, initialized: true });
 
             subscribeToProfile(session.user.id, (payload) => {
-              if (payload.new) get().updateUser({ credits: payload.new.credits, plan: payload.new.plan, name: payload.new.name });
+              if (payload.new) {
+                get().updateUser({
+                  credits: payload.new.credits,
+                  plan: payload.new.plan,
+                  name: payload.new.name,
+                  handle: payload.new.handle,
+                  avatar: payload.new.avatar_url,
+                  walletAddress: payload.new.wallet_address,
+                });
+              }
             });
           } else {
             set({ user: null, organization: null, isAuthenticated: false, isLoading: false, initialized: true });
@@ -148,7 +161,7 @@ export const useAuthStore = create<AuthStore>()(
           } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('*')
+              .select(PROFILE_BOOTSTRAP_SELECT)
               .eq('id', session.user.id)
               .single();
 
@@ -156,7 +169,7 @@ export const useAuthStore = create<AuthStore>()(
             if (profile?.organization_id && profile.organization_id !== 'personal') {
               const { data: orgData } = await supabase
                 .from('organizations')
-                .select('*')
+                .select(ORGANIZATION_BOOTSTRAP_SELECT)
                 .eq('id', profile.organization_id)
                 .single();
               
@@ -174,6 +187,7 @@ export const useAuthStore = create<AuthStore>()(
               id: session.user.id,
               name: profile?.name ?? session.user.user_metadata?.name ?? session.user.email?.split('@')[0] ?? 'Usuário',
               email: session.user.email!,
+              handle: profile?.handle ?? session.user.user_metadata?.handle,
               role: (profile?.role ?? 'user') as User['role'],
               avatar: profile?.avatar_url ?? session.user.user_metadata?.avatar_url,
               organizationId: profile?.organization_id ?? 'personal',
@@ -195,7 +209,16 @@ export const useAuthStore = create<AuthStore>()(
             set({ user, organization, isAuthenticated: true, isLoading: false });
 
             subscribeToProfile(session.user.id, (payload) => {
-              if (payload.new) get().updateUser({ credits: payload.new.credits, plan: payload.new.plan, name: payload.new.name });
+              if (payload.new) {
+                get().updateUser({
+                  credits: payload.new.credits,
+                  plan: payload.new.plan,
+                  name: payload.new.name,
+                  handle: payload.new.handle,
+                  avatar: payload.new.avatar_url,
+                  walletAddress: payload.new.wallet_address,
+                });
+              }
             });
           }
         });

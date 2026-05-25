@@ -7,6 +7,10 @@ import type { Contract } from '@/types';
 import { api, signingService } from '@/services/supabaseService';
 import { animations } from '@/tokens';
 
+function isSmartContract(contract: Pick<Contract, 'tags'> | null | undefined) {
+  return Boolean(contract?.tags?.includes('smart-contract'));
+}
+
 function StatCard({ title, value, icon, color, bg, to, subtext, delay = 0 }: {
   title: string; value: string; icon: string; color: string; bg: string;
   to: string; subtext?: string; delay?: number;
@@ -80,12 +84,18 @@ function RecentRow({ contract }: { contract: Contract }) {
     archived: { label: 'Arquivado', cls: 'bg-neutral-600/20 text-neutral-500 border-neutral-600/30' },
   };
   const s = statusMap[contract.status] ?? statusMap.draft;
+  const smart = isSmartContract(contract);
 
   return (
     <Link to={`/contracts/${contract.id}`} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0 hover:bg-white/[0.02] px-2 -mx-2 rounded-lg transition-colors">
       <div className="flex items-center gap-3">
         <span className="text-emerald-500 font-mono text-xs">{contract.id}</span>
         <span className="text-white text-sm font-medium">{contract.title}</span>
+        {smart && (
+          <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase tracking-wide">
+            Smart
+          </span>
+        )}
         {contract.stellarTxHash && (
           <iconify-icon icon="solar:shield-check-bold" class="text-emerald-500 text-sm" />
         )}
@@ -110,13 +120,27 @@ export default function DashboardPage() {
   const { data: contracts = [], isLoading, error: contractsError } = useContracts();
   if (contractsError) console.error('[Dashboard] contracts query failed:', contractsError);
   const { user, organization } = useAuthStore();
+  const notify = useNotificationStore(s => s.add);
   const [isEditing, setIsEditing] = useState(false);
   const [pendingSignatures, setPendingSignatures] = useState<any[]>([]);
+  const [identitySettings, setIdentitySettings] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (!user?.email) return;
     signingService.getPendingForUser(user.email).then(setPendingSignatures);
   }, [user?.email]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.settings.get()
+      .then((settings) => {
+        if (!cancelled) setIdentitySettings(settings || {});
+      })
+      .catch(() => {
+        if (!cancelled) setIdentitySettings({});
+      });
+    return () => { cancelled = true; };
+  }, []);
   const [visibleWidgets, setVisibleWidgets] = useState(() => {
     const saved = localStorage.getItem('dashboard_widgets');
     return saved ? JSON.parse(saved) : DEFAULT_WIDGETS;
@@ -135,6 +159,25 @@ export default function DashboardPage() {
   const completed = contracts.filter((c) => c.status === 'completed').length;
   const anchored = contracts.filter((c) => c.stellarTxHash).length;
   const totalSignatures = contracts.reduce((sum, c) => sum + c.parties.filter(p => p.signedAt).length, 0);
+  const smartContracts = contracts.filter(isSmartContract);
+  const smartActive = smartContracts.filter((c) => c.status === 'active').length;
+  const smartPending = smartContracts.filter((c) => c.status === 'pending').length;
+  const smartDraft = smartContracts.filter((c) => c.status === 'draft').length;
+  const smartAnchored = smartContracts.filter((c) => c.stellarTxHash).length;
+
+  const handleCopyIdentity = async () => {
+    if (!user?.handle) {
+      notify({ type: 'info', title: 'Handle indisponível', message: 'Seu @usuário ainda não está configurado no perfil.' });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(`@${user.handle}`);
+      notify({ type: 'success', title: 'Identidade copiada', message: `@${user.handle} copiado para a área de transferência.` });
+    } catch {
+      notify({ type: 'warning', title: 'Não foi possível copiar', message: 'Tente novamente em alguns segundos.' });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -186,7 +229,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white font-bricolage">Dashboard</h1>
           <p className="text-neutral-400 text-sm">Bem-vindo de volta, {user?.name.split(' ')[0]}!</p>
@@ -203,6 +246,19 @@ export default function DashboardPage() {
           {isEditing ? 'Salvar Layout' : 'Customizar Painel'}
         </button>
       </div>
+
+      {user && (
+        <IdentityHubCard
+          user={user}
+          organizationName={organization?.name}
+          bio={identitySettings.bio}
+          jobTitle={identitySettings.jobTitle}
+          activeCount={active}
+          draftCount={draft}
+          pendingSignatureCount={pendingSignatures.length}
+          onCopyHandle={handleCopyIdentity}
+        />
+      )}
 
       <AnimatePresence>
         {isEditing && (
@@ -247,6 +303,36 @@ export default function DashboardPage() {
           <StatCard title="Assinatura Pendente" value={pending.toString()} icon="solar:hourglass-bold-duotone" color="text-amber-400" bg="bg-amber-500/10" to="/contracts?status=pending" subtext="aguardando partes" delay={0.12} />
           <StatCard title="Concluídos" value={completed.toString()} icon="solar:diploma-verified-bold-duotone" color="text-blue-400" bg="bg-blue-500/10" to="/contracts?status=completed" subtext="todos assinaram" delay={0.16} />
         </div>
+      )}
+
+      {smartContracts.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }} className={`bg-neutral-900 border border-cyan-500/10 rounded-2xl p-6 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+          <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+            <div>
+              <h3 className="text-lg font-bold text-white font-bricolage flex items-center gap-2">
+                <iconify-icon icon="solar:code-square-bold-duotone" class="text-cyan-400 text-xl" /> Smart Contracts
+              </h3>
+              <p className="text-xs text-neutral-400 mt-1">Visão operacional dos contratos inteligentes no dashboard: ativos, pendentes de ciência, rascunhos e provas on-chain.</p>
+            </div>
+            <Link to="/contracts" className="text-xs text-cyan-400 hover:underline">Abrir documentos</Link>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            {[
+              { label: 'Total', value: smartContracts.length, tone: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20', subtext: 'contratos inteligentes' },
+              { label: 'Ativos', value: smartActive, tone: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', subtext: 'em execução' },
+              { label: 'Pendentes', value: smartPending, tone: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', subtext: 'pendente de ciência' },
+              { label: 'Rascunhos', value: smartDraft, tone: 'text-neutral-300', bg: 'bg-white/5 border-white/10', subtext: 'ainda não publicados' },
+              { label: 'Ancorados', value: smartAnchored, tone: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', subtext: 'com hash na Stellar' },
+            ].map(card => (
+              <div key={card.label} className={`rounded-2xl border p-4 ${card.bg}`}>
+                <p className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">{card.label}</p>
+                <p className={`text-2xl font-bold ${card.tone}`}>{card.value}</p>
+                <p className="text-[11px] text-neutral-500 mt-1">{card.subtext}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
       )}
 
       {/* Blockchain Stats */}
@@ -311,9 +397,16 @@ export default function DashboardPage() {
                     <iconify-icon icon="solar:document-text-bold" class="text-emerald-400 text-sm" />
                   </div>
                   <div>
-                    <p className="text-sm text-white font-medium group-hover:text-emerald-400 transition-colors">
-                      {(party.contracts as any)?.title ?? 'Documento'}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm text-white font-medium group-hover:text-emerald-400 transition-colors">
+                        {(party.contracts as any)?.title ?? 'Documento'}
+                      </p>
+                      {isSmartContract((party.contracts as any) ?? undefined) && (
+                        <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase tracking-wide">
+                          Smart
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-neutral-500 capitalize">{party.role}</p>
                   </div>
                 </div>
@@ -359,7 +452,14 @@ export default function DashboardPage() {
               {contracts.filter(c => c.status === 'active').slice(0, 3).map(c => (
                 <div key={c.id} className="p-3 bg-black/30 border border-white/5 rounded-xl flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-white truncate max-w-[120px]">{c.title}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs font-bold text-white truncate max-w-[120px]">{c.title}</p>
+                      {isSmartContract(c) && (
+                        <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[9px] font-bold uppercase tracking-wide">
+                          Smart
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[10px] text-neutral-500">{new Date(c.expiresAt).toLocaleDateString()}</p>
                   </div>
                   <div className="text-right">
@@ -373,6 +473,114 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function IdentityHubCard({
+  user,
+  organizationName,
+  bio,
+  jobTitle,
+  activeCount,
+  draftCount,
+  pendingSignatureCount,
+  onCopyHandle,
+}: {
+  user: NonNullable<ReturnType<typeof useAuthStore.getState>['user']>;
+  organizationName?: string;
+  bio?: string;
+  jobTitle?: string;
+  activeCount: number;
+  draftCount: number;
+  pendingSignatureCount: number;
+  onCopyHandle: () => void;
+}) {
+  const initials = user.name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'CE';
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative overflow-hidden rounded-[30px] border border-white/8 bg-neutral-900/75 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.28)]"
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.12),transparent_36%)]" />
+      <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px] xl:items-start">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 text-2xl font-bold text-white shadow-[0_16px_40px_rgba(16,185,129,0.15)]">
+            {user.avatar
+              ? <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+              : initials}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="rounded-full border border-emerald-400/16 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300">Identidade ativa</span>
+              <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400">{user.plan || 'free'}</span>
+            </div>
+            <h2 className="mt-4 text-2xl font-bold text-white font-bricolage sm:text-3xl">{user.name}</h2>
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-sm font-semibold text-cyan-300">
+                {user.handle ? `@${user.handle}` : user.email}
+              </span>
+              {jobTitle && (
+                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs text-neutral-300">{jobTitle}</span>
+              )}
+              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs text-neutral-400">{organizationName || 'Espaço Pessoal'}</span>
+            </div>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300">
+              {bio || 'Seu perfil agora aparece com mais destaque para assinatura, identidade e contexto do dono da conta. Personalize bio, avatar e cargo nas configurações.'}
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                onClick={onCopyHandle}
+                className="inline-flex items-center gap-2 rounded-full border border-cyan-500/18 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/14"
+              >
+                <iconify-icon icon="solar:copy-bold" class="text-base" />
+                Copiar identidade
+              </button>
+              <Link
+                to="/settings"
+                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-white/14 hover:text-white"
+              >
+                <iconify-icon icon="solar:pen-2-bold" class="text-base" />
+                Personalizar perfil
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+          <IdentityMetric label="Documentos ativos" value={activeCount.toString()} icon="solar:check-circle-bold-duotone" tone="text-emerald-300" />
+          <IdentityMetric label="Rascunhos" value={draftCount.toString()} icon="solar:pen-new-round-bold-duotone" tone="text-neutral-200" />
+          <IdentityMetric label="Sua assinatura" value={pendingSignatureCount.toString()} icon="solar:pen-bold-duotone" tone="text-amber-300" detail={pendingSignatureCount > 0 ? 'pendências aguardando você' : 'nenhuma pendência agora'} />
+          <IdentityMetric label="Créditos" value={`${user.credits ?? 0}`} icon="solar:wallet-money-bold-duotone" tone="text-cyan-300" />
+          <IdentityMetric label="Carteira" value={user.walletAddress ? 'Conectada' : 'Pendente'} icon="solar:wallet-2-bold-duotone" tone={user.walletAddress ? 'text-emerald-300' : 'text-neutral-300'} detail={user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Conecte na aba Configurações'} />
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+function IdentityMetric({ label, value, icon, tone, detail }: { label: string; value: string; icon: string; tone: string; detail?: string }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-black/25 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">{label}</p>
+          <p className={`mt-2 text-xl font-bold font-bricolage ${tone}`}>{value}</p>
+          {detail && <p className="mt-1 text-[11px] text-neutral-500">{detail}</p>}
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-neutral-400">
+          <iconify-icon icon={icon} class="text-lg" />
+        </div>
       </div>
     </div>
   );

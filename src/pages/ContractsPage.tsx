@@ -56,7 +56,6 @@ export default function ContractsPage() {
         c.id.toLowerCase().includes(q) || 
         c.description.toLowerCase().includes(q) ||
         c.tags.some(t => t.toLowerCase().includes(q)) ||
-        c.clauses.some(cl => cl.content.toLowerCase().includes(q) || cl.title.toLowerCase().includes(q)) ||
         c.parties.some(p => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
 
       // Folder filter
@@ -167,7 +166,7 @@ export default function ContractsPage() {
             <iconify-icon icon="solar:magnifer-linear" class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
             <input
               type="text"
-              placeholder="Busca full-text: título, cláusulas, partes, tags..."
+              placeholder="Busque por título, descrição, partes, ID ou tags..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors"

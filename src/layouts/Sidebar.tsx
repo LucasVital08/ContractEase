@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   // Business Items - Actions
   { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo Documento', profile: 'business', section: 'actions' },
   { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Templates', profile: 'business', section: 'actions' },
-  { to: '/smart-contracts', icon: 'solar:cpu-bolt-bold-duotone', label: 'Smart Contracts IA', profile: 'business', section: 'actions', badge: 'NOVO' },
+  { to: '/smart-contracts', icon: 'solar:cpu-bolt-bold-duotone', label: 'Smart Contracts IA', profile: 'business', section: 'actions' },
 
   // Business Items - Analytics
   { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Faturamento & Créditos', profile: 'business', section: 'analytics' },

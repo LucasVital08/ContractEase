@@ -13,26 +13,39 @@ import {
   type AIChatMessage,
   type AIExplainResult,
 } from '@/services/smartContractAI';
-import { useNotificationStore } from '@/stores';
-import { api } from '@/services/api';
+import { useNotificationStore, useWalletStore } from '@/stores';
 import { generateContractHash, anchorOnStellar } from '@/services/stellar';
+import { anchorContractHashWithWallet, shortenAddress } from '@/services/stellarWallet';
 import { useCreateContract, useUpdateContract } from '@/hooks/useContractQueries';
-import { resolveHandleSync, lookupHandleByAddress, normalizeHandle } from '@/services/handleResolver';
+import { signingService } from '@/services/supabaseService';
+import { resolveHandle, resolveHandleSync, lookupHandleByAddress, lookupProfileByAddress, normalizeHandle, type ResolvedHandle } from '@/services/handleResolver';
 import HandleInput from '@/components/HandleInput';
+import QuestionnaireFlow from '@/components/QuestionnaireFlow';
+import { getQuestionsForTemplate } from '@/services/templateQuestions';
 import type { ContractType } from '@/types/contract';
+import { SmartContractGlyph, getSmartContractVisual } from '@/components/SmartContractVisual';
 
-type TabKey = 'chat' | 'plain' | 'soroban' | 'states';
+type TabKey = 'document' | 'plain' | 'soroban' | 'states';
+export type EditorMode = 'chat' | 'questions';
 
 interface Props {
   template: SmartContractTemplate;
   onClose: () => void;
   onDeployed: (contractId: string) => void;
+  /** Modo inicial de criação. Default: 'chat'. */
+  initialMode?: EditorMode;
 }
 
-export default function SmartContractEditor({ template, onClose, onDeployed }: Props) {
+export default function SmartContractEditor({ template, onClose, onDeployed, initialMode = 'chat' }: Props) {
   const notify = useNotificationStore(s => s.add);
   const createMutation = useCreateContract();
   const updateMutation = useUpdateContract();
+
+  const templateQuestions = useMemo(() => getQuestionsForTemplate(template.id), [template.id]);
+  const hasQuestions = templateQuestions.length > 0;
+  const [editorMode, setEditorMode] = useState<EditorMode>(
+    initialMode === 'questions' && hasQuestions ? 'questions' : 'chat'
+  );
 
   const [variables, setVariables] = useState<Record<string, string>>(() => {
     const defaults: Record<string, string> = {};
@@ -47,9 +60,12 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
   ]);
   const [input, setInput] = useState('');
   const [aiThinking, setAiThinking] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>('chat');
+  const [activeTab, setActiveTab] = useState<TabKey>('document');
   const [explanation, setExplanation] = useState<AIExplainResult | null>(null);
   const [deploying, setDeploying] = useState(false);
+  const [deployReviewMode, setDeployReviewMode] = useState<{ useUserWallet: boolean } | null>(null);
+  const [deployReviewParties, setDeployReviewParties] = useState<SigningReviewParty[]>([]);
+  const [deployReviewLoading, setDeployReviewLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Re-explica sempre que as variáveis mudarem
@@ -63,6 +79,23 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, aiThinking]);
+
+  useEffect(() => {
+    if (!deployReviewMode) return;
+
+    let cancelled = false;
+    setDeployReviewLoading(true);
+
+    buildSigningReviewParties(template, variables)
+      .then((parties) => {
+        if (!cancelled) setDeployReviewParties(parties);
+      })
+      .finally(() => {
+        if (!cancelled) setDeployReviewLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [deployReviewMode, template, variables]);
 
   // Para gerar código Soroban e ancorar on-chain, sempre resolvemos os @handles
   // para endereços Stellar reais — o blockchain não entende @username
@@ -136,19 +169,35 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
     setVariables(v => ({ ...v, [name]: value }));
   }
 
-  async function handleDeploy() {
+  function requestDeployConfirmation(opts: { useUserWallet?: boolean } = {}) {
+    if (!isComplete || deploying) return;
+    setDeployReviewMode({ useUserWallet: Boolean(opts.useUserWallet) });
+  }
+
+  async function handleDeploy(opts: { useUserWallet?: boolean } = {}) {
     if (!isComplete || deploying) return;
     setDeploying(true);
 
     try {
+      const deployVariables = await resolveAllHandlesAsync(template, variables);
+      const sorobanCodeToDeploy = template.generateSoroban(deployVariables);
+
       // 1. Hash do código Soroban + variáveis (com @handles já resolvidos para G...)
-      const payload = JSON.stringify({ template: template.id, vars: resolvedVariables, code: sorobanCode });
+      const payload = JSON.stringify({ template: template.id, vars: deployVariables, code: sorobanCodeToDeploy });
       const codeHash = await generateContractHash(payload);
 
-      // 2. Submete na Stellar Testnet com hash no memo
-      const txResult = await anchorOnStellar(codeHash);
+      // 2. Submete na Stellar Testnet com hash no memo.
+      //    - Modo padrão (custodial): edge function anchor-on-stellar
+      //    - Modo "Implantar com minha carteira": assina via Freighter
+      const txResult = opts.useUserWallet
+        ? await anchorContractHashWithWallet(codeHash)
+        : await anchorOnStellar(codeHash);
+
       if (!txResult.success || !txResult.txHash) {
-        throw new Error(txResult.error || 'Falha ao ancorar na Stellar');
+        const parts = [txResult.error || 'Falha ao ancorar na Stellar'];
+        if ('stage' in txResult && txResult.stage) parts.push(`(etapa: ${txResult.stage})`);
+        if ('hint' in txResult && txResult.hint) parts.push(`Dica: ${txResult.hint}`);
+        throw new Error(parts.join(' · '));
       }
 
       // 3. Cria o contrato no Supabase com o smart contract data
@@ -166,15 +215,23 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
       }
       const title = titleParts.join(' — ');
 
+      const parties = await extractPartiesFromVariables(template, variables);
+
       const contract = await createMutation.mutateAsync({
         title,
         description: `Smart Contract (${template.name}) — ${template.plainLanguage.slice(0, 200)}`,
         type: mapTemplateToContractType(template.id),
-        parties: extractPartiesFromVariables(template, variables),
-        clauses: buildClausesFromTemplate(template, variables, sorobanCode),
+        parties,
+        clauses: buildClausesFromTemplate(template, variables, sorobanCodeToDeploy),
         expiresAt: variables.deadline || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
         tags: ['smart-contract', 'soroban', template.id, template.category],
       });
+
+      try {
+        await signingService.notifyContractParties(contract.id, contract.title, contract.parties);
+      } catch (notifyError) {
+        console.warn('[SmartContractEditor] failed to notify contract parties', notifyError);
+      }
 
       // 4. Atualiza com o hash on-chain (best effort)
       try {
@@ -207,13 +264,14 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
   }
 
   const categoryMeta = CATEGORIES.find(c => c.id === template.category);
+  const visual = getSmartContractVisual(template);
 
   // ─── Render ─────────────────────────────────────────────
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-[calc(100vh-120px)] flex flex-col">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto flex min-h-[calc(100vh-120px)] w-full max-w-[1680px] flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <button
           onClick={onClose}
           className="flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors"
@@ -221,69 +279,87 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
           <iconify-icon icon="solar:arrow-left-bold" /> Voltar aos templates
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:justify-end">
           <div className="flex items-center gap-2 text-xs text-neutral-400">
-            <div className="w-32 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+            <div className="h-1 w-24 overflow-hidden rounded-full bg-neutral-800 sm:w-32">
               <motion.div
-                className="h-full bg-gradient-to-r from-fuchsia-500 to-emerald-500"
+                className="h-full bg-emerald-500"
                 initial={{ width: 0 }}
                 animate={{ width: `${completionPct}%` }}
                 transition={{ duration: 0.4 }}
               />
             </div>
-            <span className="font-mono">{completionPct}%</span>
+            <span className="font-mono tabular-nums w-9 text-right">{completionPct}%</span>
           </div>
 
-          <button
-            onClick={handleDeploy}
-            disabled={!isComplete || deploying}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-              isComplete && !deploying
-                ? 'bg-gradient-to-r from-fuchsia-500 to-emerald-500 text-black hover:scale-105'
-                : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
-            }`}
-          >
-            {deploying ? (
-              <>
-                <iconify-icon icon="solar:refresh-bold" class="animate-spin" />
-                Implantando...
-              </>
-            ) : (
-              <>
-                <iconify-icon icon="solar:rocket-bold" />
-                Implantar na Testnet
-              </>
-            )}
-          </button>
+          <DeployButton
+            disabled={!isComplete}
+            deploying={deploying}
+            onDeploy={(useUserWallet) => requestDeployConfirmation({ useUserWallet })}
+          />
         </div>
       </div>
 
       {/* Template title bar */}
-      <div className="bg-neutral-900 border border-white/10 rounded-2xl p-4 mb-4 flex items-center gap-4">
-        <div className="text-3xl">{template.icon}</div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-lg font-bold text-white truncate">{template.name}</h2>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-400 flex items-center gap-1">
-              <span>{categoryMeta?.icon}</span>{categoryMeta?.label}
-            </span>
+      <div className="relative mb-4 overflow-hidden rounded-[28px] border border-white/8 bg-neutral-900/70 p-5 sm:p-6">
+        <div className={`absolute inset-0 bg-gradient-to-r ${visual.accentGradient}`} />
+        <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(255,255,255,0.08),transparent_38%)] opacity-70" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
+          <SmartContractGlyph template={template} size="md" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h2 className="text-lg font-bold text-white truncate font-bricolage">{template.name}</h2>
+              <span className={`text-[11px] font-semibold px-3 py-1 rounded-full border ${visual.accentChip}`}>
+                {categoryMeta?.label}
+              </span>
+              <span className="text-[11px] font-medium px-3 py-1 rounded-full bg-black/25 text-neutral-300 border border-white/8">
+                {template.difficulty}
+              </span>
+            </div>
+            <p className="text-sm text-neutral-300 leading-6">{template.description}</p>
+            <div className="mt-3 flex items-center gap-2 flex-wrap text-[11px] text-neutral-400">
+              <span className={`rounded-full border px-3 py-1 font-semibold ${template.isFullyImplemented ? visual.accentChip : 'border-white/10 bg-black/20 text-neutral-400'}`}>
+                {template.isFullyImplemented ? 'Operacional' : 'Beta'}
+              </span>
+              <span className="rounded-full border border-white/8 bg-black/20 px-3 py-1">{template.variables.length} campos</span>
+              <span className="rounded-full border border-white/8 bg-black/20 px-3 py-1">Soroban-ready</span>
+            </div>
           </div>
-          <p className="text-xs text-neutral-400 truncate">{template.description}</p>
         </div>
       </div>
 
       {/* Main 2-column layout */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4 min-h-0">
-        {/* LEFT: AI Chat + Variable form */}
+      <div className="flex-1 grid min-h-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.95fr)]">
+        {/* LEFT: AI Chat OU Questionário guiado + Variable form */}
         <div className="flex flex-col gap-4 min-h-0">
-          <ChatPanel
-            messages={messages}
-            input={input}
-            setInput={setInput}
-            onSend={handleSend}
-            aiThinking={aiThinking}
-            chatEndRef={chatEndRef}
-          />
+          {editorMode === 'questions' && hasQuestions ? (
+            <div className="flex-1 min-h-[360px]">
+              <QuestionnaireFlow
+                questions={templateQuestions}
+                values={variables}
+                onChange={handleVariableChange}
+                onComplete={() => {
+                  notify({
+                    type: 'success',
+                    title: 'Perguntas respondidas',
+                    message: 'Confira o documento e implante quando estiver pronto.',
+                  });
+                }}
+                onSwitchToChat={() => setEditorMode('chat')}
+              />
+            </div>
+          ) : (
+            <ChatPanel
+              messages={messages}
+              input={input}
+              setInput={setInput}
+              onSend={handleSend}
+              aiThinking={aiThinking}
+              chatEndRef={chatEndRef}
+              canSwitch={hasQuestions}
+              onSwitchToQuestions={() => setEditorMode('questions')}
+            />
+          )}
 
           <VariableFormPanel
             template={template}
@@ -293,30 +369,37 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
         </div>
 
         {/* RIGHT: Tabbed preview */}
-        <div className="flex flex-col bg-neutral-900 border border-white/10 rounded-2xl overflow-hidden min-h-0">
+        <div className="flex flex-col overflow-hidden rounded-[28px] border border-white/8 bg-neutral-900/70 min-h-[420px] xl:sticky xl:top-20 xl:max-h-[calc(100vh-100px)]">
           <div className="flex items-center border-b border-white/5">
+            <TabButton active={activeTab === 'document'} onClick={() => setActiveTab('document')}
+              icon="solar:document-text-bold-duotone" label="Documento" />
             <TabButton active={activeTab === 'plain'} onClick={() => setActiveTab('plain')}
-              icon="solar:chat-square-2-bold" label="Linguagem Simples" />
+              icon="solar:chat-square-2-bold" label="Resumo" />
             <TabButton active={activeTab === 'soroban'} onClick={() => setActiveTab('soroban')}
-              icon="solar:code-bold" label="Código Soroban" />
+              icon="solar:code-bold" label="Código" />
             <TabButton active={activeTab === 'states'} onClick={() => setActiveTab('states')}
-              icon="solar:diagram-up-bold" label="Estados & Ações" />
+              icon="solar:diagram-up-bold" label="Estados" />
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex-1 overflow-y-auto">
             <AnimatePresence mode="wait">
+              {activeTab === 'document' && (
+                <motion.div key="document" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <DocumentPreview template={template} variables={variables} />
+                </motion.div>
+              )}
               {activeTab === 'plain' && (
-                <motion.div key="plain" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <motion.div key="plain" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-5">
                   <PlainLanguageView explanation={explanation} template={template} />
                 </motion.div>
               )}
               {activeTab === 'soroban' && (
-                <motion.div key="soroban" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <motion.div key="soroban" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-5">
                   <SorobanCodeView code={sorobanCode} />
                 </motion.div>
               )}
               {activeTab === 'states' && (
-                <motion.div key="states" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <motion.div key="states" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-5">
                   <StatesView template={template} />
                 </motion.div>
               )}
@@ -324,6 +407,21 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
           </div>
         </div>
       </div>
+
+      <SignerConfirmationModal
+        isOpen={Boolean(deployReviewMode)}
+        useUserWallet={Boolean(deployReviewMode?.useUserWallet)}
+        loading={deployReviewLoading}
+        parties={deployReviewParties}
+        confirming={deploying}
+        onClose={() => setDeployReviewMode(null)}
+        onConfirm={async () => {
+          if (!deployReviewMode) return;
+          const reviewMode = deployReviewMode;
+          setDeployReviewMode(null);
+          await handleDeploy(reviewMode);
+        }}
+      />
     </motion.div>
   );
 }
@@ -332,19 +430,323 @@ export default function SmartContractEditor({ template, onClose, onDeployed }: P
 // SUB-COMPONENTES
 // ═════════════════════════════════════════════════════════════════════
 
+// ─── Deploy button com dropdown ────────────────────────────────────
+
+function DeployButton({ disabled, deploying, onDeploy }: {
+  disabled: boolean;
+  deploying: boolean;
+  onDeploy: (useUserWallet: boolean) => void;
+}) {
+  const { isConnected, address } = useWalletStore();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  function handleCustodial() {
+    setMenuOpen(false);
+    onDeploy(false);
+  }
+  function handleWallet() {
+    setMenuOpen(false);
+    onDeploy(true);
+  }
+
+  return (
+    <div className="relative">
+      <div className={`flex items-stretch rounded-xl overflow-hidden border ${
+        disabled || deploying ? 'border-neutral-800' : 'border-emerald-500/40'
+      }`}>
+        <button
+          onClick={isConnected ? handleWallet : handleCustodial}
+          disabled={disabled || deploying}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors ${
+            disabled || deploying
+              ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+              : 'bg-emerald-500 text-neutral-950 hover:bg-emerald-400'
+          }`}
+        >
+          {deploying ? (
+            <>
+              <iconify-icon icon="solar:refresh-bold" class="animate-spin" />
+              Implantando...
+            </>
+          ) : (
+            <>
+              <iconify-icon icon="solar:rocket-bold" />
+              {isConnected ? 'Implantar com minha carteira' : 'Implantar na Testnet'}
+            </>
+          )}
+        </button>
+
+        {!deploying && !disabled && (
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="px-2 bg-emerald-500 text-neutral-950 hover:bg-emerald-400 border-l border-neutral-950/20"
+            aria-label="Mais opções"
+          >
+            <iconify-icon icon="solar:alt-arrow-down-linear" />
+          </button>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15 }}
+              className="absolute right-0 top-full mt-2 z-50 w-80 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-4 pt-3 pb-2 text-[10px] uppercase tracking-wider text-neutral-500 font-semibold">
+                Como ancorar este contrato
+              </div>
+
+              <button
+                onClick={handleWallet}
+                disabled={!isConnected}
+                className="w-full text-left p-4 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed flex items-start gap-3 border-b border-white/5"
+              >
+                <iconify-icon icon="solar:wallet-2-bold-duotone" class="text-emerald-400 text-xl mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white flex items-center gap-2">
+                    Com minha carteira (Freighter)
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      RECOMENDADO
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                    {isConnected
+                      ? `Você assina como ${shortenAddress(address ?? '')} — comprovação on-chain real.`
+                      : 'Conecte sua Freighter primeiro (botão no topo).'}
+                  </p>
+                </div>
+              </button>
+
+              <button
+                onClick={handleCustodial}
+                className="w-full text-left p-4 hover:bg-white/5 flex items-start gap-3"
+              >
+                <iconify-icon icon="solar:shield-bold-duotone" class="text-neutral-400 text-xl mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white">Via ContractEase (custodial)</div>
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                    Usamos uma carteira da plataforma para registrar a prova. Não exige Freighter.
+                  </p>
+                </div>
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+interface SigningReviewParty {
+  fieldLabel: string;
+  inputValue: string;
+  displayName: string;
+  handle?: string;
+  email?: string;
+  address?: string;
+  avatar?: string;
+  verification: 'profile' | 'wallet' | 'manual';
+  hasWallet: boolean;
+}
+
+function SignerConfirmationModal({
+  isOpen,
+  useUserWallet,
+  loading,
+  parties,
+  confirming,
+  onClose,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  useUserWallet: boolean;
+  loading: boolean;
+  parties: SigningReviewParty[];
+  confirming: boolean;
+  onClose: () => void;
+  onConfirm: () => Promise<void> | void;
+}) {
+  const [confirmed, setConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) setConfirmed(false);
+  }, [isOpen]);
+
+  const unresolvedCount = parties.filter((party) => party.verification === 'manual').length;
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            className="fixed inset-x-4 top-1/2 z-[60] mx-auto w-full max-w-3xl -translate-y-1/2 overflow-hidden rounded-[32px] border border-white/10 bg-neutral-950 shadow-[0_32px_120px_rgba(0,0,0,0.45)]"
+          >
+            <div className="relative border-b border-white/6 px-5 py-5 sm:px-6">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_36%)]" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[20px] border border-emerald-400/18 bg-emerald-500/10 text-emerald-300">
+                    <iconify-icon icon="solar:user-check-bold-duotone" class="text-xl" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Confirmação de identidades</p>
+                    <h3 className="mt-1 text-xl font-bold text-white font-bricolage">Verifique quem vai assinar</h3>
+                    <p className="mt-2 text-sm leading-6 text-neutral-400">
+                      Antes de finalizar, confira se o `@user`, e-mail ou carteira de cada parte corresponde exatamente ao signatário esperado.
+                    </p>
+                  </div>
+                </div>
+                <button onClick={onClose} className="rounded-2xl border border-white/8 bg-white/[0.03] p-2 text-neutral-400 transition-colors hover:text-white">
+                  <iconify-icon icon="solar:close-circle-bold" class="text-xl" />
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[65vh] overflow-y-auto px-5 py-5 sm:px-6">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[11px] font-semibold text-neutral-300">
+                  {useUserWallet ? 'Implantação com sua carteira' : 'Implantação custodial'}
+                </span>
+                {unresolvedCount > 0 ? (
+                  <span className="rounded-full border border-amber-400/18 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold text-amber-200">
+                    {unresolvedCount} identidade(s) sem confirmação completa
+                  </span>
+                ) : (
+                  <span className="rounded-full border border-emerald-400/18 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-300">
+                    Todas as identidades reconhecidas
+                  </span>
+                )}
+              </div>
+
+              {loading ? (
+                <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-5 text-sm text-neutral-400">
+                  <iconify-icon icon="solar:refresh-bold" class="animate-spin text-lg text-emerald-300" />
+                  Conferindo os signatários selecionados...
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {parties.map((party) => (
+                    <div key={`${party.fieldLabel}-${party.inputValue}`} className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+                      <div className="flex gap-3">
+                        <IdentityAvatar displayName={party.displayName} avatar={party.avatar} handle={party.handle || party.inputValue} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-white">{party.displayName}</p>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                              party.verification === 'profile'
+                                ? 'border-emerald-400/16 bg-emerald-500/10 text-emerald-300'
+                                : party.verification === 'wallet'
+                                  ? 'border-cyan-400/16 bg-cyan-500/10 text-cyan-300'
+                                  : 'border-amber-400/16 bg-amber-500/10 text-amber-200'
+                            }`}>
+                              {party.verification === 'profile' ? 'Perfil confirmado' : party.verification === 'wallet' ? 'Carteira reconhecida' : 'Verifique manualmente'}
+                            </span>
+                            {!party.hasWallet && (
+                              <span className="rounded-full border border-amber-400/16 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200">Sem carteira cadastrada</span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{party.fieldLabel}</p>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-400">
+                            <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1">Entrada: {party.inputValue}</span>
+                            {party.handle && <span className="rounded-full border border-cyan-500/16 bg-cyan-500/10 px-2.5 py-1 text-cyan-300">@{party.handle}</span>}
+                            {party.email && <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1">{party.email}</span>}
+                            {party.address && <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 font-mono">{shortenAddress(party.address)}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {parties.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-neutral-400">
+                      Nenhuma parte com endereço foi detectada para revisão. Verifique os campos antes de implantar.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-white/6 bg-black/20 px-5 py-4 sm:px-6">
+              <label className="mb-4 flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-sm text-neutral-300">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(event) => setConfirmed(event.target.checked)}
+                  className="mt-1 h-4 w-4 accent-emerald-500"
+                />
+                <span>Confirmo que revisei os usuários acima e que estes são os destinatários corretos para assinatura e liquidação do contrato.</span>
+              </label>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  onClick={onClose}
+                  className="inline-flex items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-4 py-2 text-sm font-medium text-neutral-300 transition-colors hover:border-white/14 hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => void onConfirm()}
+                  disabled={!confirmed || loading || confirming}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500 px-5 py-2 text-sm font-semibold text-neutral-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.03] disabled:text-neutral-500"
+                >
+                  {confirming ? <iconify-icon icon="solar:refresh-bold" class="animate-spin text-base" /> : <iconify-icon icon="solar:rocket-bold" class="text-base" />}
+                  Confirmar e implantar
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function IdentityAvatar({ handle, displayName, avatar }: { handle: string; displayName: string; avatar?: string }) {
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || handle.slice(0, 2).toUpperCase();
+
+  return (
+    <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[18px] border border-white/8 bg-white/[0.04] text-sm font-semibold text-white flex-shrink-0">
+      {avatar && /^https?:\/\//i.test(avatar)
+        ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" />
+        : initials}
+    </div>
+  );
+}
+
 function TabButton({ active, onClick, icon, label }: {
   active: boolean; onClick: () => void; icon: string; label: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 ${
+      className={`flex-1 flex items-center justify-center gap-2 px-3 py-3 text-xs font-medium transition-all border-b-2 ${
         active
-          ? 'text-fuchsia-400 border-fuchsia-500 bg-fuchsia-500/5'
-          : 'text-neutral-500 border-transparent hover:text-white hover:bg-white/5'
+          ? 'text-emerald-400 border-emerald-500 bg-emerald-500/[0.04]'
+          : 'text-neutral-500 border-transparent hover:text-neutral-200 hover:bg-white/5'
       }`}
     >
-      <iconify-icon icon={icon} />
+      <iconify-icon icon={icon} class="text-base" />
       <span className="hidden md:inline">{label}</span>
     </button>
   );
@@ -352,42 +754,64 @@ function TabButton({ active, onClick, icon, label }: {
 
 // ─── Chat ─────────────────────────────────────────────────────────
 
-function ChatPanel({ messages, input, setInput, onSend, aiThinking, chatEndRef }: {
+function ChatPanel({ messages, input, setInput, onSend, aiThinking, chatEndRef, canSwitch, onSwitchToQuestions }: {
   messages: AIChatMessage[];
   input: string;
   setInput: (s: string) => void;
   onSend: () => void;
   aiThinking: boolean;
   chatEndRef: React.RefObject<HTMLDivElement | null>;
+  canSwitch?: boolean;
+  onSwitchToQuestions?: () => void;
 }) {
   return (
-    <div className="flex-1 flex flex-col bg-neutral-900 border border-white/10 rounded-2xl overflow-hidden min-h-[260px]">
-      <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-fuchsia-500 to-fuchsia-700 flex items-center justify-center">
-          <iconify-icon icon="solar:magic-stick-3-bold" class="text-white text-sm" />
-        </div>
-        <div>
-          <h4 className="text-sm font-bold text-white">Assistente IA</h4>
-          <p className="text-[10px] text-neutral-500">Descreva o contrato em linguagem natural</p>
-        </div>
-        <div className="ml-auto flex items-center gap-1.5 text-[10px] text-emerald-400">
-          <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-          Online
+    <div className="flex-1 flex flex-col overflow-hidden rounded-[28px] border border-white/8 bg-neutral-900/70 min-h-[260px] shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
+      <div className="relative border-b border-white/6">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),transparent_36%)]" />
+        <div className="relative flex items-start gap-3 px-5 py-4 sm:px-6">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-400/16 bg-emerald-500/10 text-emerald-300 flex-shrink-0">
+            <iconify-icon icon="solar:magic-stick-3-bold" class="text-lg" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Modo conversacional</p>
+                <h4 className="mt-1 text-base font-bold text-white font-bricolage">Assistente IA</h4>
+                <p className="mt-1 text-xs text-neutral-400">Descreva a operação em linguagem natural e a IA estrutura os campos do smart contract.</p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {canSwitch && onSwitchToQuestions && (
+                  <button
+                    onClick={onSwitchToQuestions}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-neutral-300 transition-colors hover:border-white/14 hover:text-white"
+                  >
+                    <iconify-icon icon="solar:list-check-linear" class="text-sm" />
+                    Responder perguntas
+                  </button>
+                )}
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/16 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                  Online
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0 p-5 sm:p-6 space-y-4 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.05),transparent_28%)]">
         {messages.map((m, i) => (
           <ChatBubble key={i} message={m} />
         ))}
         {aiThinking && (
-          <div className="flex items-center gap-2 text-neutral-500 text-sm">
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/8 bg-white/[0.03] px-4 py-2 text-sm text-neutral-400">
             <div className="flex gap-1">
-              <div className="w-1.5 h-1.5 bg-fuchsia-400 rounded-full animate-bounce" />
-              <div className="w-1.5 h-1.5 bg-fuchsia-400 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-              <div className="w-1.5 h-1.5 bg-fuchsia-400 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce" />
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0.15s' }} />
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0.3s' }} />
             </div>
-            <span className="text-xs">IA pensando...</span>
+            <span className="text-xs font-medium">IA estruturando o contrato...</span>
           </div>
         )}
         <div ref={chatEndRef} />
@@ -395,23 +819,28 @@ function ChatPanel({ messages, input, setInput, onSend, aiThinking, chatEndRef }
 
       <form
         onSubmit={(e) => { e.preventDefault(); onSend(); }}
-        className="p-3 border-t border-white/5 flex gap-2"
+        className="border-t border-white/6 bg-black/15 p-4 sm:p-5"
       >
-        <input
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="Ex: O comprador é G... e vai pagar 5000 USDC..."
-          disabled={aiThinking}
-          className="flex-1 bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-fuchsia-500/50 disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || aiThinking}
-          className="px-4 py-2 rounded-xl bg-fuchsia-500 text-white font-bold text-sm disabled:bg-neutral-800 disabled:text-neutral-500 hover:bg-fuchsia-400 transition-colors"
-        >
-          <iconify-icon icon="solar:plain-bold" />
-        </button>
+        <div className="flex gap-3 rounded-[24px] border border-white/8 bg-neutral-950/85 p-2">
+          <div className="flex-1 px-2 py-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Prompt</p>
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              placeholder="Ex: O comprador é @lucas e vai pagar 5000 USDC em duas parcelas..."
+              disabled={aiThinking}
+              className="mt-1 w-full bg-transparent text-sm text-white placeholder:text-neutral-600 outline-none disabled:opacity-50"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!input.trim() || aiThinking}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500 text-neutral-950 transition-colors hover:bg-emerald-400 disabled:bg-neutral-800 disabled:text-neutral-500"
+          >
+            <iconify-icon icon="solar:plain-bold" class="text-lg" />
+          </button>
+        </div>
       </form>
     </div>
   );
@@ -422,21 +851,27 @@ function ChatBubble({ message }: { message: AIChatMessage }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm ${
+        className={`max-w-[88%] rounded-[24px] border px-4 py-3 text-sm ${
           isUser
-            ? 'bg-fuchsia-500/20 text-white border border-fuchsia-500/30'
-            : 'bg-neutral-800 text-neutral-200 border border-white/5'
+            ? 'border-emerald-400/18 bg-emerald-500/10 text-white'
+            : 'border-white/8 bg-white/[0.04] text-neutral-200'
         }`}
       >
+        <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full border ${isUser ? 'border-emerald-400/16 bg-emerald-500/10 text-emerald-300' : 'border-white/8 bg-white/[0.03] text-neutral-300'}`}>
+            <iconify-icon icon={isUser ? 'solar:user-rounded-bold' : 'solar:stars-bold'} class="text-sm" />
+          </span>
+          {isUser ? 'Solicitação' : 'Resposta da IA'}
+        </div>
         <div className="whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{
           __html: message.text
             .replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
             .replace(/\n/g, '<br>')
         }} />
         {message.extractedFields && Object.keys(message.extractedFields).length > 0 && (
-          <div className="mt-2 pt-2 border-t border-white/5 flex flex-wrap gap-1">
+          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/8 pt-3">
             {Object.keys(message.extractedFields).map(k => (
-              <span key={k} className="text-[10px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-md">
+              <span key={k} className="rounded-full border border-emerald-400/16 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
                 ✓ {k}
               </span>
             ))}
@@ -457,17 +892,17 @@ function VariableFormPanel({ template, variables, onChange }: {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="bg-neutral-900 border border-white/10 rounded-2xl overflow-hidden">
+    <div className="bg-neutral-900/60 border border-white/5 rounded-2xl overflow-hidden">
       <button
         onClick={() => setExpanded(e => !e)}
         className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <iconify-icon icon="solar:settings-bold" class="text-neutral-400" />
-          <span className="text-sm font-bold text-white">Editar campos manualmente</span>
+          <iconify-icon icon="solar:settings-linear" class="text-neutral-400" />
+          <span className="text-sm font-medium text-white">Editar campos manualmente</span>
           <span className="text-[10px] text-neutral-500">({Object.keys(variables).filter(k => variables[k]).length}/{template.variables.length} preenchidos)</span>
         </div>
-        <iconify-icon icon={expanded ? "solar:alt-arrow-up-bold" : "solar:alt-arrow-down-bold"} class="text-neutral-500" />
+        <iconify-icon icon={expanded ? "solar:alt-arrow-up-linear" : "solar:alt-arrow-down-linear"} class="text-neutral-500" />
       </button>
       <AnimatePresence>
         {expanded && (
@@ -495,7 +930,7 @@ function VariableInput({ variable, value, onChange }: {
   value: string;
   onChange: (value: string) => void;
 }) {
-  const inputClass = "w-full bg-neutral-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-fuchsia-500/50";
+  const inputClass = "w-full bg-neutral-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-emerald-500/40";
 
   const isWideField = variable.type === 'text' &&
     ['propertyAddress', 'productName', 'projectScope', 'product', 'role', 'invoiceNumber', 'trackingCode', 'triggerEvent', 'employees', 'beneficiaries'].includes(variable.name);
@@ -503,7 +938,7 @@ function VariableInput({ variable, value, onChange }: {
   return (
     <div className={isWideField ? 'sm:col-span-2' : ''}>
       <label className="block text-xs font-medium text-neutral-400 mb-1">
-        {variable.label} {variable.required && <span className="text-fuchsia-400">*</span>}
+        {variable.label} {variable.required && <span className="text-emerald-400">*</span>}
       </label>
       {variable.type === 'address' ? (
         <HandleInput
@@ -543,7 +978,7 @@ function PlainLanguageView({ explanation, template }: { explanation: AIExplainRe
   return (
     <div className="space-y-5">
       <div>
-        <h4 className="text-xs font-bold text-fuchsia-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+        <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-2">
           <iconify-icon icon="solar:book-bookmark-bold" />
           O que este contrato faz
         </h4>
@@ -613,8 +1048,11 @@ function PlainLanguageView({ explanation, template }: { explanation: AIExplainRe
       )}
 
       {!template.isFullyImplemented && (
-        <div className="bg-fuchsia-500/5 border border-fuchsia-500/15 rounded-xl p-3 text-xs text-fuchsia-300">
-          ℹ️ Este template está em <strong>versão beta</strong> — a lógica completa do Soroban será expandida em breve. O hash do contrato ainda é ancorado on-chain normalmente.
+        <div className="bg-neutral-900/80 border border-white/5 rounded-xl p-3 text-xs text-neutral-400 flex items-start gap-2">
+          <iconify-icon icon="solar:info-circle-bold" class="text-neutral-500 mt-0.5" />
+          <span>
+            Este template está em <strong className="text-neutral-200">versão beta</strong> — a lógica completa do Soroban será expandida em breve. O hash do contrato continua sendo ancorado on-chain normalmente.
+          </span>
         </div>
       )}
     </div>
@@ -658,7 +1096,7 @@ function SorobanCodeView({ code }: { code: string }) {
         <iconify-icon icon="solar:info-circle-bold" class="mt-0.5" />
         <span>
           Código gerado a partir das suas escolhas. No deploy, ele é compilado para WASM e enviado para a Stellar.
-          Para o demo do hackathon, ancoramos o <code className="text-fuchsia-400">SHA-256</code> do código + variáveis na testnet.
+          Para o demo, ancoramos o <code className="text-emerald-400">SHA-256</code> do código + variáveis na testnet.
         </span>
       </div>
     </div>
@@ -680,7 +1118,7 @@ function StatesView({ template }: { template: SmartContractTemplate }) {
   return (
     <div className="space-y-6">
       <div>
-        <h4 className="text-xs font-bold text-fuchsia-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <iconify-icon icon="solar:layers-bold" />
           Estados do contrato
         </h4>
@@ -712,7 +1150,7 @@ function StatesView({ template }: { template: SmartContractTemplate }) {
               </div>
               <p className="text-xs text-neutral-400 mb-1">{a.description}</p>
               <div className="flex items-center gap-1 text-[10px] text-neutral-500 font-mono">
-                {a.preState} <iconify-icon icon="solar:arrow-right-bold" class="text-fuchsia-400" /> {a.postState}
+                {a.preState} <iconify-icon icon="solar:arrow-right-bold" class="text-emerald-400" /> {a.postState}
               </div>
             </div>
           ))}
@@ -738,26 +1176,59 @@ function mapTemplateToContractType(templateId: string): ContractType {
     fixed_yield: 'loan',
     group_buy: 'sale',
     parametric_insurance: 'service',
+    // Profissional
+    legal_fees: 'service',
+    medical_consultation: 'service',
+    dental_treatment: 'service',
+    accounting_services: 'service',
+    psychology_package: 'service',
+    // Construção
+    construction_contract: 'service',
+    architectural_project: 'service',
+    renovation_milestone: 'service',
+    // Veículos
+    vehicle_sale: 'sale',
+    vehicle_lease: 'loan',
+    car_rental_daily: 'rental',
+    // RWA
+    real_estate_token: 'partnership',
+    commodity_token: 'sale',
+    carbon_credits: 'sale',
+    solar_yield_token: 'partnership',
+    // Registros
+    birth_registry: 'declaration',
+    marriage_contract: 'declaration',
+    divorce_settlement: 'declaration',
+    death_certificate: 'declaration',
+    notarized_declaration: 'declaration',
+    // Imóveis adicionais
+    commercial_rent: 'rental',
+    short_stay: 'rental',
   };
   return map[templateId] || 'service';
 }
 
-function extractPartiesFromVariables(template: SmartContractTemplate, vars: Record<string, string>) {
+async function extractPartiesFromVariables(template: SmartContractTemplate, vars: Record<string, string>) {
   const parties: { name: string; email: string; role: 'creator' | 'counterparty' | 'witness' }[] = [];
   const addressFields = template.variables.filter(v => v.type === 'address');
 
-  addressFields.forEach((field, idx) => {
+  for (const [idx, field] of addressFields.entries()) {
     const raw = vars[field.name];
-    if (!raw) return;
+    if (!raw) continue;
 
     let displayName: string;
+    let email = '';
+
     if (raw.startsWith('@')) {
-      const resolved = resolveHandleSync(raw);
+      const asyncResolved = await resolveHandle(raw);
+      const resolved = asyncResolved ?? resolveHandleSync(raw);
       if (resolved) {
         displayName = `${field.label}: ${resolved.displayName} (@${resolved.handle})`;
       } else {
         displayName = `${field.label}: @${normalizeHandle(raw)}`;
       }
+
+      email = asyncResolved?.email ?? raw;
     } else {
       // Endereço bruto — vê se conhecemos o user
       const known = lookupHandleByAddress(raw);
@@ -768,12 +1239,52 @@ function extractPartiesFromVariables(template: SmartContractTemplate, vars: Reco
 
     parties.push({
       name: displayName,
-      email: '',
+      email,
       role: idx === 0 ? 'creator' : 'counterparty',
     });
-  });
+  }
 
   return parties;
+}
+
+async function buildSigningReviewParties(template: SmartContractTemplate, vars: Record<string, string>): Promise<SigningReviewParty[]> {
+  const addressFields = template.variables.filter((variable) => variable.type === 'address');
+
+  return Promise.all(addressFields
+    .filter((field) => Boolean(vars[field.name]))
+    .map(async (field) => {
+      const inputValue = vars[field.name];
+      let resolved: ResolvedHandle | null = null;
+      let verification: SigningReviewParty['verification'] = 'manual';
+
+      if (inputValue.startsWith('@')) {
+        resolved = await resolveHandle(inputValue);
+        verification = resolved ? 'profile' : 'manual';
+      } else {
+        resolved = await lookupProfileByAddress(inputValue);
+        if (resolved) {
+          verification = 'profile';
+        } else {
+          const known = lookupHandleByAddress(inputValue);
+          if (known) {
+            resolved = known;
+            verification = 'wallet';
+          }
+        }
+      }
+
+      return {
+        fieldLabel: field.label,
+        inputValue,
+        displayName: resolved?.displayName || (inputValue.startsWith('@') ? inputValue : `Carteira ${shortenAddress(inputValue)}`),
+        handle: resolved?.handle,
+        email: resolved?.email,
+        address: resolved?.address || (!inputValue.startsWith('@') ? inputValue : undefined),
+        avatar: resolved?.avatar,
+        verification,
+        hasWallet: Boolean(resolved?.address || (!inputValue.startsWith('@') && inputValue)),
+      } satisfies SigningReviewParty;
+    }));
 }
 
 /**
@@ -791,6 +1302,221 @@ function resolveAllHandles(template: SmartContractTemplate, vars: Record<string,
     }
   }
   return resolved;
+}
+
+async function resolveAllHandlesAsync(template: SmartContractTemplate, vars: Record<string, string>): Promise<Record<string, string>> {
+  const resolved: Record<string, string> = { ...vars };
+  for (const variable of template.variables) {
+    if (variable.type !== 'address') continue;
+    const raw = vars[variable.name];
+    if (raw && raw.startsWith('@')) {
+      const handleResolution = await resolveHandle(raw);
+      if (handleResolution?.address) resolved[variable.name] = handleResolution.address;
+    }
+  }
+  return resolved;
+}
+
+// ─── Document live preview ─────────────────────────────────────────
+// Renderiza o contrato como uma "folha" minimalista que se preenche
+// conforme o usuário (ou a IA) vai completando os campos.
+
+function DocumentPreview({ template, variables }: {
+  template: SmartContractTemplate;
+  variables: Record<string, string>;
+}) {
+  const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const partyFields = template.variables.filter(v => v.type === 'address');
+  const valueFields = template.variables.filter(v => v.type === 'amount');
+  const otherFields = template.variables.filter(v => !['address', 'amount'].includes(v.type));
+
+  const totalFields = template.variables.length;
+  const filledFields = template.variables.filter(v => variables[v.name]?.trim()).length;
+
+  return (
+    <div className="p-5 bg-gradient-to-b from-neutral-950 to-neutral-900">
+      <motion.div
+        layout
+        className="relative bg-[#0f0f0f] border border-white/5 rounded-xl shadow-lg overflow-hidden"
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(255,255,255,0.025) 31px, rgba(255,255,255,0.025) 32px)',
+        }}
+      >
+        {/* Cabeçalho do "papel" */}
+        <div className="px-8 pt-8 pb-6 border-b border-white/5">
+          <div className="flex items-center justify-between text-[10px] text-neutral-600 uppercase tracking-wider mb-6">
+            <span className="flex items-center gap-1.5">
+              <iconify-icon icon="solar:cpu-bolt-bold-duotone" class="text-emerald-500" />
+              ContractEase · Smart Contract
+            </span>
+            <span>{today}</span>
+          </div>
+
+          <h1 className="text-2xl font-bold text-white mb-1 leading-tight font-bricolage">{template.name}</h1>
+          <p className="text-xs text-neutral-500 leading-relaxed max-w-prose">{template.description}</p>
+        </div>
+
+        {/* Corpo do documento */}
+        <div className="px-8 py-6 space-y-6 text-sm">
+          {/* Seção: Partes */}
+          {partyFields.length > 0 && (
+            <DocSection title="Partes" total={partyFields.length} filled={partyFields.filter(v => variables[v.name]).length}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {partyFields.map(v => (
+                  <DocField
+                    key={v.name}
+                    label={v.label}
+                    value={variables[v.name]}
+                    placeholder={v.placeholder || '@usuario'}
+                  />
+                ))}
+              </div>
+            </DocSection>
+          )}
+
+          {/* Seção: Valores */}
+          {valueFields.length > 0 && (
+            <DocSection title="Valores" total={valueFields.length} filled={valueFields.filter(v => variables[v.name]).length}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {valueFields.map(v => {
+                  const asset = variables.asset || 'BRZ';
+                  const val = variables[v.name];
+                  return (
+                    <DocField
+                      key={v.name}
+                      label={v.label}
+                      value={val ? `${val} ${asset}` : ''}
+                      placeholder="—"
+                      highlight
+                    />
+                  );
+                })}
+              </div>
+            </DocSection>
+          )}
+
+          {/* Seção: Demais cláusulas */}
+          {otherFields.length > 0 && (
+            <DocSection title="Termos" total={otherFields.length} filled={otherFields.filter(v => variables[v.name]).length}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {otherFields.map(v => (
+                  <DocField
+                    key={v.name}
+                    label={v.label}
+                    value={variables[v.name]}
+                    placeholder={v.placeholder || '—'}
+                  />
+                ))}
+              </div>
+            </DocSection>
+          )}
+
+          {/* Seção: Estados */}
+          <DocSection title="Ciclo do contrato" total={template.states.length} filled={template.states.length}>
+            <div className="flex items-center flex-wrap gap-1.5">
+              {template.states.map((s, i) => (
+                <span key={s.id} className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-neutral-600">{i + 1}</span>
+                  <span className="text-[11px] font-medium text-neutral-300 bg-neutral-800/60 px-2 py-0.5 rounded-md border border-white/5">
+                    {s.label}
+                  </span>
+                  {i < template.states.length - 1 && (
+                    <iconify-icon icon="solar:arrow-right-linear" class="text-neutral-700 text-xs" />
+                  )}
+                </span>
+              ))}
+            </div>
+          </DocSection>
+        </div>
+
+        {/* Rodapé / "assinatura" */}
+        <div className="px-8 py-5 border-t border-white/5 bg-neutral-950/60">
+          <div className="flex items-center justify-between text-[11px]">
+            <div className="text-neutral-500 leading-relaxed max-w-md">
+              Ao implantar este contrato, o hash SHA-256 do código Soroban + parâmetros é ancorado
+              imutavelmente na blockchain Stellar.
+            </div>
+            <div className="flex items-center gap-2 text-emerald-400 whitespace-nowrap">
+              <iconify-icon icon="solar:shield-check-bold-duotone" class="text-base" />
+              <span className="font-medium">Stellar · Soroban</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Overlay decorativo quando vazio */}
+        {filledFields === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-neutral-950/30 backdrop-blur-[1px]">
+            <div className="text-center">
+              <iconify-icon icon="solar:document-add-bold-duotone" class="text-5xl text-neutral-700 mb-2" />
+              <p className="text-xs text-neutral-500">
+                O documento aparece aqui conforme você descreve para a IA
+              </p>
+            </div>
+          </div>
+        )}
+      </motion.div>
+
+      <div className="flex items-center justify-between mt-3 text-[10px] text-neutral-600">
+        <span>Atualizado em tempo real · {filledFields}/{totalFields} campos preenchidos</span>
+        <span className="font-mono">v1 · rascunho</span>
+      </div>
+    </div>
+  );
+}
+
+function DocSection({ title, total, filled, children }: {
+  title: string;
+  total: number;
+  filled: number;
+  children: React.ReactNode;
+}) {
+  const pct = total === 0 ? 0 : Math.round((filled / total) * 100);
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-white/5">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+          {title}
+        </h3>
+        <span className="text-[10px] text-neutral-600 tabular-nums">{filled}/{total} · {pct}%</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function DocField({ label, value, placeholder, highlight }: {
+  label: string;
+  value?: string;
+  placeholder: string;
+  highlight?: boolean;
+}) {
+  const isFilled = !!value?.trim();
+  const display = isFilled ? value : placeholder;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] uppercase tracking-wide text-neutral-600">{label}</span>
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={display}
+          initial={{ opacity: 0, y: -3 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 3 }}
+          transition={{ duration: 0.18 }}
+          className={`text-sm leading-snug truncate ${
+            isFilled
+              ? highlight
+                ? 'text-emerald-300 font-semibold'
+                : 'text-white font-medium'
+              : 'text-neutral-700 italic'
+          }`}
+        >
+          {display}
+        </motion.span>
+      </AnimatePresence>
+    </div>
+  );
 }
 
 function buildClausesFromTemplate(

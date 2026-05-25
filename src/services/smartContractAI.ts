@@ -740,6 +740,56 @@ export function getWelcomeMessage(template: SmartContractTemplate): string {
     group_buy: `**Compra Coletiva** — destrava desconto se atingir meta.\n\nEx: *"@startupx vende iPhone com 10% off: R$ 500 por pessoa, mínimo 20 pessoas"*${tip}`,
 
     parametric_insurance: `**Seguro Paramétrico** com gatilho automático.\n\nEx: *"@acme segura @maria contra atraso do voo LATAM 3456 > 3h. Prêmio R$ 50, indenização R$ 500, oráculo @oracle_voos"*${tip}`,
+
+    // ─── Profissional ──────────────────────
+    legal_fees: `**Honorários Advocatícios** com entrada + mensal + êxito.\n\nEx: *"@dr_silva atua para @cliente_x. Entrada R$ 3.000, mensalidade R$ 800 por 12 meses, êxito 20% sobre o que recuperar"*${tip}`,
+
+    medical_consultation: `**Plano de Consultas Médicas** pré-pago.\n\nEx: *"@dra_oliveira atende @paciente. 10 consultas a R$ 250, validade 6 meses, cardiologia"*${tip}`,
+
+    dental_treatment: `**Tratamento Odontológico** pago por etapa.\n\nEx: *"@dr_dentista vai colocar implante em @paciente. R$ 8.000 em 4 etapas: cirurgia, cicatrização, prótese, ajuste"*${tip}`,
+
+    accounting_services: `**Honorários Contábeis** mensais com SLA.\n\nEx: *"@contador_jr cuida da contabilidade de @loja_y. R$ 1.500/mês, entrega até dia 15, por 12 meses"*${tip}`,
+
+    psychology_package: `**Pacote de Psicologia** com sigilo profissional.\n\nEx: *"@psi_clara atende @paciente. 8 sessões a R$ 200, validade 6 meses"*${tip}`,
+
+    // ─── Construção ────────────────────────
+    construction_contract: `**Empreitada de Obra** com marcos físicos.\n\nEx: *"@construtora_x ergue casa para @cliente_a, R$ 350.000 em 5 marcos, engenheiro @eng_carlos, retenção de 5%"*${tip}`,
+
+    architectural_project: `**Projeto Arquitetônico** em 3 fases.\n\nEx: *"@arq_ana faz projeto residencial para @cliente. Total R$ 25.000: 20% estudo, 40% anteprojeto, 40% executivo"*${tip}`,
+
+    renovation_milestone: `**Reforma com Pagamento por Etapa** + foto.\n\nEx: *"@empreiteiro_jose reforma cozinha do @cliente por R$ 18.000 em 4 etapas, prazo 60 dias"*${tip}`,
+
+    // ─── Veículos ──────────────────────────
+    vehicle_sale: `**Compra e Venda de Veículo** com escrow.\n\nEx: *"@vendedor vende Honda Civic 2020 ABC1D23 para @comprador por R$ 75.000, transferência em 30 dias"*${tip}`,
+
+    vehicle_lease: `**Financiamento de Veículo** com alienação on-chain.\n\nEx: *"@financeira financia para @comprador. Entrada R$ 10k + 36x R$ 1.200, taxa 1,5% a.m., placa XYZ9A87"*${tip}`,
+
+    car_rental_daily: `**Locação Diária** com caução automática.\n\nEx: *"@locadora_x aluga para @cliente. Placa ABC1234, 7 diárias de R$ 180, caução R$ 1.000, retirada amanhã"*${tip}`,
+
+    // ─── RWA & Tokenização ─────────────────
+    real_estate_token: `**Tokenização Imobiliária** — frações de imóvel.\n\nEx: *"@dono_imovel emite 1.000 cotas a R$ 500 do apto na Rua X. Aluguel mensal R$ 4.500 distribuído pro-rata"*${tip}`,
+
+    commodity_token: `**Tokenização de Commodities** — CPR digital.\n\nEx: *"@produtor_rural emite 1.000 sacas de soja a R$ 150/saca, colheita em maio, Fazenda Boa Vista MT"*${tip}`,
+
+    carbon_credits: `**Créditos de Carbono** tokenizados.\n\nEx: *"@projeto_x reflorestamento na Amazônia, 10.000 tCO₂ a USDC 15/t, certificadora @verra"*${tip}`,
+
+    solar_yield_token: `**Tokenização Solar** — yield mensal.\n\nEx: *"@solar_co opera usina de 50kWp gerando 6.000 kWh/mês. 500 cotas a R$ 200, distribuição pro-rata"*${tip}`,
+
+    // ─── Registros ─────────────────────────
+    birth_registry: `**Registro de Nascimento** on-chain.\n\nEx: *"@cartorio_central lavra: João Silva, nascido em 15/05/2026, Hospital Albert Einstein, mãe @maria_silva"*${tip}`,
+
+    marriage_contract: `**Contrato de União / Casamento** com regime de bens.\n\nEx: *"@noivo casa com @noiva, regime de comunhão parcial, cartório @cartorio_central, dia 20/06/2026"*${tip}`,
+
+    divorce_settlement: `**Acordo de Divórcio** com pensão automática.\n\nEx: *"@ex_marido paga R$ 1.500/mês de pensão para @ex_esposa por 18 meses, assistido por @dr_silva"*${tip}`,
+
+    death_certificate: `**Certidão de Óbito** com sucessão automática.\n\nEx: *"@cartorio registra óbito de João Silva em 10/05/2026, atestado por @dr_medico, causa CID I46"*${tip}`,
+
+    notarized_declaration: `**Declaração Notarial** com fé pública on-chain.\n\nEx: *"@declarante assina procuração para @beneficiario, tabelião @cartorio, validade 6 meses"*${tip}`,
+
+    // ─── Imóveis ───────────────────────────
+    commercial_rent: `**Aluguel Comercial** com reajuste IPCA.\n\nEx: *"@imobiliaria aluga sala para @empresa_y, R$ 3.500/mês por 60 meses, caução de 3 aluguéis, IPCA anual"*${tip}`,
+
+    short_stay: `**Aluguel por Temporada** estilo Airbnb.\n\nEx: *"@anfitriao recebe @hospede por 3 noites a USDC 80, taxa de limpeza USDC 30, caução USDC 200"*${tip}`,
   };
 
   return intros[template.id] || `Vamos configurar o contrato **${template.name}** juntos. Me conta sobre ele do seu jeito.${tip}`;

@@ -10,6 +10,9 @@ import { downloadContractPDF } from '@/services/pdfGenerator';
 import { exportContractToDOCX, exportContractToXML } from '@/services/documentExport';
 import { AIAssistantModal } from '@/components/AIAssistantModal';
 import { supabase } from '@/lib/supabase';
+import { signingService } from '@/services/supabaseService';
+import { TEMPLATES_BY_ID, type SmartContractTemplate } from '@/services/smartContractTemplates';
+import type { Contract } from '@/types';
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   draft: { label: 'Rascunho', cls: 'bg-neutral-500/20 text-neutral-400 border-neutral-500/30' },
@@ -21,10 +24,11 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   archived: { label: 'Arquivado', cls: 'bg-neutral-800 text-neutral-500 border-neutral-700' },
 };
 
-type TabType = 'overview' | 'parties' | 'clauses' | 'audit' | 'attachments' | 'comments' | 'security';
+type TabType = 'overview' | 'parties' | 'clauses' | 'audit' | 'attachments' | 'comments' | 'security' | 'management';
 
-const TABS: { id: TabType; label: string; icon: string }[] = [
+const TABS: { id: TabType; label: string; icon: string; smartOnly?: boolean }[] = [
   { id: 'overview', label: 'Visão Geral', icon: 'solar:document-bold-duotone' },
+  { id: 'management', label: 'Gestão', icon: 'solar:chart-square-bold-duotone', smartOnly: false },
   { id: 'parties', label: 'Partes', icon: 'solar:users-group-rounded-bold' },
   { id: 'clauses', label: 'Cláusulas', icon: 'solar:menu-dots-bold' },
   { id: 'audit', label: 'Auditoria', icon: 'solar:shield-check-bold' },
@@ -51,6 +55,7 @@ export default function ContractDetailPage() {
   const [showCertificate, setShowCertificate] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
 
   // Comments
   const [comments, setComments] = useState<any[]>([]);
@@ -174,6 +179,14 @@ export default function ContractDetailPage() {
   const myParty = contract.parties.find(p => p.email === currentUser?.email && !p.signedAt);
   const signedCount = contract.parties.filter(p => p.signedAt).length;
   const allSigned = signedCount === contract.parties.length;
+  const smartTemplateId = contract.tags.find(tag => TEMPLATES_BY_ID[tag]);
+  const smartTemplate = smartTemplateId ? TEMPLATES_BY_ID[smartTemplateId] : undefined;
+  const managementParams = parseContractParameters(contract, smartTemplate);
+  const installments = buildManagementInstallments(contract, managementParams, allSigned);
+  const releaseChecks = buildReleaseChecks(contract, smartTemplate, installments, signedCount, allSigned);
+  const releaseActions = smartTemplate?.actions.filter(isReleaseAction) ?? [];
+  const currentSmartStateIndex = inferCurrentSmartStateIndex(contract, smartTemplate, allSigned);
+  const visibleTabs = TABS.filter(tab => !tab.smartOnly || contract.tags.includes('smart-contract'));
 
   const handleArchive = () => {
     updateMutation.mutate(
@@ -190,6 +203,24 @@ export default function ContractDetailPage() {
       { ...rest, title: `${rest.title} (Cópia)`, parties: clonedParties, clauses: clonedClauses },
       { onSuccess: (nc) => { notify({ type: 'success', title: 'Contrato duplicado' }); navigate(`/contracts/${nc.id}`); } }
     );
+  };
+
+  const handleResendInvite = async (party: Contract['parties'][number]) => {
+    if (!party.email || party.signedAt) return;
+
+    try {
+      setResendingInviteId(party.id);
+      await signingService.notifyContractParties(contract.id, contract.title, [{
+        id: party.id,
+        name: party.name,
+        email: party.email,
+      }]);
+      notify({ type: 'success', title: 'Convite reenviado', message: `Convite reenviado para ${party.name}.` });
+    } catch (error: any) {
+      notify({ type: 'error', title: 'Falha ao reenviar convite', message: error?.message || 'Tente novamente em alguns segundos.' });
+    } finally {
+      setResendingInviteId(null);
+    }
   };
 
   return (
@@ -350,7 +381,7 @@ export default function ContractDetailPage() {
       {/* Tab Navigation */}
       <div className="sticky top-16 z-20 bg-neutral-950/95 backdrop-blur-xl border-b border-white/5">
         <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-          {TABS.map(tab => (
+          {visibleTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -395,6 +426,224 @@ export default function ContractDetailPage() {
               )}
             </section>
           </motion.div>
+        )}
+
+        {/* Management Tab */}
+        {activeTab === 'management' && (
+          <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="bg-neutral-900 border border-white/5 rounded-2xl p-5">
+                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Assinaturas</p>
+                <p className="text-2xl font-bold text-white">{signedCount}/{contract.parties.length}</p>
+                <p className="text-xs text-neutral-500 mt-2">{allSigned ? 'Todas as partes concluíram a assinatura.' : 'Ainda existem assinaturas pendentes.'}</p>
+              </div>
+              <div className="bg-neutral-900 border border-white/5 rounded-2xl p-5">
+                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Parcelas previstas</p>
+                <p className="text-2xl font-bold text-white">{installments.length}</p>
+                <p className="text-xs text-neutral-500 mt-2">{installments.length > 0 ? 'Cronograma inferido dos parâmetros do contrato.' : 'Nenhuma agenda financeira identificada.'}</p>
+              </div>
+              <div className="bg-neutral-900 border border-white/5 rounded-2xl p-5">
+                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Liberação</p>
+                <p className={`text-2xl font-bold ${allSigned ? 'text-emerald-400' : 'text-amber-400'}`}>{allSigned ? 'Pronta' : 'Bloqueada'}</p>
+                <p className="text-xs text-neutral-500 mt-2">{allSigned ? 'As regras do contrato já podem liberar valores.' : 'O fluxo depende do fechamento das assinaturas.'}</p>
+              </div>
+              <div className="bg-neutral-900 border border-white/5 rounded-2xl p-5">
+                <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Tipo operacional</p>
+                <p className="text-2xl font-bold text-white">{smartTemplate?.shortName || s.label}</p>
+                <p className="text-xs text-neutral-500 mt-2">{smartTemplate ? 'Template smart contract reconhecido no dashboard operacional.' : 'Aba de gestão operando em modo documental.'}</p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
+              <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+                <div>
+                  <h2 className="text-sm font-bold text-white">Partes e status de assinatura</h2>
+                  <p className="text-xs text-neutral-500 mt-1">Reenvie convites, acompanhe quem já assinou e identifique bloqueios antes da liberação financeira.</p>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-[11px] font-semibold border ${allSigned ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
+                  {signedCount}/{contract.parties.length} concluído
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {contract.parties.map(party => (
+                  <div key={party.id} className={`rounded-2xl border p-4 flex items-center justify-between gap-4 ${party.signedAt ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-white/[0.02] border-white/5'}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0 ${party.signedAt ? 'bg-emerald-500' : 'bg-neutral-700'}`}>
+                        {party.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-white">{party.name}</p>
+                          <span className="text-[10px] uppercase tracking-wide text-neutral-500">{party.role}</span>
+                        </div>
+                        <p className="text-xs text-neutral-500 truncate">{party.email || 'Sem destino de notificação resolvido'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {party.signedAt ? (
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-emerald-400 flex items-center gap-1 justify-end">
+                            <iconify-icon icon="solar:check-circle-bold" /> Assinado
+                          </p>
+                          <p className="text-[10px] text-neutral-600 mt-0.5">{new Date(party.signedAt).toLocaleString('pt-BR')}</p>
+                        </div>
+                      ) : party.email === currentUser?.email ? (
+                        <button
+                          onClick={() => setShowSignModal(true)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black font-bold text-xs hover:bg-emerald-400 transition-all"
+                        >
+                          Assinar agora
+                        </button>
+                      ) : party.email ? (
+                        <button
+                          onClick={() => handleResendInvite(party)}
+                          disabled={resendingInviteId === party.id}
+                          className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white font-semibold text-xs hover:bg-white/10 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                        >
+                          {resendingInviteId === party.id
+                            ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            : <iconify-icon icon="solar:letter-bold" class="text-sm" />}
+                          Reenviar convite
+                        </button>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] font-semibold">Sem e-mail resolvido</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_0.7fr] gap-5">
+              <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
+                <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+                  <div>
+                    <h2 className="text-sm font-bold text-white">Parcelas e janelas de liberação</h2>
+                    <p className="text-xs text-neutral-500 mt-1">Leitura operacional dos parâmetros do contrato. Sem conciliação financeira persistida, o quadro mostra prontidão e bloqueios.</p>
+                  </div>
+                  {managementParams.entries.length > 0 && (
+                    <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[11px] font-semibold">
+                      {managementParams.entries.length} parâmetro{managementParams.entries.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {installments.length > 0 ? (
+                  <div className="space-y-3">
+                    {installments.map(installment => (
+                      <div key={installment.id} className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                        <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{installment.label}</p>
+                            <p className="text-xs text-neutral-500">{installment.dueDate ? `Vencimento ${new Date(installment.dueDate).toLocaleDateString('pt-BR')}` : 'Sem vencimento inferido'}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-emerald-400">{formatCurrencyAmount(installment.amount, installment.currency)}</p>
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold ${installment.statusClass}`}>
+                              <iconify-icon icon={installment.icon} class="text-xs" />
+                              {installment.statusLabel}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-neutral-500 leading-relaxed">{installment.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center">
+                    <iconify-icon icon="solar:wallet-money-bold-duotone" class="text-3xl text-neutral-600 mb-2 block" />
+                    <p className="text-sm text-neutral-400">Ainda não foi possível inferir uma agenda de parcelas a partir deste contrato.</p>
+                    <p className="text-xs text-neutral-600 mt-1">Se este documento tiver pagamentos em etapas, detalhe valores, datas ou quantidade de parcelas nos parâmetros/cláusulas.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-5">
+                <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
+                  <h2 className="text-sm font-bold text-white mb-4">Verificações para liberação</h2>
+                  <div className="space-y-3">
+                    {releaseChecks.map(check => (
+                      <div key={check.id} className={`rounded-xl border p-3 ${check.done ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-white/[0.02] border-white/5'}`}>
+                        <div className="flex items-start gap-3">
+                          <iconify-icon icon={check.done ? 'solar:check-circle-bold' : 'solar:clock-circle-bold'} class={check.done ? 'text-emerald-400 text-lg mt-0.5' : 'text-amber-400 text-lg mt-0.5'} />
+                          <div>
+                            <p className={`text-sm font-semibold ${check.done ? 'text-white' : 'text-neutral-200'}`}>{check.label}</p>
+                            <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{check.detail}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
+                  <h2 className="text-sm font-bold text-white mb-4">Estado operacional</h2>
+                  {smartTemplate ? (
+                    <div className="space-y-3">
+                      <div className="rounded-xl border border-white/5 bg-black/20 p-3">
+                        <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Template</p>
+                        <p className="text-sm font-semibold text-white">{smartTemplate.name}</p>
+                      </div>
+                      {smartTemplate.states.map((state, index) => {
+                        const isCurrent = index === currentSmartStateIndex;
+                        const isCompletedState = index < currentSmartStateIndex;
+                        return (
+                          <div key={state.id} className={`rounded-xl border p-3 ${isCurrent ? 'bg-emerald-500/8 border-emerald-500/25' : isCompletedState ? 'bg-white/[0.04] border-white/10' : 'bg-black/20 border-white/5'}`}>
+                            <div className="flex items-center justify-between gap-3 mb-1">
+                              <p className="text-sm font-semibold text-white">{state.label}</p>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${isCurrent ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : isCompletedState ? 'bg-white/5 border-white/10 text-neutral-300' : 'bg-transparent border-white/10 text-neutral-500'}`}>
+                                {isCurrent ? 'Atual' : isCompletedState ? 'Superado' : 'Próximo'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-neutral-500 leading-relaxed">{state.description}</p>
+                          </div>
+                        );
+                      })}
+
+                      {releaseActions.length > 0 && (
+                        <div className="pt-2 border-t border-white/5">
+                          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Ações ligadas a pagamento</p>
+                          <div className="space-y-2">
+                            {releaseActions.slice(0, 4).map(action => (
+                              <div key={action.name} className="rounded-xl border border-white/5 bg-black/20 p-3">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <span className="text-xs font-mono text-emerald-400">{action.name}()</span>
+                                  <span className="text-[10px] text-neutral-500">{action.callableBy}</span>
+                                </div>
+                                <p className="text-xs text-neutral-400 leading-relaxed">{action.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {[
+                        { key: 'draft', label: 'Rascunho', desc: 'Documento em edição ou revisão interna.' },
+                        { key: 'pending', label: 'Pendente de ciência', desc: 'Partes aguardando assinatura ou aceite.' },
+                        { key: 'active', label: 'Ativo', desc: 'Contrato vigente e apto para execução.' },
+                        { key: 'completed', label: 'Concluído', desc: 'Fluxo documental encerrado.' },
+                      ].map(step => {
+                        const isCurrent = contract.status === step.key;
+                        return (
+                          <div key={step.key} className={`rounded-xl border p-3 ${isCurrent ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-black/20 border-white/5'}`}>
+                            <div className="flex items-center justify-between gap-3 mb-1">
+                              <p className="text-sm font-semibold text-white">{step.label}</p>
+                              {isCurrent && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">Atual</span>}
+                            </div>
+                            <p className="text-xs text-neutral-500 leading-relaxed">{step.desc}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.section>
         )}
 
         {/* Parties Tab */}
@@ -692,4 +941,304 @@ export default function ContractDetailPage() {
       </div>
     </div>
   );
+}
+
+interface ParsedContractParameters {
+  entries: Array<{ label: string; value: string }>;
+  valuesByKey: Record<string, string>;
+}
+
+interface ManagementInstallment {
+  id: string;
+  label: string;
+  amount?: number;
+  currency: string;
+  dueDate?: string;
+  statusLabel: string;
+  statusClass: string;
+  icon: string;
+  note: string;
+}
+
+interface ReleaseCheck {
+  id: string;
+  label: string;
+  detail: string;
+  done: boolean;
+}
+
+function parseContractParameters(contract: Contract, smartTemplate?: SmartContractTemplate): ParsedContractParameters {
+  const paramsClause = contract.clauses.find(clause => normalizeManagementText(clause.title).includes('parametros do contrato'));
+  const entries = (paramsClause?.content || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const separatorIndex = line.indexOf(':');
+      if (separatorIndex === -1) {
+        return { label: line, value: '' };
+      }
+
+      return {
+        label: line.slice(0, separatorIndex).trim(),
+        value: line.slice(separatorIndex + 1).trim(),
+      };
+    });
+
+  const valuesByKey: Record<string, string> = {};
+  const valuesByLabel = new Map(entries.map(entry => [normalizeManagementText(entry.label), entry.value]));
+
+  if (smartTemplate) {
+    smartTemplate.variables.forEach(variable => {
+      const matchedValue = valuesByLabel.get(normalizeManagementText(variable.label));
+      if (matchedValue && matchedValue !== '(não definido)') {
+        valuesByKey[variable.name] = matchedValue;
+      }
+    });
+  }
+
+  return { entries, valuesByKey };
+}
+
+function buildManagementInstallments(contract: Contract, params: ParsedContractParameters, allSigned: boolean): ManagementInstallment[] {
+  const count = getInstallmentCount(params);
+  const amount = getInstallmentAmount(params, count);
+  const currency = getParamValue(params, ['asset', 'currency'], ['moeda']) || 'BRL';
+  const startDate = parseDateLike(getParamValue(params, ['startDate'], ['inicio', 'primeiro pagamento'])) || new Date(contract.createdAt);
+  const dueDay = clampDueDay(parseNumberLike(getParamValue(params, ['dueDay', 'payDay'], ['vencimento', 'dia do pagamento'])) || startDate.getDate());
+
+  if (count === 0) return [];
+
+  return Array.from({ length: count }, (_, index) => {
+    const dueDate = buildInstallmentDate(startDate, dueDay, index);
+    const status = describeInstallmentStatus(contract, allSigned, dueDate);
+    return {
+      id: `installment-${index + 1}`,
+      label: count === 1 ? 'Parcela única' : `${index + 1}ª parcela`,
+      amount,
+      currency,
+      dueDate: dueDate.toISOString(),
+      statusLabel: status.label,
+      statusClass: status.className,
+      icon: status.icon,
+      note: status.note,
+    };
+  });
+}
+
+function buildReleaseChecks(
+  contract: Contract,
+  smartTemplate: SmartContractTemplate | undefined,
+  installments: ManagementInstallment[],
+  signedCount: number,
+  allSigned: boolean,
+): ReleaseCheck[] {
+  const nextReadyInstallment = installments.find(installment => installment.statusLabel === 'Pronta');
+  const releaseActions = smartTemplate?.actions.filter(isReleaseAction) ?? [];
+
+  return [
+    {
+      id: 'signatures',
+      label: 'Assinaturas concluídas',
+      detail: `${signedCount}/${contract.parties.length} signatário(s) registraram assinatura no documento.`,
+      done: allSigned,
+    },
+    {
+      id: 'anchor',
+      label: 'Prova on-chain disponível',
+      detail: contract.stellarTxHash ? 'Hash da transação ancorado na Stellar e pronto para auditoria.' : 'O contrato ainda não possui hash ancorado na Stellar.',
+      done: Boolean(contract.stellarTxHash),
+    },
+    {
+      id: 'schedule',
+      label: 'Agenda financeira identificada',
+      detail: installments.length > 0 ? `${installments.length} janela(s) de pagamento foram inferidas a partir dos parâmetros do contrato.` : 'Nenhuma agenda de parcelas foi identificada nas cláusulas/variáveis.',
+      done: installments.length > 0,
+    },
+    {
+      id: 'window',
+      label: 'Janela pronta para conciliação',
+      detail: nextReadyInstallment
+        ? `${nextReadyInstallment.label} já pode seguir para a regra financeira ou conciliação manual.`
+        : 'Ainda não há parcela em janela pronta; acompanhe assinaturas, datas e gatilhos do template.',
+      done: Boolean(nextReadyInstallment),
+    },
+    {
+      id: 'actions',
+      label: 'Gatilhos de liberação mapeados',
+      detail: releaseActions.length > 0
+        ? releaseActions.slice(0, 3).map(action => action.description).join(' · ')
+        : 'Este contrato não expõe ação explícita de liberação na definição do template.',
+      done: releaseActions.length > 0,
+    },
+  ];
+}
+
+function inferCurrentSmartStateIndex(contract: Contract, smartTemplate: SmartContractTemplate | undefined, allSigned: boolean) {
+  if (!smartTemplate || smartTemplate.states.length === 0) return -1;
+
+  const findStateIndex = (...tokens: string[]) => smartTemplate.states.findIndex(state => {
+    const haystack = `${normalizeManagementText(state.id)} ${normalizeManagementText(state.label)}`;
+    return tokens.some(token => haystack.includes(token));
+  });
+
+  if (contract.status === 'completed') {
+    const completedIndex = findStateIndex('completed', 'closed', 'delivered', 'paid', 'indenizado');
+    return completedIndex >= 0 ? completedIndex : smartTemplate.states.length - 1;
+  }
+
+  if (contract.status === 'active') {
+    const activeIndex = findStateIndex('active', 'vigente', 'in progress', 'in_progress', 'running');
+    return activeIndex >= 0 ? activeIndex : Math.min(1, smartTemplate.states.length - 1);
+  }
+
+  if (contract.status === 'cancelled' || contract.status === 'failed' || contract.status === 'archived') {
+    const blockedIndex = findStateIndex('cancel', 'default', 'paused', 'dispute', 'closed');
+    return blockedIndex >= 0 ? blockedIndex : smartTemplate.states.length - 1;
+  }
+
+  if (!allSigned) {
+    const awaitingIndex = findStateIndex('awaiting', 'created', 'draft', 'signature', 'assin');
+    return awaitingIndex >= 0 ? awaitingIndex : 0;
+  }
+
+  return Math.min(1, smartTemplate.states.length - 1);
+}
+
+function isReleaseAction(action: SmartContractTemplate['actions'][number]) {
+  const text = normalizeManagementText(`${action.name} ${action.description}`);
+  return ['release', 'pay', 'payment', 'pagamento', 'parcela', 'deposit', 'approve', 'confirm', 'delivery', 'recebimento'].some(token => text.includes(token));
+}
+
+function getInstallmentCount(params: ParsedContractParameters) {
+  const explicitCount = parseNumberLike(getParamValue(params, ['installmentsCount', 'durationMonths', 'milestoneCount'], ['parcelas', 'meses', 'duracao', 'etapas']));
+  if (explicitCount && explicitCount > 0) {
+    return Math.max(1, Math.round(explicitCount));
+  }
+
+  return getInstallmentAmount(params, 1) ? 1 : 0;
+}
+
+function getInstallmentAmount(params: ParsedContractParameters, count: number) {
+  const directAmount = parseNumberLike(getParamValue(
+    params,
+    ['monthlyInstallment', 'monthlyRent', 'amount', 'premium', 'principal', 'faceValue'],
+    ['valor mensal', 'valor da parcela', 'aluguel', 'premio', 'principal', 'valor']
+  ));
+
+  if (directAmount) {
+    return directAmount;
+  }
+
+  const totalAmount = parseNumberLike(getParamValue(params, ['totalAmount'], ['valor total']));
+  if (totalAmount) {
+    return count > 1 ? totalAmount / count : totalAmount;
+  }
+
+  return undefined;
+}
+
+function getParamValue(params: ParsedContractParameters, keys: string[], labelTokens: string[]) {
+  for (const key of keys) {
+    const value = params.valuesByKey[key];
+    if (value) return value;
+  }
+
+  const labelEntry = params.entries.find(entry => {
+    const normalizedLabel = normalizeManagementText(entry.label);
+    return labelTokens.some(token => normalizedLabel.includes(normalizeManagementText(token)));
+  });
+
+  return labelEntry?.value;
+}
+
+function parseNumberLike(value?: string) {
+  if (!value) return undefined;
+  const numeric = value.replace(/[^\d,.-]/g, '').trim();
+  if (!numeric) return undefined;
+
+  const hasComma = numeric.includes(',');
+  const hasDot = numeric.includes('.');
+  const normalized = hasComma && hasDot
+    ? numeric.replace(/\./g, '').replace(',', '.')
+    : hasComma
+      ? numeric.replace(',', '.')
+      : numeric;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseDateLike(value?: string) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function clampDueDay(day: number) {
+  return Math.max(1, Math.min(28, Math.round(day)));
+}
+
+function buildInstallmentDate(startDate: Date, dueDay: number, offsetMonths: number) {
+  const dueDate = new Date(startDate);
+  dueDate.setHours(12, 0, 0, 0);
+  dueDate.setMonth(dueDate.getMonth() + offsetMonths, 1);
+  const lastDay = new Date(dueDate.getFullYear(), dueDate.getMonth() + 1, 0).getDate();
+  dueDate.setDate(Math.min(dueDay, lastDay));
+  return dueDate;
+}
+
+function describeInstallmentStatus(contract: Contract, allSigned: boolean, dueDate: Date) {
+  if (contract.status === 'cancelled' || contract.status === 'failed' || contract.status === 'archived') {
+    return {
+      label: 'Travada',
+      className: 'bg-red-500/10 border-red-500/20 text-red-400',
+      icon: 'solar:close-circle-bold',
+      note: 'Contrato fora da trilha de execução. Revise o status antes de liberar qualquer pagamento.',
+    };
+  }
+
+  if (!allSigned) {
+    return {
+      label: 'Bloqueada',
+      className: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+      icon: 'solar:lock-bold',
+      note: 'A parcela só deve seguir para liberação depois que todas as partes assinarem o contrato.',
+    };
+  }
+
+  if (dueDate.getTime() > Date.now()) {
+    return {
+      label: 'Agendada',
+      className: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+      icon: 'solar:calendar-bold',
+      note: 'Janela futura. Mantenha o contrato ativo e acompanhe os gatilhos operacionais até a data combinada.',
+    };
+  }
+
+  return {
+    label: 'Pronta',
+    className: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+    icon: 'solar:check-circle-bold',
+    note: 'Parcela em janela apta. Concilie no financeiro ou execute a ação de liberação prevista no smart contract.',
+  };
+}
+
+function normalizeManagementText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function formatCurrencyAmount(amount: number | undefined, currency: string) {
+  if (typeof amount !== 'number' || Number.isNaN(amount)) {
+    return 'Valor não identificado';
+  }
+
+  return amount.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: currency || 'BRL',
+    maximumFractionDigits: 2,
+  });
 }
