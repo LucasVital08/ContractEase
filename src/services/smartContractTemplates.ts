@@ -26,7 +26,12 @@ export type SmartContractCategory =
   | 'ecommerce'
   | 'finance'
   | 'business'
-  | 'insurance';
+  | 'insurance'
+  | 'professional'
+  | 'construction'
+  | 'automotive'
+  | 'rwa'
+  | 'registry';
 
 export type StateColor = 'gray' | 'blue' | 'amber' | 'green' | 'red' | 'purple';
 
@@ -54,6 +59,37 @@ export interface SCAction {
   callableBy: string;
   preState: string;
   postState: string;
+}
+
+/**
+ * Pergunta de questionário guiado. Cada template tem um conjunto de perguntas
+ * que substituem o chat em modo "passo a passo" — é o caminho mais previsível
+ * para preencher o contrato sem depender da extração de IA do texto livre.
+ */
+export interface SCQuestionOption {
+  value: string;
+  label: string;
+  description?: string;
+  icon?: string;
+}
+
+export interface SCQuestion {
+  id: string;
+  /** Pergunta exibida ao usuário */
+  question: string;
+  /** Texto secundário que explica o porquê / o que isso resolve */
+  context?: string;
+  /** Aberta = input livre · Choice = cards de alternativa */
+  type: 'open' | 'choice';
+  /** Nome da variable do template que essa resposta preenche */
+  bindTo: string;
+  /** Tipo de input quando type='open' */
+  inputType?: 'text' | 'long_text' | 'address' | 'amount' | 'date' | 'number';
+  /** Opções quando type='choice' */
+  options?: SCQuestionOption[];
+  placeholder?: string;
+  helper?: string;
+  required?: boolean;
 }
 
 export interface SmartContractTemplate {
@@ -1008,6 +1044,8 @@ impl ParametricInsurance {
 `,
 };
 
+import { EXTENDED_TEMPLATES } from './additionalSmartContractTemplates';
+
 export const SMART_CONTRACT_TEMPLATES: SmartContractTemplate[] = [
   rentTemplate,
   ecommerceTemplate,
@@ -1019,6 +1057,7 @@ export const SMART_CONTRACT_TEMPLATES: SmartContractTemplate[] = [
   fixedYieldTemplate,
   groupBuyTemplate,
   parametricInsuranceTemplate,
+  ...EXTENDED_TEMPLATES,
 ];
 
 export const TEMPLATES_BY_ID: Record<string, SmartContractTemplate> = Object.fromEntries(
@@ -1026,11 +1065,16 @@ export const TEMPLATES_BY_ID: Record<string, SmartContractTemplate> = Object.fro
 );
 
 export const CATEGORIES: { id: SmartContractCategory | 'all'; label: string; icon: string }[] = [
-  { id: 'all',          label: 'Todos',         icon: '✨' },
-  { id: 'real_estate',  label: 'Imóveis',       icon: '🏠' },
-  { id: 'ecommerce',    label: 'E-commerce',    icon: '🛒' },
-  { id: 'business',     label: 'Negócios',      icon: '💼' },
-  { id: 'payroll',      label: 'Folha',         icon: '💼' },
-  { id: 'finance',      label: 'Finanças',      icon: '📈' },
-  { id: 'insurance',    label: 'Seguros',       icon: '☂️' },
+  { id: 'all',           label: 'Todos',         icon: 'solar:widget-bold-duotone' },
+  { id: 'real_estate',   label: 'Imóveis',       icon: 'solar:home-2-bold-duotone' },
+  { id: 'professional',  label: 'Profissional',  icon: 'solar:case-round-bold-duotone' },
+  { id: 'construction',  label: 'Construção',    icon: 'solar:hammer-bold-duotone' },
+  { id: 'automotive',    label: 'Veículos',      icon: 'solar:wheel-bold-duotone' },
+  { id: 'rwa',           label: 'RWA & Tokens',  icon: 'solar:diamond-bold-duotone' },
+  { id: 'registry',      label: 'Registros',     icon: 'solar:document-add-bold-duotone' },
+  { id: 'ecommerce',     label: 'E-commerce',    icon: 'solar:cart-3-bold-duotone' },
+  { id: 'business',      label: 'Negócios',      icon: 'solar:case-bold-duotone' },
+  { id: 'payroll',       label: 'Folha',         icon: 'solar:wallet-2-bold-duotone' },
+  { id: 'finance',       label: 'Finanças',      icon: 'solar:graph-up-bold-duotone' },
+  { id: 'insurance',     label: 'Seguros',       icon: 'solar:shield-bold-duotone' },
 ];

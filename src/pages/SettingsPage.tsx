@@ -30,6 +30,7 @@ export default function SettingsPage() {
   // Profile
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profileEmail] = useState(user?.email || '');
+  const [profileHandle, setProfileHandle] = useState(user?.handle || deriveHandleCandidate(user?.email || ''));
   const [profileBio, setProfileBio] = useState('');
   const [profilePhone, setProfilePhone] = useState('');
   const [profileRole, setProfileRole] = useState('');
@@ -87,14 +88,20 @@ export default function SettingsPage() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { if (user) { setProfileName(user.name); setWalletAddress(user.walletAddress || null); } }, [user]);
+  useEffect(() => {
+    if (!user) return;
+    setProfileName(user.name);
+    setProfileHandle(user.handle || deriveHandleCandidate(user.email || ''));
+    setWalletAddress(user.walletAddress || null);
+  }, [user]);
 
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await supabase.from('profiles').update({ name: profileName, phone: profilePhone }).eq('id', user!.id);
+      const normalizedHandle = normalizeProfileHandle(profileHandle);
+      await supabase.from('profiles').update({ name: profileName, phone: profilePhone, handle: normalizedHandle || null }).eq('id', user!.id);
       await api.settings.save({ bio: profileBio, phone: profilePhone, jobTitle: profileRole });
-      updateUser({ name: profileName });
+      updateUser({ name: profileName, handle: normalizedHandle || undefined });
       notify({ type: 'success', title: 'Perfil atualizado' });
     } catch (e: any) { notify({ type: 'error', title: 'Erro', message: e.message }); }
   };
@@ -293,6 +300,11 @@ export default function SettingsPage() {
                     <div>
                       <label className="block text-xs text-neutral-400 mb-1.5">Telefone</label>
                       <input value={profilePhone} onChange={e => setProfilePhone(e.target.value)} placeholder="(11) 99999-9999" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1.5">@Usuário</label>
+                      <input value={profileHandle} onChange={e => setProfileHandle(e.target.value)} placeholder="ex: gabriel" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600" />
+                      <p className="mt-1 text-[10px] text-neutral-500">Use letras, números e `_`, sem espaços. Esse identificador aparece no app e na busca de signatários.</p>
                     </div>
                     <div>
                       <label className="block text-xs text-neutral-400 mb-1.5">Cargo</label>
@@ -612,4 +624,21 @@ export default function SettingsPage() {
       />
     </div>
   );
+}
+
+function deriveHandleCandidate(email: string) {
+  const local = email.split('@')[0] || '';
+  return normalizeProfileHandle(local);
+}
+
+function normalizeProfileHandle(value: string) {
+  const sanitized = value
+    .trim()
+    .replace(/^@+/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .slice(0, 31);
+
+  if (!sanitized) return '';
+  return /^[a-z]/.test(sanitized) ? sanitized : `u_${sanitized}`.slice(0, 31);
 }

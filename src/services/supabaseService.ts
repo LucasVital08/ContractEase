@@ -39,11 +39,13 @@ export const authService = {
         id: data.user.id,
         name: profile?.name ?? email.split('@')[0],
         email: data.user.email!,
+        handle: profile?.handle ?? undefined,
         role: (profile?.role ?? 'user') as any,
         avatar: profile?.avatar_url ?? undefined,
         organizationId: profile?.organization_id ?? 'personal',
         createdAt: data.user.created_at,
         credits: profile?.credits ?? 0,
+        walletAddress: profile?.wallet_address ?? undefined,
         plan: (profile?.plan ?? 'free') as any,
       },
       organization,
@@ -62,16 +64,19 @@ export const authService = {
     });
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error('Erro ao criar conta. Verifique seu e-mail.');
+    const profile = await authService.getProfile(data.user.id).catch(() => null);
 
     return {
       user: {
         id: data.user.id,
         name,
         email: data.user.email!,
+        handle: profile?.handle ?? undefined,
         role: 'owner' as const,
         organizationId: 'personal',
         createdAt: data.user.created_at,
         credits: 0,
+        walletAddress: profile?.wallet_address ?? undefined,
         plan: 'free' as const,
       },
       organization: {
@@ -168,11 +173,13 @@ export const authService = {
         id: data.user.id,
         name: profile?.name ?? email.split('@')[0],
         email: data.user.email!,
+        handle: profile?.handle ?? undefined,
         role: (profile?.role ?? 'user') as any,
         avatar: profile?.avatar_url ?? undefined,
         organizationId: profile?.organization_id ?? 'personal',
         createdAt: data.user.created_at,
         credits: profile?.credits ?? 0,
+        walletAddress: profile?.wallet_address ?? undefined,
         plan: (profile?.plan ?? 'free') as any,
       },
       organization,
@@ -193,13 +200,13 @@ export const authService = {
   getProfile: async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, name, handle, role, avatar_url, organization_id, credits, wallet_address, plan, settings, phone')
       .eq('id', userId)
       .single();
     return data;
   },
 
-  updateProfile: async (userId: string, updates: { name?: string; avatar_url?: string }) => {
+  updateProfile: async (userId: string, updates: { name?: string; avatar_url?: string; handle?: string | null; phone?: string }) => {
     const { data, error } = await supabase
       .from('profiles')
       .update(updates)
@@ -381,7 +388,7 @@ export const contractsService = {
     // they were invited to sign — so this single query covers both roles.
     let query = supabase
       .from('contracts')
-      .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)');
+      .select('id, title, description, type, status, created_at, updated_at, expires_at, stellar_tx_hash, contract_hash, tags, folder_id, signature_order, owner_id, organization_id, contract_parties(id, name, email, role, signed_at, cpf, ip_address, user_agent, geolocation, signature_type, signature_image, lgpd_consent), favorites:favorites(id)');
 
     if (!isPersonal) {
       query = query.eq('organization_id', orgId);
@@ -881,14 +888,32 @@ export const userSettingsService = {
 
 // ─── Signing & Notifications ──────────────────────────────────
 export const signingService = {
-  lookupProfiles: async (query: string): Promise<{ id: string; name: string; email: string; avatar_url: string | null }[]> => {
-    if (query.length < 2) return [];
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, name, email, avatar_url')
-      .or(`email.ilike.%${query}%,name.ilike.%${query}%`)
-      .limit(6);
-    return data || [];
+  lookupProfiles: async (query: string): Promise<{ id: string; name: string; email: string; avatar_url: string | null; handle: string | null; wallet_address: string | null }[]> => {
+    const trimmed = query.trim().replace(/^@+/, '');
+    if (trimmed.length < 1) return [];
+
+    const { data, error } = await supabase.rpc('search_profiles_directory', {
+      p_query: trimmed,
+      p_limit: 8,
+    });
+
+    if (!error && Array.isArray(data)) {
+      return data as { id: string; name: string; email: string; avatar_url: string | null; handle: string | null; wallet_address: string | null }[];
+    }
+
+    const { data: legacy } = await supabase.rpc('search_profile_handles', {
+      p_query: trimmed,
+      p_limit: 8,
+    });
+
+    return ((legacy as Array<{ id: string; handle: string; name: string; avatar_url: string | null }> | null) || []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: '',
+      avatar_url: row.avatar_url,
+      handle: row.handle,
+      wallet_address: null,
+    }));
   },
 
   signParty: async (partyId: string, data: { cpf?: string; lgpdConsent: boolean; signatureType?: string; signatureImage?: string; ipAddress?: string; geolocation?: string; contractId?: string }) => {
@@ -1032,7 +1057,7 @@ export const signingService = {
   getPendingForUser: async (userEmail: string) => {
     const { data } = await supabase
       .from('contract_parties')
-      .select('id, contract_id, name, email, role, contracts(id, title, status)')
+      .select('id, contract_id, name, email, role, contracts(id, title, status, tags)')
       .eq('email', userEmail)
       .is('signed_at', null);
     return data || [];

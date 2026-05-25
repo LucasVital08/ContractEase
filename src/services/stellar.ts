@@ -25,6 +25,10 @@ export interface AnchorResult {
   txHash?: string;
   ledger?: number;
   error?: string;
+  /** Etapa da edge function que falhou (env_check, load_account, submit_tx, etc) */
+  stage?: string;
+  /** Dica para resolver o erro (ex: rodar friendbot, configurar secret) */
+  hint?: string;
 }
 
 /**
@@ -70,8 +74,32 @@ export async function anchorOnStellar(contractHash: string, contractId?: string)
     const { data, error } = await supabase.functions.invoke('anchor-on-stellar', {
       body: { contractHash, contractId, network: 'testnet' },
     });
-    if (error) throw error;
-    if (!data?.success) return { success: false, error: data?.error || 'Falha ao ancorar' };
+
+    // Supabase pode retornar erro com body de detalhes — tenta extrair
+    if (error) {
+      let detail = error.message || 'Falha ao ancorar';
+      let stage: string | undefined;
+      let hint: string | undefined;
+      // O Supabase Edge Functions empacota o body em `error.context.response`
+      try {
+        const resp = (error as any).context?.response;
+        if (resp) {
+          const text = await resp.text();
+          const parsed = JSON.parse(text);
+          detail = parsed.error || detail;
+          stage = parsed.stage;
+          hint = parsed.hint;
+        }
+      } catch { /* não conseguiu extrair, usa mensagem padrão */ }
+      return { success: false, error: detail, stage, hint };
+    }
+
+    if (!data?.success) return {
+      success: false,
+      error: data?.error || 'Falha ao ancorar',
+      stage: data?.stage,
+      hint: data?.hint,
+    };
     return { success: true, txHash: data.txHash, ledger: data.ledger };
   } catch (error: any) {
     console.error('Stellar anchor error:', error);

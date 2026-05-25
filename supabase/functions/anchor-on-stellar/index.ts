@@ -12,25 +12,58 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+  // Etapa atual — usada para reportar onde a falha aconteceu
+  let stage: string = 'init';
 
+  try {
+    stage = 'env_check';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const secretKey = Deno.env.get("STELLAR_SECRET_KEY");
+
+    if (!secretKey) {
+      console.error("[anchor-on-stellar] STELLAR_SECRET_KEY não configurada");
+      return new Response(JSON.stringify({
+        error: "STELLAR_SECRET_KEY não configurada na Edge Function",
+        hint: "Configure no Supabase: Edge Functions → Secrets → STELLAR_SECRET_KEY (S... da testnet)",
+        stage,
+      }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    stage = 'parse_body';
     const { contractId, contractHash, network } = await req.json();
+    if (!contractHash) {
+      return new Response(JSON.stringify({ error: "contractHash obrigatório", stage }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const isTestnet = network !== 'mainnet';
     const horizonUrl = isTestnet ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org';
     const networkPassphrase = isTestnet ? StellarSdk.Networks.TESTNET : StellarSdk.Networks.PUBLIC;
 
-    const secretKey = Deno.env.get("STELLAR_SECRET_KEY");
-    if (!secretKey) throw new Error("STELLAR_SECRET_KEY não configurada");
+    stage = 'load_keypair';
+    let keypair: StellarSdk.Keypair;
+    try {
+      keypair = StellarSdk.Keypair.fromSecret(secretKey);
+    } catch (kpErr) {
+      throw new Error(`STELLAR_SECRET_KEY inválida (não começa com S ou tem formato errado): ${(kpErr as Error).message}`);
+    }
 
+    stage = 'load_account';
     const server = new StellarSdk.Horizon.Server(horizonUrl);
-    const keypair = StellarSdk.Keypair.fromSecret(secretKey);
-    const account = await server.loadAccount(keypair.publicKey());
+    let account;
+    try {
+      account = await server.loadAccount(keypair.publicKey());
+    } catch (accErr) {
+      const msg = (accErr as Error).message;
+      if (msg.includes('Not Found') || msg.includes('404')) {
+        throw new Error(`Conta custodial ${keypair.publicKey()} não existe na ${isTestnet ? 'testnet' : 'mainnet'}. Faça friendbot: https://friendbot.stellar.org/?addr=${keypair.publicKey()}`);
+      }
+      throw new Error(`Falha ao carregar conta na Horizon: ${msg}`);
+    }
 
+    stage = 'build_tx';
     const tx = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
       networkPassphrase: networkPassphrase,
@@ -47,10 +80,22 @@ Deno.serve(async (req: Request) => {
       .build();
 
     tx.sign(keypair);
-    const result = await server.submitTransaction(tx);
 
-    // Atualizar contrato no banco com o hash da transação (somente se contractId foi fornecido)
-    if (contractId) {
+    stage = 'submit_tx';
+    let result;
+    try {
+      result = await server.submitTransaction(tx);
+    } catch (submitErr: any) {
+      // Erros do Horizon vêm com response.data com detalhes
+      const horizonError = submitErr?.response?.data;
+      const codes = horizonError?.extras?.result_codes;
+      const detail = codes ? JSON.stringify(codes) : submitErr.message;
+      throw new Error(`Stellar rejeitou a transação: ${detail}`);
+    }
+
+    stage = 'update_db';
+    if (contractId && supabaseUrl && supabaseServiceKey) {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
       const { error: updateError } = await supabase
         .from('contracts')
         .update({
@@ -61,13 +106,12 @@ Deno.serve(async (req: Request) => {
         .eq('id', contractId);
 
       if (updateError) {
-        console.error("Erro ao atualizar contrato no banco:", updateError);
-        // Retorna sucesso parcial: âncora foi feita mas DB não atualizou
+        console.error("[anchor-on-stellar] DB update failed:", updateError);
         return new Response(JSON.stringify({
           success: true,
           txHash: result.hash,
           ledger: result.ledger,
-          warning: "Contrato ancorado na Stellar, mas falha ao atualizar banco de dados.",
+          warning: `Ancorado na Stellar, mas falha ao atualizar DB: ${updateError.message}`,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
@@ -76,12 +120,15 @@ Deno.serve(async (req: Request) => {
       success: true,
       txHash: result.hash,
       ledger: result.ledger,
+      network: isTestnet ? 'testnet' : 'mainnet',
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    const message = (err as Error).message ?? String(err);
+    console.error(`[anchor-on-stellar] failed at stage='${stage}':`, message);
+    return new Response(JSON.stringify({ error: message, stage }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -28,6 +28,17 @@ export interface ResolvedHandle {
   email?: string;            // e-mail do perfil (quando vindo do Supabase)
   userId?: string;           // profiles.id (quando vindo do Supabase)
   source?: 'demo' | 'profile';
+  preferredInput?: string;   // valor ideal para preencher o campo (@handle ou G...)
+  hasWallet?: boolean;       // se o perfil já tem carteira Stellar configurada
+}
+
+interface ProfileLookupRow {
+  id: string;
+  handle: string | null;
+  name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  wallet_address: string | null;
 }
 
 // ─── Diretório curado de demos ───────────────────────────────────────
@@ -164,10 +175,20 @@ export async function resolveHandle(handle: string): Promise<ResolvedHandle | nu
   const normalized = normalizeHandle(handle);
   if (!normalized) return null;
 
-  const demo = HANDLES_BY_NAME.get(normalized);
-  if (demo) return { ...demo, source: 'demo' };
+  const profile = await resolveHandleFromProfiles(normalized);
+  if (profile) return profile;
 
-  return resolveHandleFromProfiles(normalized);
+  const demo = HANDLES_BY_NAME.get(normalized);
+  if (demo) {
+    return {
+      ...demo,
+      source: 'demo',
+      preferredInput: `@${demo.handle}`,
+      hasWallet: true,
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -183,26 +204,7 @@ async function resolveHandleFromProfiles(normalized: string): Promise<ResolvedHa
       .maybeSingle();
     if (error || !data) return null;
 
-    const row = data as {
-      id: string;
-      handle: string;
-      name: string;
-      email: string | null;
-      avatar_url: string | null;
-      wallet_address: string | null;
-    };
-
-    return {
-      handle: row.handle,
-      address: row.wallet_address ?? '',
-      displayName: row.name,
-      avatar: row.avatar_url ?? undefined,
-      verified: false,
-      kind: 'person',
-      email: row.email ?? undefined,
-      userId: row.id,
-      source: 'profile',
-    };
+    return mapProfileRowToResolved(data as ProfileLookupRow);
   } catch {
     return null;
   }
@@ -214,7 +216,14 @@ async function resolveHandleFromProfiles(normalized: string): Promise<ResolvedHa
 export function resolveHandleSync(handle: string): ResolvedHandle | null {
   const normalized = normalizeHandle(handle);
   if (!normalized) return null;
-  return HANDLES_BY_NAME.get(normalized) || null;
+  const demo = HANDLES_BY_NAME.get(normalized);
+  if (!demo) return null;
+
+  return {
+    ...demo,
+    preferredInput: `@${demo.handle}`,
+    hasWallet: true,
+  };
 }
 
 /**
@@ -228,66 +237,129 @@ export function lookupHandleByAddress(address: string): ResolvedHandle | null {
  * Busca handles que começam ou contêm o query (para autocomplete).
  */
 export async function searchHandles(query: string, limit = 6): Promise<ResolvedHandle[]> {
-  const normalized = normalizeHandle(query);
-  if (!normalized || normalized.length < 1) {
-    // Sem query: retorna os destaques (verified primeiro)
-    return DEMO_HANDLES.filter(h => h.verified).slice(0, limit);
-  }
-
-  // Match priorizando: começa com > contém handle > contém displayName
-  const startsWith: ResolvedHandle[] = [];
-  const containsHandle: ResolvedHandle[] = [];
-  const containsName: ResolvedHandle[] = [];
-
-  for (const h of DEMO_HANDLES) {
-    const lower = h.handle.toLowerCase();
-    const dnLower = h.displayName.toLowerCase();
-    if (lower.startsWith(normalized)) {
-      startsWith.push({ ...h, source: 'demo' });
-    } else if (lower.includes(normalized)) {
-      containsHandle.push({ ...h, source: 'demo' });
-    } else if (dnLower.includes(normalized)) {
-      containsName.push({ ...h, source: 'demo' });
-    }
-  }
-
-  const demoResults = [...startsWith, ...containsHandle, ...containsName];
-  const profileResults = await searchProfileHandles(normalized, limit);
-
-  // Dedup por handle — demo tem prioridade (avatar curado, verified, etc.)
-  const seen = new Set(demoResults.map(h => h.handle.toLowerCase()));
-  const merged = [...demoResults];
-  for (const p of profileResults) {
-    if (!seen.has(p.handle.toLowerCase())) {
-      merged.push(p);
-      seen.add(p.handle.toLowerCase());
-    }
-  }
-
-  return merged.slice(0, limit);
+  return searchExistingProfiles(query, limit);
 }
 
-async function searchProfileHandles(normalized: string, limit: number): Promise<ResolvedHandle[]> {
+async function searchExistingProfiles(query: string, limit: number): Promise<ResolvedHandle[]> {
   try {
-    const { data, error } = await supabase.rpc('search_profile_handles', {
-      p_query: normalized,
-      p_limit: limit,
-    });
-    if (error || !Array.isArray(data)) return [];
+    const normalized = query.trim().replace(/^@+/, '').toLowerCase();
+    const rpcResults = await searchProfilesDirectoryRpc(normalized, limit);
+    if (rpcResults.length > 0) return rpcResults;
 
-    return (data as Array<{ id: string; handle: string; name: string; avatar_url: string | null }>).map(row => ({
-      handle: row.handle,
-      address: '',
-      displayName: row.name,
-      avatar: row.avatar_url ?? undefined,
-      verified: false,
-      kind: 'person' as const,
-      userId: row.id,
-      source: 'profile' as const,
-    }));
+    const legacyResults = await searchLegacyProfiles(normalized, limit);
+    if (legacyResults.length > 0) return legacyResults;
+
+    const exactEmailMatch = await lookupProfileByEmail(normalized);
+    return exactEmailMatch ? [exactEmailMatch] : [];
   } catch {
     return [];
   }
+}
+
+export async function lookupProfileByAddress(address: string): Promise<ResolvedHandle | null> {
+  try {
+    const { data, error } = await supabase
+      .rpc('lookup_profile_by_wallet_address', { p_wallet_address: address })
+      .maybeSingle();
+    if (error || !data) return null;
+    return mapProfileRowToResolved(data as ProfileLookupRow);
+  } catch {
+    return null;
+  }
+}
+
+async function searchProfilesDirectoryRpc(query: string, limit: number): Promise<ResolvedHandle[]> {
+  const { data, error } = await supabase.rpc('search_profiles_directory', {
+    p_query: query,
+    p_limit: limit,
+  });
+  if (error || !Array.isArray(data)) return [];
+
+  return (data as ProfileLookupRow[])
+    .map(mapProfileRowToResolved)
+    .sort((left, right) => scoreProfileResult(query, right) - scoreProfileResult(query, left)
+      || Number(Boolean(right.hasWallet)) - Number(Boolean(left.hasWallet))
+      || left.displayName.localeCompare(right.displayName, 'pt-BR'))
+    .slice(0, limit);
+}
+
+async function searchLegacyProfiles(query: string, limit: number): Promise<ResolvedHandle[]> {
+  const { data, error } = await supabase.rpc('search_profile_handles', {
+    p_query: query,
+    p_limit: limit,
+  });
+  if (error || !Array.isArray(data)) return [];
+
+  return (data as Array<{ id: string; handle: string; name: string; avatar_url: string | null }>)
+    .map((row) => mapProfileRowToResolved({
+      id: row.id,
+      handle: row.handle,
+      name: row.name,
+      email: null,
+      avatar_url: row.avatar_url,
+      wallet_address: null,
+    }))
+    .slice(0, limit);
+}
+
+async function lookupProfileByEmail(email: string): Promise<ResolvedHandle | null> {
+  if (!email.includes('@')) return null;
+
+  const { data, error } = await supabase
+    .rpc('lookup_profile_by_email', { p_email: email })
+    .maybeSingle();
+  if (error || !data) return null;
+
+  const row = data as { id: string; email: string | null };
+  return mapProfileRowToResolved({
+    id: row.id,
+    handle: null,
+    name: row.email,
+    email: row.email,
+    avatar_url: null,
+    wallet_address: null,
+  });
+}
+
+function mapProfileRowToResolved(row: ProfileLookupRow): ResolvedHandle {
+  const fallbackHandle = row.handle || normalizeHandle(row.email || row.name || row.id.slice(0, 8));
+  const address = row.wallet_address ?? '';
+  return {
+    handle: fallbackHandle,
+    address,
+    displayName: row.name || row.email || `@${fallbackHandle}`,
+    avatar: row.avatar_url ?? undefined,
+    verified: false,
+    kind: 'person',
+    email: row.email ?? undefined,
+    userId: row.id,
+    source: 'profile',
+    preferredInput: row.handle ? (address ? `@${row.handle}` : undefined) : (address || undefined),
+    hasWallet: Boolean(address),
+  };
+}
+
+function scoreProfileResult(query: string, result: ResolvedHandle) {
+  if (!query) {
+    return (result.hasWallet ? 10 : 0) + (result.handle ? 4 : 0);
+  }
+
+  const handle = result.handle.toLowerCase();
+  const name = result.displayName.toLowerCase();
+  const email = (result.email || '').toLowerCase();
+
+  let score = 0;
+  if (handle === query) score += 100;
+  if (handle.startsWith(query)) score += 80;
+  if (name.startsWith(query)) score += 55;
+  if (email.startsWith(query)) score += 50;
+  if (handle.includes(query)) score += 35;
+  if (name.includes(query)) score += 25;
+  if (email.includes(query)) score += 20;
+  if (result.hasWallet) score += 12;
+  if (result.handle) score += 6;
+
+  return score;
 }
 
 /**

@@ -28,43 +28,37 @@ export default function AppLayout() {
       </div>
 
       {/* Toast notifications */}
-      <div className="fixed top-20 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-6 right-6 z-[60] flex flex-col gap-3 pointer-events-none w-full max-w-sm">
         <AnimatePresence>
-          {notifications.map((n) => (
-            <motion.div
-              key={n.id}
-              initial={{ opacity: 0, x: 80, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 80, scale: 0.95 }}
-              className={`pointer-events-auto px-5 py-3 rounded-xl flex items-center gap-3 shadow-2xl border cursor-pointer ${
-                n.type === 'success'
-                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                  : n.type === 'error'
-                    ? 'bg-red-500/10 border-red-500/20 text-red-400'
-                    : n.type === 'warning'
-                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                      : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-              }`}
-              onClick={() => removeNotification(n.id)}
-            >
-              <iconify-icon
-                icon={
-                  n.type === 'success'
-                    ? 'solar:check-circle-bold'
-                    : n.type === 'error'
-                      ? 'solar:danger-circle-bold'
-                      : n.type === 'warning'
-                        ? 'solar:danger-triangle-bold'
-                        : 'solar:info-circle-bold'
-                }
-                class="text-xl shrink-0"
-              />
-              <div>
-                <p className="text-sm font-semibold">{n.title}</p>
-                {n.message && <p className="text-xs opacity-70">{n.message}</p>}
-              </div>
-            </motion.div>
-          ))}
+          {notifications.map((n) => {
+            const styles = n.type === 'success'
+              ? { ring: 'border-emerald-500/30', accent: 'text-emerald-400', icon: 'solar:check-circle-bold' }
+              : n.type === 'error'
+                ? { ring: 'border-red-500/30', accent: 'text-red-400', icon: 'solar:danger-circle-bold' }
+                : n.type === 'warning'
+                  ? { ring: 'border-amber-500/30', accent: 'text-amber-400', icon: 'solar:danger-triangle-bold' }
+                  : { ring: 'border-blue-500/30', accent: 'text-blue-400', icon: 'solar:info-circle-bold' };
+            return (
+              <motion.div
+                key={n.id}
+                layout
+                initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 80, scale: 0.95 }}
+                className={`pointer-events-auto px-4 py-3 rounded-xl flex items-start gap-3 shadow-2xl border bg-neutral-900/95 backdrop-blur-md cursor-pointer ${styles.ring}`}
+                onClick={() => removeNotification(n.id)}
+              >
+                <iconify-icon icon={styles.icon} class={`text-xl shrink-0 mt-0.5 ${styles.accent}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white leading-tight">{n.title}</p>
+                  {n.message && (
+                    <p className="text-xs text-neutral-300 mt-1 leading-relaxed break-words">{n.message}</p>
+                  )}
+                </div>
+                <iconify-icon icon="solar:close-circle-linear" class="text-neutral-500 text-sm shrink-0 mt-0.5" />
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
       <CookieBanner />

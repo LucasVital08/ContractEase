@@ -17,6 +17,9 @@ export function useContracts() {
     // Never fire before the Supabase session is confirmed — prevents empty
     // results from unauthenticated requests racing the initialization flow.
     enabled: initialized,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -88,6 +91,9 @@ export function useFolders() {
   return useQuery({
     queryKey: ['folders', org?.id],
     queryFn: () => api.folders.list(org?.id),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 

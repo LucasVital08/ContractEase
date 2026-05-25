@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
+  resolveHandle,
   resolveHandleSync,
   searchHandles,
   isStellarAddress,
   isHandle,
   normalizeHandle,
   lookupHandleByAddress,
+  lookupProfileByAddress,
   type ResolvedHandle,
 } from '@/services/handleResolver';
 
@@ -30,55 +32,80 @@ export default function HandleInput({ value, onChange, placeholder, required }: 
   const [focused, setFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<ResolvedHandle[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [asyncResolved, setAsyncResolved] = useState<ResolvedHandle | null>(null);
+  const [resolving, setResolving] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // Estado de validação
   const trimmed = value.trim();
-  let resolved: ResolvedHandle | null = null;
-  let validationState: 'empty' | 'valid_handle' | 'valid_address' | 'invalid' | 'partial' = 'empty';
+  const syncResolved = !trimmed
+    ? null
+    : isStellarAddress(trimmed)
+      ? lookupHandleByAddress(trimmed)
+      : isHandle(trimmed)
+        ? resolveHandleSync(trimmed)
+        : null;
+  const resolved = asyncResolved ?? syncResolved;
+  const isDirectAddress = Boolean(trimmed) && isStellarAddress(trimmed);
+  const isResolvedHandle = Boolean(trimmed && resolved && !isDirectAddress);
+  const canSearch = focused && !isDirectAddress && (trimmed === '' || trimmed.length >= 2);
 
-  if (!trimmed) {
-    validationState = 'empty';
-  } else if (trimmed.startsWith('@')) {
-    resolved = resolveHandleSync(trimmed);
-    validationState = resolved ? 'valid_handle' : 'partial';
-  } else if (isStellarAddress(trimmed)) {
-    resolved = lookupHandleByAddress(trimmed);
-    validationState = 'valid_address';
-  } else if (isHandle(trimmed)) {
-    // sem @ mas parece um handle
-    resolved = resolveHandleSync(trimmed);
-    validationState = resolved ? 'valid_handle' : 'partial';
-  } else if (trimmed.length > 3) {
-    validationState = 'invalid';
-  } else {
-    validationState = 'partial';
-  }
-
-  // Carrega sugestões quando começa a digitar @
   useEffect(() => {
     let cancel = false;
-    if (focused && trimmed.startsWith('@')) {
-      const query = normalizeHandle(trimmed);
-      searchHandles(query, 6).then(results => {
-        if (!cancel) {
-          setSuggestions(results);
-          setSelectedIdx(0);
-        }
+
+    if (!trimmed) {
+      setAsyncResolved(null);
+      setResolving(false);
+      return;
+    }
+
+    if (isDirectAddress) {
+      setResolving(true);
+      lookupProfileByAddress(trimmed).then(result => {
+        if (cancel) return;
+        setAsyncResolved(result ?? lookupHandleByAddress(trimmed));
+        setResolving(false);
+      }).catch(() => {
+        if (cancel) return;
+        setAsyncResolved(lookupHandleByAddress(trimmed));
+        setResolving(false);
       });
-    } else if (focused && trimmed === '') {
-      // Mostra "destaques" quando focar com input vazio
-      searchHandles('', 6).then(results => {
+      return () => { cancel = true; };
+    }
+
+    if (trimmed.startsWith('@') || isHandle(trimmed)) {
+      setResolving(true);
+      resolveHandle(trimmed).then(result => {
+        if (cancel) return;
+        setAsyncResolved(result ?? resolveHandleSync(trimmed));
+        setResolving(false);
+      }).catch(() => {
+        if (cancel) return;
+        setAsyncResolved(resolveHandleSync(trimmed));
+        setResolving(false);
+      });
+      return () => { cancel = true; };
+    }
+
+    setAsyncResolved(null);
+    setResolving(false);
+    return () => { cancel = true; };
+  }, [trimmed, isDirectAddress]);
+
+  useEffect(() => {
+    let cancel = false;
+    if (canSearch) {
+      searchHandles(trimmed, 8).then(results => {
         if (!cancel) {
           setSuggestions(results);
-          setSelectedIdx(0);
+          const firstSelectable = results.findIndex(result => Boolean(result.preferredInput));
+          setSelectedIdx(firstSelectable >= 0 ? firstSelectable : 0);
         }
       });
     } else {
       setSuggestions([]);
     }
     return () => { cancel = true; };
-  }, [trimmed, focused]);
+  }, [trimmed, canSearch]);
 
   // Fecha o dropdown quando clicar fora
   useEffect(() => {
@@ -92,7 +119,8 @@ export default function HandleInput({ value, onChange, placeholder, required }: 
   }, []);
 
   function selectSuggestion(s: ResolvedHandle) {
-    onChange(`@${s.handle}`);
+    if (!s.preferredInput) return;
+    onChange(s.preferredInput);
     setFocused(false);
     setSuggestions([]);
   }
@@ -113,119 +141,162 @@ export default function HandleInput({ value, onChange, placeholder, required }: 
     }
   }
 
-  // ─── Estilo dinâmico do input ─────────────────────
-  const borderColor = {
-    empty: 'border-white/10',
-    valid_handle: 'border-emerald-500/50',
-    valid_address: 'border-blue-500/40',
-    partial: 'border-amber-500/30',
-    invalid: 'border-red-500/40',
-  }[validationState];
+  const borderColor = resolved
+    ? 'border-emerald-400/35'
+    : focused
+      ? 'border-white/16'
+      : 'border-white/10';
+  const helperMessage = !trimmed
+    ? 'Busque por @handle, nome, e-mail ou carteira Stellar.'
+    : resolving
+      ? 'Procurando usuário existente...'
+      : isDirectAddress
+        ? (resolved ? 'Carteira Stellar reconhecida.' : 'Carteira Stellar válida. Se pertencer a um usuário cadastrado, os dados aparecerão aqui.')
+        : trimmed.length >= 2 && suggestions.length === 0
+          ? 'Nenhum usuário existente encontrado para esse termo.'
+          : 'Selecione um usuário real da lista ou cole a carteira Stellar.';
 
   return (
     <div className="relative" ref={wrapRef}>
-      <div className={`flex items-center gap-2 bg-neutral-950 border rounded-lg px-3 py-2 transition-colors ${borderColor} focus-within:border-fuchsia-500/50`}>
-        {/* Prefix icon */}
-        <div className="text-neutral-500 flex-shrink-0">
-          {validationState === 'valid_handle' || validationState === 'valid_address'
-            ? <iconify-icon icon="solar:check-circle-bold" class="text-emerald-400 text-base" />
-            : validationState === 'partial'
-              ? <iconify-icon icon="solar:question-circle-bold" class="text-amber-400 text-base" />
-              : validationState === 'invalid'
-                ? <iconify-icon icon="solar:close-circle-bold" class="text-red-400 text-base" />
-                : <iconify-icon icon="solar:at-bold" class="text-neutral-600 text-base" />}
+      <div className={`rounded-[22px] border bg-neutral-950/90 p-2 transition-colors ${borderColor}`}>
+        <div className="flex items-center gap-3 rounded-[18px] border border-white/6 bg-black/25 px-4 py-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-neutral-500 flex-shrink-0">
+            {resolved
+              ? <iconify-icon icon="solar:check-circle-bold" class="text-emerald-400 text-base" />
+              : resolving
+                ? <iconify-icon icon="solar:refresh-bold" class="text-neutral-300 text-base animate-spin" />
+                : <iconify-icon icon="solar:user-id-bold-duotone" class="text-neutral-500 text-base" />}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-1">Parte do contrato</p>
+            <input
+              type="text"
+              value={value}
+              onChange={e => onChange(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder || '@usuario, nome, email@empresa.com ou G...'}
+              required={required}
+              className="w-full bg-transparent text-sm text-white placeholder:text-neutral-600 outline-none min-w-0"
+            />
+          </div>
+
+          {resolved && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="hidden sm:flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500/8 px-2.5 py-1.5 text-xs flex-shrink-0 max-w-[220px]"
+            >
+              <IdentityAvatar handle={resolved.handle} displayName={resolved.displayName} avatar={resolved.avatar} size="sm" />
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-emerald-200">{resolved.displayName}</p>
+                <p className="truncate text-[10px] text-emerald-300/80">{resolved.email || resolved.preferredInput || resolved.address}</p>
+              </div>
+            </motion.div>
+          )}
         </div>
-
-        <input
-          type="text"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder || '@usuario ou G...'}
-          required={required}
-          className="flex-1 bg-transparent text-sm text-white placeholder:text-neutral-600 outline-none min-w-0"
-        />
-
-        {/* Chip do usuário resolvido */}
-        {resolved && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-2 py-0.5 text-xs flex-shrink-0 max-w-[140px]"
-          >
-            <span>{resolved.avatar || '👤'}</span>
-            <span className="text-emerald-300 font-medium truncate">{resolved.displayName}</span>
-            {resolved.verified && (
-              <iconify-icon icon="solar:verified-check-bold" class="text-blue-400 text-xs flex-shrink-0" />
-            )}
-          </motion.div>
-        )}
       </div>
 
-      {/* Mensagem de erro/dica abaixo do input */}
-      {validationState === 'partial' && trimmed.startsWith('@') && (
-        <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
-          <iconify-icon icon="solar:info-circle-bold" />
-          {`@${normalizeHandle(trimmed)} não encontrado — digite para ver sugestões`}
-        </p>
-      )}
-      {validationState === 'invalid' && (
-        <p className="text-[10px] text-red-400 mt-1 flex items-center gap-1">
-          <iconify-icon icon="solar:close-circle-bold" />
-          Use um @handle (ex: @lucas) ou endereço Stellar (G...)
-        </p>
-      )}
+      <p className="mt-2 flex items-center gap-1.5 text-[11px] text-neutral-500">
+        <iconify-icon icon="solar:info-circle-linear" class="text-sm" />
+        {helperMessage}
+      </p>
 
-      {/* Dropdown de sugestões */}
       <AnimatePresence>
         {focused && suggestions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            className="absolute left-0 right-0 top-full mt-1 z-50 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+            className="absolute left-0 right-0 top-full mt-2 z-50 overflow-hidden rounded-[24px] border border-white/10 bg-neutral-950 shadow-[0_28px_80px_rgba(0,0,0,0.45)]"
           >
-            {trimmed === '' && (
-              <div className="px-3 py-1.5 text-[10px] font-bold text-neutral-500 uppercase tracking-wider border-b border-white/5 bg-neutral-950/50">
-                Usuários em destaque
+            <div className="flex items-center justify-between border-b border-white/6 bg-white/[0.03] px-4 py-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                  {trimmed ? 'Resultados reais' : 'Usuários existentes'}
+                </p>
+                <p className="mt-1 text-xs text-neutral-400">Busca por handle, nome ou e-mail</p>
               </div>
-            )}
+              <span className="rounded-full border border-white/8 bg-black/25 px-2.5 py-1 text-[10px] font-semibold text-neutral-300">
+                {suggestions.length} resultado{suggestions.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto p-2">
             {suggestions.map((s, i) => (
               <button
-                key={s.handle}
+                key={`${s.userId || s.handle}-${i}`}
                 onClick={() => selectSuggestion(s)}
                 onMouseEnter={() => setSelectedIdx(i)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
-                  i === selectedIdx ? 'bg-fuchsia-500/10' : 'hover:bg-white/5'
-                }`}
+                disabled={!s.preferredInput}
+                className={`w-full flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
+                  i === selectedIdx ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'
+                } ${!s.preferredInput ? 'opacity-55 cursor-not-allowed' : ''}`}
               >
-                <div className="text-xl flex-shrink-0">{s.avatar || '👤'}</div>
+                <IdentityAvatar handle={s.handle} displayName={s.displayName} avatar={s.avatar} />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-white">@{s.handle}</span>
-                    {s.verified && <iconify-icon icon="solar:verified-check-bold" class="text-blue-400 text-xs" />}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-white">
+                      {s.preferredInput?.startsWith('@') ? s.preferredInput : s.displayName}
+                    </span>
+                    {s.hasWallet ? (
+                      <span className="rounded-full border border-emerald-400/16 bg-emerald-500/8 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">Carteira pronta</span>
+                    ) : (
+                      <span className="rounded-full border border-amber-400/16 bg-amber-500/8 px-2 py-0.5 text-[10px] font-semibold text-amber-200">Sem carteira</span>
+                    )}
                   </div>
-                  <div className="text-xs text-neutral-400 truncate">{s.displayName}</div>
+                  <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] text-neutral-400">
+                    <span className="truncate max-w-[220px]">{s.displayName}</span>
+                    {s.email && <span className="truncate max-w-[220px] text-neutral-500">{s.email}</span>}
+                  </div>
                 </div>
-                {s.kind === 'company' && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">EMPRESA</span>
-                )}
-                {s.kind === 'project' && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-fuchsia-500/10 text-fuchsia-300 border border-fuchsia-500/20">PROJETO</span>
-                )}
-                {s.kind === 'supplier' && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20">SERVIÇO</span>
-                )}
+                <div className="text-right text-[10px] text-neutral-500 flex-shrink-0">
+                  {s.preferredInput?.startsWith('@')
+                    ? 'Seleciona @handle'
+                    : s.address
+                      ? 'Seleciona carteira'
+                      : 'Configure a carteira'}
+                </div>
               </button>
             ))}
-            <div className="px-3 py-2 text-[10px] text-neutral-600 border-t border-white/5 bg-neutral-950/40 flex items-center justify-between">
+            </div>
+
+            <div className="flex items-center justify-between border-t border-white/6 bg-white/[0.03] px-4 py-2.5 text-[10px] text-neutral-500">
               <span>↑↓ navegar · Enter selecionar</span>
-              <span className="text-fuchsia-400">{suggestions.length} resultados</span>
+              <span>somente perfis reais</span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
+}
+
+function IdentityAvatar({ handle, displayName, avatar, size = 'md' }: {
+  handle: string;
+  displayName: string;
+  avatar?: string;
+  size?: 'sm' | 'md';
+}) {
+  const frame = size === 'sm' ? 'h-8 w-8 rounded-xl text-[11px]' : 'h-11 w-11 rounded-2xl text-xs';
+  const initials = getInitials(displayName || handle);
+  const isAvatarUrl = Boolean(avatar && /^https?:\/\//i.test(avatar));
+
+  return (
+    <div className={`flex items-center justify-center overflow-hidden border border-white/10 bg-white/[0.04] text-neutral-200 font-semibold flex-shrink-0 ${frame}`}>
+      {isAvatarUrl
+        ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" />
+        : <span>{initials}</span>}
+    </div>
+  );
+}
+
+function getInitials(text: string) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() ?? '')
+    .join('') || 'US';
 }
