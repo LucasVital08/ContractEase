@@ -8,8 +8,10 @@ import { isAllowed, setAllowed, requestAccess } from '@stellar/freighter-api';
 import { validateCPF, formatCPF } from '@/utils/validators';
 import { generateContractHash, serializeContract, anchorOnStellar } from '@/services/stellar';
 import { supabase } from '@/lib/supabase';
+import SignerVerificationModal from '@/components/profile/SignerVerificationModal';
+import GuestSignerVerifyModal from '@/components/profile/GuestSignerVerifyModal';
 
-type Step = 'verify' | 'otp' | 'sign' | 'done';
+type Step = 'identify' | 'verify' | 'cpf' | 'otp' | 'sign' | 'done';
 
 export default function PublicSignPage() {
   const { contractId, partyId } = useParams<{ contractId: string; partyId: string }>();
@@ -17,8 +19,9 @@ export default function PublicSignPage() {
   const { data: contract, isLoading } = useContract(contractId!);
   const updateMutation = useUpdateContract();
 
-  const [step, setStep] = useState<Step>('verify');
+  const [step, setStep] = useState<Step>('identify');
   const [cpf, setCpf] = useState('');
+  const [guestEmailVerified, setGuestEmailVerified] = useState(false);
 
   // OTP
   const [otpCode, setOtpCode] = useState('');
@@ -255,7 +258,52 @@ export default function PublicSignPage() {
 
   // ── UI ────────────────────────────────────────────────────
 
+  const creatorParty = contract.parties?.find((p) => p.role === 'creator');
+
   return (
+    <>
+      {/* Etapa "identify": valida quem é o solicitante e o email do convidado */}
+      <GuestSignerVerifyModal
+        isOpen={step === 'identify' && !guestEmailVerified}
+        requesterName={creatorParty?.name}
+        requesterEmail={creatorParty?.email ?? ''}
+        contractTitle={contract.title}
+        expiresAt={contract.expiresAt}
+        inviteeEmail={party.email}
+        onVerified={(verifiedEmail) => {
+          setGuestEmailVerified(true);
+          // Mostra a verificação do solicitante depois do email confirmado
+          setStep('verify');
+          if (verifiedEmail !== party.email) {
+            notify({
+              type: 'info',
+              title: 'Email confirmado',
+              message: `Você verificou ${verifiedEmail}.`,
+            });
+          }
+        }}
+        onCancel={() => {
+          // Cancelou — não bloqueia, mas mantém aviso visual
+          setGuestEmailVerified(true);
+          setStep('verify');
+        }}
+      />
+
+      {/* Etapa "verify": mostra o perfil verificado do solicitante */}
+      <SignerVerificationModal
+        isOpen={step === 'verify' && guestEmailVerified}
+        requesterHandle={(creatorParty as any)?.handle}
+        requesterEmail={creatorParty?.email}
+        contractTitle={contract.title}
+        requestedAt={contract.createdAt}
+        onConfirm={() => setStep('cpf')}
+        onCancel={() => {
+          // Volta para o identify
+          setGuestEmailVerified(false);
+          setStep('identify');
+        }}
+      />
+
     <div className="min-h-screen bg-black py-10 px-4">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
@@ -270,9 +318,9 @@ export default function PublicSignPage() {
 
         {/* Stepper */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          {(['verify', 'otp', 'sign'] as const).map((s, i) => {
+          {(['cpf', 'otp', 'sign'] as const).map((s, i) => {
             const labels = ['Identidade', 'Verificação', 'Assinatura'];
-            const idx = ['verify', 'otp', 'sign'].indexOf(step);
+            const idx = ['cpf', 'otp', 'sign'].indexOf(step);
             const done = i < idx || step === 'done';
             const active = s === step;
             return (
@@ -295,9 +343,9 @@ export default function PublicSignPage() {
 
         <AnimatePresence mode="wait">
 
-          {/* PASSO 1 — Verificar Identidade */}
-          {step === 'verify' && (
-            <motion.div key="verify" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+          {/* PASSO 1 — Verificar Identidade (CPF) */}
+          {step === 'cpf' && (
+            <motion.div key="cpf" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="bg-neutral-900 border border-white/10 rounded-2xl p-8 max-w-md mx-auto">
               <h2 className="text-xl font-bold text-white mb-1">Verificação de Identidade</h2>
               <p className="text-sm text-neutral-400 mb-6">Confirme seus dados para acessar o contrato.</p>
@@ -543,5 +591,6 @@ export default function PublicSignPage() {
         </AnimatePresence>
       </div>
     </div>
+    </>
   );
 }

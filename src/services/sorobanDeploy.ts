@@ -349,7 +349,7 @@ async function waitForTx(rpc: sorobanRpc.Server, hash: string, maxAttempts = 30)
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise((r) => setTimeout(r, 2000));
     const tx = await rpc.getTransaction(hash);
-    if (tx.status !== 'NOT_FOUND' && tx.status !== 'PENDING') return tx;
+    if (tx.status !== 'NOT_FOUND' && (tx.status as string) !== 'PENDING') return tx;
   }
   throw new Error(`Timeout aguardando tx ${hash}`);
 }

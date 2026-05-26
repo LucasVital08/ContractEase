@@ -27,6 +27,7 @@ const PricingPage = React.lazy(() => import('@/pages/PricingPage'));
 const IntegrationsPage = React.lazy(() => import('@/pages/IntegrationsPage'));
 const SeedPage = React.lazy(() => import('@/pages/SeedPage'));
 const StellarAnchorPage = React.lazy(() => import('@/pages/StellarAnchorPage'));
+const PublicProfilePage = React.lazy(() => import('@/pages/PublicProfilePage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,9 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/sign/:contractId/:partyId" element={<PublicSignPage />} />
+            {/* Perfis públicos — acessíveis sem autenticação */}
+            <Route path="/@:handle" element={<PublicProfilePage />} />
+            <Route path="/profile/:handle" element={<PublicProfilePage />} />
             <Route element={<AppLayout />}>
               <Route element={<AuthGuard />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />

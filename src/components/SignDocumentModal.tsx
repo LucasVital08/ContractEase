@@ -7,8 +7,9 @@ import { signAsContractParty, shortenAddress } from '@/services/stellarWallet';
 import { useWalletStore } from '@/stores';
 import { supabase } from '@/lib/supabase';
 import { animations } from '@/tokens';
+import SignerVerificationModal from '@/components/profile/SignerVerificationModal';
 
-type Step = 'form' | 'anchoring' | 'done';
+type Step = 'verify' | 'form' | 'anchoring' | 'done';
 
 interface Props {
   contract: Contract;
@@ -28,7 +29,7 @@ function formatCpf(value: string): string {
 export default function SignDocumentModal({ contract, party, onClose, onSuccess }: Props) {
   const [cpf, setCpf] = useState('');
   const [lgpdConsent, setLgpdConsent] = useState(false);
-  const [step, setStep] = useState<Step>('form');
+  const [step, setStep] = useState<Step>('verify');
   const [error, setError] = useState('');
   const [signedAt, setSignedAt] = useState('');
   const [txHash, setTxHash] = useState('');
@@ -108,7 +109,22 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
     setStep('done');
   };
 
+  // Identifica o solicitante (parte com role 'creator')
+  const creatorParty = contract.parties?.find((p) => p.role === 'creator');
+
   return (
+    <>
+      {/* ── VERIFICAÇÃO DO SOLICITANTE (sempre antes de assinar) ── */}
+      <SignerVerificationModal
+        isOpen={step === 'verify'}
+        requesterHandle={(creatorParty as any)?.handle}
+        requesterEmail={creatorParty?.email}
+        contractTitle={contract.title}
+        requestedAt={contract.createdAt}
+        onConfirm={() => setStep('form')}
+        onCancel={onClose}
+      />
+
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <AnimatePresence mode="wait">
 
@@ -415,5 +431,6 @@ export default function SignDocumentModal({ contract, party, onClose, onSuccess 
 
       </AnimatePresence>
     </div>
+    </>
   );
 }

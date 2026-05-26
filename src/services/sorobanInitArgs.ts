@@ -66,8 +66,9 @@ function placeholderHash32(): string {
   return '0'.repeat(64);
 }
 
-/** Resolve uma data ISO (YYYY-MM-DD) → days from now (u32). */
-function daysFromNow(isoDate: string | undefined, fallback = 90): number {
+/** Resolve uma data ISO (YYYY-MM-DD) → days from now (u32). Reservado para templates futuros. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _daysFromNow(isoDate: string | undefined, fallback = 90): number {
   if (!isoDate) return fallback;
   const target = new Date(isoDate).getTime();
   const now = Date.now();

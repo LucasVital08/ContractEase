@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { isAllowed, setAllowed, requestAccess, getAddress } from '@stellar/freighter-api';
 import { TwoFactorModal } from '@/components/TwoFactorModal';
 import { OTPModal } from '@/components/OTPModal';
+import { profileService, DEFAULT_PRIVACY } from '@/services/profileService';
 
 type Tab = 'profile' | 'account' | 'appearance' | 'notifications' | 'security' | 'privacy' | 'shortcuts' | 'wallet';
 
@@ -34,6 +35,25 @@ export default function SettingsPage() {
   const [profileBio, setProfileBio] = useState('');
   const [profilePhone, setProfilePhone] = useState('');
   const [profileRole, setProfileRole] = useState('');
+
+  // Social / rede
+  const [profileLocation, setProfileLocation] = useState('');
+  const [profileWebsite, setProfileWebsite] = useState('');
+  const [profileLinkedin, setProfileLinkedin] = useState('');
+  const [profileGithub, setProfileGithub] = useState('');
+  const [profileTwitter, setProfileTwitter] = useState('');
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // Privacidade
+  const [publicProfile, setPublicProfile] = useState(true);
+  const [privacyShowWallet, setPrivacyShowWallet] = useState(true);
+  const [privacyShowEmail, setPrivacyShowEmail] = useState(false);
+  const [privacyShowPhone, setPrivacyShowPhone] = useState(false);
+  const [privacyShowStats, setPrivacyShowStats] = useState(true);
+  const [privacyShowActivity, setPrivacyShowActivity] = useState(true);
+  const [privacyShowFollowers, setPrivacyShowFollowers] = useState(true);
 
   // Account
   const [currentPassword, setCurrentPassword] = useState('');
@@ -81,6 +101,36 @@ export default function SettingsPage() {
       setSettingsLoaded(true);
     }).catch(() => setSettingsLoaded(true));
 
+    // Carrega campos sociais e privacidade direto da tabela profiles
+    if (user?.id) {
+      supabase
+        .from('profiles')
+        .select('cover_url, bio, location, website, linkedin_url, github_url, twitter_url, job_title, public_profile, privacy_settings')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!data) return;
+          if (data.cover_url) setCoverUrl(data.cover_url);
+          if (data.bio) setProfileBio(data.bio);
+          if (data.location) setProfileLocation(data.location);
+          if (data.website) setProfileWebsite(data.website);
+          if (data.linkedin_url) setProfileLinkedin(data.linkedin_url);
+          if (data.github_url) setProfileGithub(data.github_url);
+          if (data.twitter_url) setProfileTwitter(data.twitter_url);
+          if (data.job_title) setProfileRole(data.job_title);
+          if (data.public_profile !== undefined && data.public_profile !== null) {
+            setPublicProfile(Boolean(data.public_profile));
+          }
+          const priv = { ...DEFAULT_PRIVACY, ...(data.privacy_settings || {}) };
+          setPrivacyShowWallet(priv.show_wallet);
+          setPrivacyShowEmail(priv.show_email);
+          setPrivacyShowPhone(priv.show_phone);
+          setPrivacyShowStats(priv.show_stats);
+          setPrivacyShowActivity(priv.show_activity);
+          setPrivacyShowFollowers(priv.show_followers);
+        });
+    }
+
     // Load MFA status
     api.auth.mfa.listFactors().then(factors => {
       const verified = (factors.all || []).filter((f: any) => f.status === 'verified');
@@ -99,11 +149,58 @@ export default function SettingsPage() {
     e.preventDefault();
     try {
       const normalizedHandle = normalizeProfileHandle(profileHandle);
-      await supabase.from('profiles').update({ name: profileName, phone: profilePhone, handle: normalizedHandle || null }).eq('id', user!.id);
+      await supabase.from('profiles').update({
+        name: profileName,
+        phone: profilePhone,
+        handle: normalizedHandle || null,
+        bio: profileBio || null,
+        job_title: profileRole || null,
+        location: profileLocation || null,
+        website: profileWebsite || null,
+        linkedin_url: profileLinkedin || null,
+        github_url: profileGithub || null,
+        twitter_url: profileTwitter || null,
+      }).eq('id', user!.id);
+      // Mantem o settings.bio sincronizado para retrocompat
       await api.settings.save({ bio: profileBio, phone: profilePhone, jobTitle: profileRole });
       updateUser({ name: profileName, handle: normalizedHandle || undefined });
       notify({ type: 'success', title: 'Perfil atualizado' });
     } catch (e: any) { notify({ type: 'error', title: 'Erro', message: e.message }); }
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadingCover(true);
+    try {
+      const publicUrl = await profileService.uploadCover(user.id, file);
+      setCoverUrl(publicUrl);
+      notify({ type: 'success', title: 'Capa atualizada' });
+    } catch (err: any) {
+      notify({ type: 'error', title: 'Falha ao subir capa', message: err?.message || 'Tente novamente.' });
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const handlePrivacySave = async () => {
+    if (!user) return;
+    try {
+      await profileService.updateProfile(user.id, {
+        publicProfile,
+        privacySettings: {
+          show_wallet: privacyShowWallet,
+          show_email: privacyShowEmail,
+          show_phone: privacyShowPhone,
+          show_stats: privacyShowStats,
+          show_activity: privacyShowActivity,
+          show_followers: privacyShowFollowers,
+        },
+      });
+      notify({ type: 'success', title: 'Privacidade atualizada' });
+    } catch (err: any) {
+      notify({ type: 'error', title: 'Falha ao salvar', message: err?.message || 'Tente novamente.' });
+    }
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,6 +362,34 @@ export default function SettingsPage() {
               <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-white mb-6">Informações Pessoais</h3>
                 <form onSubmit={handleProfileSave} className="space-y-5">
+                  {/* Capa */}
+                  <div className="relative overflow-hidden rounded-2xl border border-white/8">
+                    <div className="relative h-32 sm:h-40">
+                      {coverUrl ? (
+                        <img src={coverUrl} alt="Capa" className="absolute inset-0 h-full w-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/30 via-cyan-500/20 to-fuchsia-500/30" />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                      <button
+                        type="button"
+                        onClick={() => coverInputRef.current?.click()}
+                        disabled={uploadingCover}
+                        className="absolute right-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/50 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm hover:bg-black/70 disabled:opacity-60"
+                      >
+                        <iconify-icon icon={uploadingCover ? 'svg-spinners:90-ring-with-bg' : 'solar:camera-add-bold'} />
+                        {uploadingCover ? 'Enviando…' : coverUrl ? 'Trocar capa' : 'Adicionar capa'}
+                      </button>
+                    </div>
+                    <input
+                      type="file"
+                      ref={coverInputRef}
+                      accept="image/*"
+                      onChange={handleCoverUpload}
+                      className="hidden"
+                    />
+                  </div>
+
                   <div className="flex items-center gap-5 mb-4">
                     <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center text-emerald-500 font-bold text-2xl shrink-0 border-2 border-dashed border-white/10 cursor-pointer hover:border-emerald-500/30 transition-colors">
                       {user?.avatar ? <img src={user.avatar} alt="" className="w-full h-full rounded-2xl object-cover" /> : user?.name?.charAt(0) || '?'}
@@ -315,6 +440,62 @@ export default function SettingsPage() {
                     <label className="block text-xs text-neutral-400 mb-1.5">Bio</label>
                     <textarea value={profileBio} onChange={e => setProfileBio(e.target.value)} placeholder="Conte um pouco sobre você..." rows={3} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600 resize-none" />
                   </div>
+
+                  {/* Localização + links sociais */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1.5">Localização</label>
+                      <input
+                        value={profileLocation}
+                        onChange={e => setProfileLocation(e.target.value)}
+                        placeholder="São Paulo, BR"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1.5">Website</label>
+                      <input
+                        value={profileWebsite}
+                        onChange={e => setProfileWebsite(e.target.value)}
+                        placeholder="https://seu-site.com"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1.5 flex items-center gap-1">
+                        <iconify-icon icon="solar:case-bold" /> LinkedIn
+                      </label>
+                      <input
+                        value={profileLinkedin}
+                        onChange={e => setProfileLinkedin(e.target.value)}
+                        placeholder="https://linkedin.com/in/usuario"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-neutral-400 mb-1.5 flex items-center gap-1">
+                        <iconify-icon icon="solar:code-square-bold" /> GitHub
+                      </label>
+                      <input
+                        value={profileGithub}
+                        onChange={e => setProfileGithub(e.target.value)}
+                        placeholder="https://github.com/usuario"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-neutral-400 mb-1.5 flex items-center gap-1">
+                        <iconify-icon icon="solar:planet-bold" /> Twitter / X
+                      </label>
+                      <input
+                        value={profileTwitter}
+                        onChange={e => setProfileTwitter(e.target.value)}
+                        placeholder="https://twitter.com/usuario"
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-neutral-600"
+                      />
+                    </div>
+                  </div>
+
                   <button type="submit" className="px-5 py-2.5 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-colors text-sm flex items-center gap-2">
                     <iconify-icon icon="solar:check-circle-bold" /> Salvar Alterações
                   </button>
@@ -495,6 +676,79 @@ export default function SettingsPage() {
           {/* PRIVACIDADE */}
           {tab === 'privacy' && (
             <motion.div key="privacy" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+              {/* Privacidade do perfil público */}
+              <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
+                <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Privacidade do perfil público</h3>
+                    <p className="text-sm text-neutral-400 mt-1">Defina o que aparece em <span className="text-cyan-300 font-mono">/@{profileHandle || 'seu-handle'}</span></p>
+                  </div>
+                  {profileHandle && (
+                    <a
+                      href={`/@${profileHandle}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-neutral-200 hover:bg-white/10"
+                    >
+                      <iconify-icon icon="solar:external-link-bold" /> Ver meu perfil
+                    </a>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <PrivacyToggle
+                    label="Perfil público"
+                    desc="Permite que outros vejam seu @ no ContractEase. Desligue para tornar o perfil privado."
+                    checked={publicProfile}
+                    onChange={setPublicProfile}
+                  />
+                  <PrivacyToggle
+                    label="Mostrar wallet Stellar"
+                    desc="Exibe o endereço C... no card de perfil."
+                    checked={privacyShowWallet}
+                    onChange={setPrivacyShowWallet}
+                  />
+                  <PrivacyToggle
+                    label="Mostrar email"
+                    desc="Por padrão fica oculto. Cuidado com spam."
+                    checked={privacyShowEmail}
+                    onChange={setPrivacyShowEmail}
+                  />
+                  <PrivacyToggle
+                    label="Mostrar telefone"
+                    desc="Apenas visível para quem você seguiu, mesmo assim cuidado."
+                    checked={privacyShowPhone}
+                    onChange={setPrivacyShowPhone}
+                  />
+                  <PrivacyToggle
+                    label="Mostrar estatísticas (contratos)"
+                    desc="Total assinados, criados, concluídos e ancorados on-chain."
+                    checked={privacyShowStats}
+                    onChange={setPrivacyShowStats}
+                  />
+                  <PrivacyToggle
+                    label="Mostrar timeline de atividade"
+                    desc="Eventos públicos como 'assinou um contrato'."
+                    checked={privacyShowActivity}
+                    onChange={setPrivacyShowActivity}
+                  />
+                  <PrivacyToggle
+                    label="Mostrar seguidores / seguindo"
+                    desc="Contagens e listas. Aparecem para usuários autenticados."
+                    checked={privacyShowFollowers}
+                    onChange={setPrivacyShowFollowers}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handlePrivacySave}
+                  className="mt-5 px-5 py-2.5 bg-emerald-500 text-black font-bold rounded-xl hover:bg-emerald-400 transition-colors text-sm flex items-center gap-2"
+                >
+                  <iconify-icon icon="solar:check-circle-bold" /> Salvar privacidade do perfil
+                </button>
+              </div>
+
               <div className="bg-neutral-900 border border-white/5 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-white mb-2">Consentimento LGPD</h3>
                 <p className="text-sm text-neutral-400 mb-4">Gerencie como seus dados são utilizados na plataforma.</p>
@@ -641,4 +895,39 @@ function normalizeProfileHandle(value: string) {
 
   if (!sanitized) return '';
   return /^[a-z]/.test(sanitized) ? sanitized : `u_${sanitized}`.slice(0, 31);
+}
+
+function PrivacyToggle({
+  label,
+  desc,
+  checked,
+  onChange,
+}: {
+  label: string;
+  desc: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-3 rounded-2xl border border-white/8 bg-black/30 p-4 cursor-pointer">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-white">{label}</p>
+        <p className="mt-0.5 text-xs text-neutral-400">{desc}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+          checked ? 'bg-emerald-500' : 'bg-white/10'
+        }`}
+        aria-pressed={checked}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+            checked ? 'translate-x-5' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
+    </label>
+  );
 }
