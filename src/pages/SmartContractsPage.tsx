@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   CATEGORIES,
@@ -10,6 +10,13 @@ import {
 import SmartContractEditor, { type EditorMode } from '@/components/SmartContractEditor';
 import ContractCreationModeModal from '@/components/ContractCreationModeModal';
 import { SmartContractGlyph, getSmartContractVisual } from '@/components/SmartContractVisual';
+import { useAuthStore } from '@/stores';
+import {
+  buildOpportunitySmartContractBrief,
+  formatOpportunityReward,
+  type SmartContractOpportunity,
+  type SmartContractOpportunityMatch,
+} from '@/services/smartContractOpportunityService';
 
 const CATEGORY_SHELF_COPY: Record<SmartContractCategory, string> = {
   real_estate: 'Locação, caução, temporada e operações imobiliárias programáveis.',
@@ -27,11 +34,36 @@ const CATEGORY_SHELF_COPY: Record<SmartContractCategory, string> = {
 
 export default function SmartContractsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuthStore();
   const [selectedCategory, setSelectedCategory] = useState<SmartContractCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingTemplate, setPendingTemplate] = useState<SmartContractTemplate | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<SmartContractTemplate | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode>('questions');
+  const [autoSelectionHandled, setAutoSelectionHandled] = useState(false);
+
+  const marketplaceState = (location.state as {
+    marketplaceOpportunity?: SmartContractOpportunity;
+    marketplaceMatch?: SmartContractOpportunityMatch | null;
+    autoSelectTemplateId?: string;
+  } | null) ?? null;
+  const marketplaceOpportunity = marketplaceState?.marketplaceOpportunity ?? null;
+  const marketplaceMatch = marketplaceState?.marketplaceMatch ?? null;
+
+  useEffect(() => {
+    if (autoSelectionHandled) return;
+
+    const templateId = marketplaceState?.autoSelectTemplateId ?? marketplaceOpportunity?.templateId;
+    if (!templateId) {
+      setAutoSelectionHandled(true);
+      return;
+    }
+
+    const matched = SMART_CONTRACT_TEMPLATES.find((template) => template.id === templateId);
+    if (matched) setPendingTemplate(matched);
+    setAutoSelectionHandled(true);
+  }, [autoSelectionHandled, marketplaceOpportunity?.templateId, marketplaceState?.autoSelectTemplateId]);
 
   const filteredTemplates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -65,6 +97,11 @@ export default function SmartContractsPage() {
       <SmartContractEditor
         template={editingTemplate}
         initialMode={editorMode}
+        initialBrief={marketplaceOpportunity ? buildOpportunitySmartContractBrief(marketplaceOpportunity, {
+          currentUserName: user?.name ?? null,
+          currentUserHandle: user?.handle ?? null,
+          match: marketplaceMatch,
+        }) : undefined}
         onClose={() => setEditingTemplate(null)}
         onDeployed={(contractId) => navigate(`/contracts/${contractId}`)}
       />
@@ -73,6 +110,46 @@ export default function SmartContractsPage() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+      {marketplaceOpportunity && (
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-[28px] border border-emerald-400/14 bg-gradient-to-br from-emerald-500/10 via-neutral-950 to-cyan-500/10 p-5"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300">
+                <iconify-icon icon="solar:bolt-circle-bold-duotone" class="text-sm" />
+                Contexto vindo do feed
+              </div>
+              <h2 className="mt-3 text-2xl font-bold text-white font-bricolage">{marketplaceOpportunity.title}</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-neutral-300">{marketplaceOpportunity.summary}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] text-neutral-300">{marketplaceOpportunity.serviceCategory}</span>
+                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] text-neutral-300">{formatOpportunityReward(marketplaceOpportunity)}</span>
+                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] text-neutral-400">@{marketplaceOpportunity.ownerHandle}</span>
+              </div>
+              {marketplaceMatch && (
+                <div className="mt-4 rounded-2xl border border-emerald-400/14 bg-emerald-500/8 px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-300">Match fechado no feed</p>
+                  <p className="mt-2 text-sm leading-6 text-neutral-200">
+                    {marketplaceMatch.contractorName} (@{marketplaceMatch.contractorHandle}) contratando {marketplaceMatch.executorName} (@{marketplaceMatch.executorHandle}).
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => navigate('/opportunities')}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-white/[0.08]"
+            >
+              <iconify-icon icon="solar:arrow-left-bold" class="text-base" />
+              Voltar ao feed
+            </button>
+          </div>
+        </motion.section>
+      )}
+
       <header className="space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

@@ -4,6 +4,7 @@ import { useNotificationStore } from '@/stores';
 
 const MOBILE_NAV_ITEMS = [
   { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Início' },
+  { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Feed' },
   { to: '/contracts', icon: 'solar:document-text-bold-duotone', label: 'Docs' },
   { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo', highlight: true },
   { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Plano' },
@@ -18,13 +19,13 @@ export default function BottomNav() {
   });
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-neutral-950/95 backdrop-blur-xl border-t border-white/5 pb-safe sm:hidden flex justify-around px-2 py-1">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-6 bg-neutral-950/95 backdrop-blur-xl border-t border-white/5 pb-safe px-1 py-1 sm:hidden">
       {MOBILE_NAV_ITEMS.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
           className={({ isActive }) => {
-            const baseClass = 'flex flex-col items-center justify-center py-2 px-3 flex-1 rounded-xl transition-all relative group';
+            const baseClass = 'flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all relative group';
             const activeClass = isActive
               ? 'bg-emerald-500/10 text-emerald-400'
               : 'text-neutral-500 hover:text-white hover:bg-white/5';
@@ -55,7 +56,7 @@ export default function BottomNav() {
                   </motion.span>
                 )}
               </div>
-              <span className="text-[10px] font-medium mt-1 text-center truncate px-1">{item.label}</span>
+              <span className="mt-1 px-0.5 text-center text-[9px] font-medium leading-tight">{item.label}</span>
 
               {/* Active indicator */}
               {isActive && (

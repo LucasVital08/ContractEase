@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useContracts } from '@/hooks/useContractQueries';
+import { useOpportunityFeed } from '@/hooks/useOpportunityQueries';
 import { useAuthStore, useNotificationStore } from '@/stores';
 import type { Contract } from '@/types';
 import { api, signingService } from '@/services/supabaseService';
+import { formatOpportunityReward, type SmartContractOpportunity } from '@/services/smartContractOpportunityService';
 import { animations } from '@/tokens';
 
 function isSmartContract(contract: Pick<Contract, 'tags'> | null | undefined) {
@@ -118,6 +120,7 @@ const DEFAULT_WIDGETS = {
 
 export default function DashboardPage() {
   const { data: contracts = [], isLoading, error: contractsError } = useContracts();
+  const { data: opportunityFeed = [] } = useOpportunityFeed({ limit: 3, status: 'open' });
   if (contractsError) console.error('[Dashboard] contracts query failed:', contractsError);
   const { user, organization } = useAuthStore();
   const notify = useNotificationStore(s => s.add);
@@ -335,6 +338,32 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
+      {opportunityFeed.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className={`rounded-2xl border border-emerald-400/12 bg-neutral-900/80 p-6 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+          <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+            <div>
+              <h3 className="text-lg font-bold text-white font-bricolage flex items-center gap-2">
+                <iconify-icon icon="solar:bolt-circle-bold-duotone" class="text-emerald-400 text-xl" /> Feed de oportunidades
+              </h3>
+              <p className="text-xs text-neutral-400 mt-1">Demandas e disponibilidades profissionais que já viram smart contract no próximo clique.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link to="/opportunities" className="text-xs text-emerald-400 hover:underline">Abrir feed completo</Link>
+              <Link to="/opportunities" className="inline-flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/14 transition-colors">
+                <iconify-icon icon="solar:add-circle-bold-duotone" class="text-sm" />
+                Publicar
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-3">
+            {opportunityFeed.map((opportunity) => (
+              <OpportunityPreviewCard key={opportunity.id} opportunity={opportunity} />
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Blockchain Stats */}
       {visibleWidgets.blockchain && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className={`bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 border border-emerald-500/10 rounded-2xl p-6 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
@@ -475,6 +504,35 @@ export default function DashboardPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function OpportunityPreviewCard({ opportunity }: { opportunity: SmartContractOpportunity }) {
+  return (
+    <Link
+      to="/smart-contracts"
+      state={{ marketplaceOpportunity: opportunity, autoSelectTemplateId: opportunity.templateId }}
+      className="rounded-2xl border border-white/8 bg-black/25 p-4 transition hover:border-emerald-400/20 hover:bg-black/35"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+            {opportunity.opportunityType === 'request' ? 'Quero contratar' : 'Disponível'}
+          </p>
+          <h4 className="mt-2 text-sm font-semibold text-white leading-6">{opportunity.title}</h4>
+        </div>
+        <span className="rounded-full border border-emerald-400/18 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300">
+          {formatOpportunityReward(opportunity)}
+        </span>
+      </div>
+
+      <p className="mt-3 text-xs leading-6 text-neutral-400 line-clamp-3">{opportunity.summary}</p>
+
+      <div className="mt-4 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
+        <span>{opportunity.serviceCategory}</span>
+        <span>@{opportunity.ownerHandle}</span>
+      </div>
+    </Link>
   );
 }
 

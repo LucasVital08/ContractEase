@@ -9,13 +9,15 @@ import {
   useProfileFollowing,
   useFollowToggle,
 } from '@/hooks/useProfileQueries';
+import { useOpportunityFeed } from '@/hooks/useOpportunityQueries';
 import { useAuthStore, useNotificationStore } from '@/stores';
 import { VerifiedDot, VerificationBadgePill, VerificationLevelPill } from '@/components/profile/VerificationBadge';
 import TrustScoreBadge from '@/components/profile/TrustScoreBadge';
 import ProfileStats from '@/components/profile/ProfileStats';
 import { shortenAddress } from '@/services/stellarWallet';
+import { formatOpportunityReward, type SmartContractOpportunity } from '@/services/smartContractOpportunityService';
 
-type Tab = 'activity' | 'badges' | 'network' | 'about';
+type Tab = 'activity' | 'opportunities' | 'badges' | 'network' | 'about';
 
 const ACTIVITY_ICONS: Record<string, { icon: string; tone: string; label: string }> = {
   signed_contract: { icon: 'solar:pen-bold', tone: 'text-emerald-300', label: 'Assinou um contrato' },
@@ -28,6 +30,7 @@ const ACTIVITY_ICONS: Record<string, { icon: string; tone: string; label: string
   earned_badge: { icon: 'solar:medal-star-bold', tone: 'text-fuchsia-300', label: 'Conquistou selo' },
   joined_platform: { icon: 'solar:user-plus-rounded-bold', tone: 'text-neutral-300', label: 'Entrou na plataforma' },
   published_template: { icon: 'solar:widget-add-bold', tone: 'text-blue-300', label: 'Publicou template' },
+  published_opportunity: { icon: 'solar:bolt-circle-bold', tone: 'text-emerald-300', label: 'Publicou oportunidade' },
 };
 
 export default function PublicProfilePage() {
@@ -45,6 +48,7 @@ export default function PublicProfilePage() {
   const { data: activity = [] } = useProfileActivity(handle);
   const { data: followers = [] } = useProfileFollowers(handle);
   const { data: following = [] } = useProfileFollowing(handle);
+  const { data: opportunities = [] } = useOpportunityFeed({ handle, status: 'all', limit: 6 });
 
   const followMutation = useFollowToggle(handle);
 
@@ -287,6 +291,7 @@ export default function PublicProfilePage() {
           {(
             [
               { id: 'activity', label: 'Atividade', icon: 'solar:history-bold-duotone' },
+              { id: 'opportunities', label: 'Oportunidades', icon: 'solar:bolt-circle-bold-duotone' },
               { id: 'badges', label: 'Selos', icon: 'solar:medal-star-bold-duotone' },
               { id: 'network', label: 'Rede', icon: 'solar:users-group-rounded-bold-duotone' },
               { id: 'about', label: 'Sobre', icon: 'solar:info-circle-bold-duotone' },
@@ -377,6 +382,52 @@ export default function PublicProfilePage() {
             </div>
           )}
 
+          {tab === 'opportunities' && (
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-white/8 bg-neutral-900/60 p-6">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Marketplace</p>
+                    <h3 className="mt-2 text-xl font-bold text-white font-bricolage">Oportunidades públicas de @{profile.handle}</h3>
+                    <p className="mt-2 max-w-2xl text-sm leading-7 text-neutral-400">
+                      Demandas e disponibilidades publicadas por este perfil que já podem ser convertidas em smart contract com bonificação, etapas e execução definida.
+                    </p>
+                  </div>
+
+                  {isMyProfile && (
+                    <Link
+                      to="/opportunities"
+                      className="inline-flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/14"
+                    >
+                      <iconify-icon icon="solar:add-circle-bold-duotone" />
+                      Publicar no feed
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {opportunities.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-white/10 bg-neutral-900/40 p-10 text-center">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/8 bg-white/[0.03] text-neutral-600">
+                    <iconify-icon icon="solar:bolt-circle-bold-duotone" class="text-3xl" />
+                  </div>
+                  <p className="mt-4 text-lg font-semibold text-white">Nenhuma oportunidade pública neste perfil.</p>
+                  <p className="mt-2 text-sm text-neutral-500">
+                    {isMyProfile
+                      ? 'Publique uma demanda ou sua disponibilidade no feed para aparecer aqui.'
+                      : 'Quando este usuário publicar demandas ou disponibilidades, elas vão aparecer nesta aba.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {opportunities.map((opportunity) => (
+                    <ProfileOpportunityCard key={opportunity.id} opportunity={opportunity} isMyProfile={isMyProfile} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {tab === 'network' && (
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-3xl border border-white/8 bg-neutral-900/60 p-5">
@@ -431,6 +482,70 @@ export default function PublicProfilePage() {
         </motion.div>
       </AnimatePresence>
     </div>
+  );
+}
+
+function ProfileOpportunityCard({ opportunity, isMyProfile }: { opportunity: SmartContractOpportunity; isMyProfile: boolean }) {
+  const actionLabel = opportunity.opportunityType === 'request'
+    ? 'Executar com smart contract'
+    : 'Contratar com smart contract';
+
+  return (
+    <article className="overflow-hidden rounded-3xl border border-white/8 bg-neutral-900/60">
+      <div className={`h-1.5 ${opportunity.opportunityType === 'request' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`} />
+      <div className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${opportunity.opportunityType === 'request' ? 'border-emerald-400/18 bg-emerald-500/10 text-emerald-300' : 'border-cyan-400/18 bg-cyan-500/10 text-cyan-300'}`}>
+                {opportunity.opportunityType === 'request' ? 'Quero contratar' : 'Disponível'}
+              </span>
+              <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                {opportunity.serviceCategory}
+              </span>
+            </div>
+            <h4 className="mt-3 text-lg font-bold text-white font-bricolage leading-tight">{opportunity.title}</h4>
+          </div>
+
+          <span className="rounded-full border border-emerald-400/16 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+            {formatOpportunityReward(opportunity)}
+          </span>
+        </div>
+
+        <p className="text-sm leading-7 text-neutral-300">{opportunity.summary}</p>
+
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-white/8 bg-black/20 px-3 py-1.5 text-[11px] text-neutral-400">
+            {opportunity.remoteAllowed ? 'Aceita remoto' : 'Presencial'}
+          </span>
+          <span className="rounded-full border border-white/8 bg-black/20 px-3 py-1.5 text-[11px] text-neutral-400">
+            {opportunity.engagementType === 'recurring' ? 'Recorrente' : opportunity.engagementType === 'milestone' ? 'Por marcos' : 'Pontual'}
+          </span>
+          {opportunity.location && (
+            <span className="rounded-full border border-white/8 bg-black/20 px-3 py-1.5 text-[11px] text-neutral-400">
+              {opportunity.location}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 flex-wrap border-t border-white/6 pt-4">
+          <p className="text-xs text-neutral-500">
+            {isMyProfile
+              ? 'Sua oportunidade pública no marketplace.'
+              : `Publicado em ${new Date(opportunity.createdAt).toLocaleDateString('pt-BR')}`}
+          </p>
+
+          <Link
+            to="/smart-contracts"
+            state={{ marketplaceOpportunity: opportunity, autoSelectTemplateId: opportunity.templateId }}
+            className="inline-flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/14"
+          >
+            <iconify-icon icon="solar:play-circle-bold-duotone" />
+            {actionLabel}
+          </Link>
+        </div>
+      </div>
+    </article>
   );
 }
 

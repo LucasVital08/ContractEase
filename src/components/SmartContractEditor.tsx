@@ -36,9 +36,11 @@ interface Props {
   onDeployed: (contractId: string) => void;
   /** Modo inicial de criação. Default: 'chat'. */
   initialMode?: EditorMode;
+  /** Contexto opcional vindo do feed/marketplace para pré-preencher o contrato. */
+  initialBrief?: string;
 }
 
-export default function SmartContractEditor({ template, onClose, onDeployed, initialMode = 'chat' }: Props) {
+export default function SmartContractEditor({ template, onClose, onDeployed, initialMode = 'chat', initialBrief }: Props) {
   const notify = useNotificationStore(s => s.add);
   const createMutation = useCreateContract();
   const updateMutation = useUpdateContract();
@@ -68,7 +70,60 @@ export default function SmartContractEditor({ template, onClose, onDeployed, ini
   const [deployReviewMode, setDeployReviewMode] = useState<{ useUserWallet: boolean } | null>(null);
   const [deployReviewParties, setDeployReviewParties] = useState<SigningReviewParty[]>([]);
   const [deployReviewLoading, setDeployReviewLoading] = useState(false);
+  const [briefImported, setBriefImported] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!initialBrief || briefImported) return;
+
+    let cancelled = false;
+    const importedPrompt: AIChatMessage = { role: 'user', text: initialBrief, timestamp: Date.now() };
+
+    setMessages((current) => [...current, importedPrompt]);
+    setAiThinking(true);
+
+    extractFieldsFromMessage(template, initialBrief, variables)
+      .then((result) => {
+        if (cancelled) return;
+
+        const merged = { ...variables, ...result.fields };
+        setVariables(merged);
+
+        const extractedKeys = Object.keys(result.fields);
+        const pendingRequired = template.variables.filter((variable) => variable.required && !merged[variable.name]);
+
+        const response = extractedKeys.length > 0
+          ? `Importei o contexto da oportunidade do feed e já preenchi:
+
+${extractedKeys.map((key) => {
+            const variable = template.variables.find((candidate) => candidate.name === key);
+            return `· **${variable?.label || key}**: ${result.fields[key]}`;
+          }).join('\n')}${pendingRequired.length > 0 ? `\n\nAgora revise o restante para concluir: ${pendingRequired.slice(0, 3).map((variable) => `**${variable.label.toLowerCase()}**`).join(', ')}.` : `\n\n${getCompletionMessage(template)}`}`
+          : 'Importei a oportunidade do feed. Revise os campos abaixo e complemente o que faltar antes de publicar o smart contract.';
+
+        setMessages((current) => [...current, {
+          role: 'assistant',
+          text: response,
+          timestamp: Date.now(),
+          extractedFields: result.fields,
+        }]);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMessages((current) => [...current, {
+          role: 'assistant',
+          text: 'Recebi o contexto da oportunidade do feed, mas não consegui extrair todos os campos automaticamente. Revise o formulário abaixo e ajuste o contrato antes de publicar.',
+          timestamp: Date.now(),
+        }]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setAiThinking(false);
+        setBriefImported(true);
+      });
+
+    return () => { cancelled = true; };
+  }, [briefImported, initialBrief, template]);
 
   // Re-explica sempre que as variáveis mudarem
   useEffect(() => {

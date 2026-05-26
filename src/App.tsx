@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppLayout from '@/layouts/AppLayout';
 import AuthGuard from '@/layouts/AuthGuard';
@@ -28,6 +28,7 @@ const IntegrationsPage = React.lazy(() => import('@/pages/IntegrationsPage'));
 const SeedPage = React.lazy(() => import('@/pages/SeedPage'));
 const StellarAnchorPage = React.lazy(() => import('@/pages/StellarAnchorPage'));
 const PublicProfilePage = React.lazy(() => import('@/pages/PublicProfilePage'));
+const OpportunitiesPage = React.lazy(() => import('@/pages/OpportunitiesPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +47,11 @@ setSessionClearedCallback(() => queryClient.clear());
 
 const LoadingFallback = () => <div className="p-8 text-neutral-500">Carregando...</div>;
 
+function PublicHandleRoute() {
+  const { handle } = useParams<{ handle: string }>();
+  return handle?.startsWith('@') ? <PublicProfilePage /> : <NotFoundPage />;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -59,7 +65,7 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/sign/:contractId/:partyId" element={<PublicSignPage />} />
             {/* Perfis públicos — acessíveis sem autenticação */}
-            <Route path="/@:handle" element={<PublicProfilePage />} />
+            <Route path="/:handle" element={<PublicHandleRoute />} />
             <Route path="/profile/:handle" element={<PublicProfilePage />} />
             <Route element={<AppLayout />}>
               <Route element={<AuthGuard />}>
@@ -72,6 +78,7 @@ export default function App() {
                 <Route path="smart-contracts" element={<SmartContractsPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="finance" element={<FinancePage />} />
+                <Route path="opportunities" element={<OpportunitiesPage />} />
                 <Route path="admin" element={<AdminDashboardPage />} />
                 <Route path="verify" element={<VerifyPage />} />
                 <Route path="integrations" element={<IntegrationsPage />} />
