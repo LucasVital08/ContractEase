@@ -16,6 +16,8 @@ import {
 import { useNotificationStore, useWalletStore } from '@/stores';
 import { generateContractHash, anchorOnStellar } from '@/services/stellar';
 import { anchorContractHashWithWallet, shortenAddress } from '@/services/stellarWallet';
+import { deployContract as deploySorobanContract, explorerContractUrl } from '@/services/sorobanDeploy';
+import { buildInitArgs, isSorobanSupported } from '@/services/sorobanInitArgs';
 import { useCreateContract, useUpdateContract } from '@/hooks/useContractQueries';
 import { signingService } from '@/services/supabaseService';
 import { resolveHandle, resolveHandleSync, lookupHandleByAddress, lookupProfileByAddress, normalizeHandle, type ResolvedHandle } from '@/services/handleResolver';
@@ -249,6 +251,35 @@ export default function SmartContractEditor({ template, onClose, onDeployed, ini
         title: 'Smart Contract implantado!',
         message: `Hash ${codeHash.slice(0, 8)}... ancorado na Stellar Testnet`,
       });
+
+      // 5. Deploy Soroban real (não-bloqueante — se a infra estiver configurada,
+      //    o contrato vira instância executável; caso contrário só fica a ancoragem).
+      if (isSorobanSupported(template.id)) {
+        try {
+          const initArgs = buildInitArgs(template.id, deployVariables, 'testnet');
+          const result = await deploySorobanContract({
+            contractId: contract.id,
+            templateId: template.id,
+            initArgs,
+            network: 'testnet',
+          });
+          notify({
+            type: 'success',
+            title: 'Contrato Soroban no ar!',
+            message: `Endereço: ${shortenAddress(result.contractAddress)} · ver no Stellar Expert`,
+          });
+          // eslint-disable-next-line no-console
+          console.info('[soroban-deploy]', explorerContractUrl(result.contractAddress, 'testnet'));
+        } catch (sorobanErr) {
+          // Não bloqueia: o usuário ainda tem o contrato salvo + ancoragem por hash.
+          console.warn('[SmartContractEditor] deploy Soroban falhou (não-bloqueante):', sorobanErr);
+          notify({
+            type: 'warning',
+            title: 'Deploy Soroban indisponível',
+            message: 'O contrato foi salvo e ancorado, mas a instância on-chain ainda não está pronta. Tente novamente em instantes.',
+          });
+        }
+      }
 
       onDeployed(contract.id);
     } catch (err: any) {

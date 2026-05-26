@@ -254,3 +254,46 @@ export function shortenAddress(address: string, prefix = 4, suffix = 4): string 
   if (!address || address.length <= prefix + suffix + 3) return address;
   return `${address.slice(0, prefix)}...${address.slice(-suffix)}`;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Helpers de baixo nível (usados pelo sorobanDeploy.ts)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna o publicKey da Freighter se a wallet estiver conectada e autorizada.
+ * Lança erro caso contrário (mensagem em português).
+ */
+export async function getFreighterPublicKey(): Promise<string> {
+  const state = await getWalletState();
+  if (!state.isInstalled) {
+    throw new Error('Freighter Wallet não está instalada. Instale em https://www.freighter.app/');
+  }
+  if (!state.isConnected || !state.address) {
+    throw new Error('Conecte sua carteira Freighter antes de invocar o contrato.');
+  }
+  return state.address;
+}
+
+/**
+ * Pede à Freighter para assinar uma transação Soroban serializada em XDR.
+ * Retorna o XDR assinado, pronto para `sendTransaction`.
+ */
+export async function signTransactionWithFreighter(
+  txXdr: string,
+  networkPassphrase: string,
+): Promise<string> {
+  const state = await getWalletState();
+  if (!state.isConnected || !state.address) {
+    throw new Error('Carteira Freighter não conectada.');
+  }
+  const signed = await freighter.signTransaction(txXdr, {
+    networkPassphrase,
+    address: state.address,
+  });
+  // freighter v3 retorna objeto { signedTxXdr, signerAddress }; v2 retorna string
+  if (typeof signed === 'string') return signed;
+  if (typeof (signed as { signedTxXdr?: string }).signedTxXdr === 'string') {
+    return (signed as { signedTxXdr: string }).signedTxXdr;
+  }
+  throw new Error('Freighter retornou formato inesperado ao assinar transação.');
+}

@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "common",
+    "rent",
+    "ecommerce",
+    "freelancer",
+    "legal-fees",
+    "construction",
+    "real-estate-share",
+    "real-estate-vault",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["ContractEase <eng@contractease.app>"]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/Stellar-Global-Rails/StellarGlobalRails"
+
+[workspace.dependencies]
+soroban-sdk = "21.7.4"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true

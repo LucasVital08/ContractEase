@@ -1,0 +1,5 @@
+target/
+Cargo.lock
+*.wasm
+!dist/*.wasm
+.DS_Store
