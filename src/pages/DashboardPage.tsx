@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useContracts } from '@/hooks/useContractQueries';
-import { useAuthStore } from '@/stores';
+import { useAuthStore, useNotificationStore } from '@/stores';
 import type { Contract } from '@/types';
 import { api, signingService } from '@/services/supabaseService';
 import { animations } from '@/tokens';
@@ -232,7 +232,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white font-bricolage">Dashboard</h1>
-          <p className="text-neutral-400 text-sm">Bem-vindo de volta, {user?.name.split(' ')[0]}!</p>
+          <p className="text-neutral-400 text-sm">Bem-vindo de volta, {user?.name?.split(' ')[0] ?? 'usuário'}!</p>
         </div>
         <button 
           onClick={() => setIsEditing(!isEditing)}
