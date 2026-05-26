@@ -75,6 +75,47 @@ export interface CreateSmartContractOpportunityInput {
   metadata?: Record<string, unknown>;
 }
 
+export type OpportunityProposalStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+
+export interface OpportunityProposal {
+  id: string;
+  opportunityId: string;
+  proposerId: string;
+  proposerName: string;
+  proposerHandle: string;
+  proposerAvatarUrl: string | null;
+  proposerJobTitle: string | null;
+  proposerVerificationLevel: OpportunityOwnerVerification;
+  proposerTrustScore: number;
+  amount: number;
+  asset: string;
+  note: string | null;
+  status: OpportunityProposalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SendProposalInput {
+  opportunityId: string;
+  proposerId: string;
+  proposerName: string;
+  proposerHandle: string;
+  proposerAvatarUrl?: string | null;
+  proposerJobTitle?: string | null;
+  proposerVerificationLevel?: OpportunityOwnerVerification;
+  proposerTrustScore?: number;
+  amount: number;
+  asset?: string;
+  note?: string | null;
+}
+
+export interface AcceptProposalInput {
+  opportunityId: string;
+  proposalId: string;
+  opportunity: SmartContractOpportunity;
+  acceptedById: string;
+}
+
 const FEATURED_OPPORTUNITIES: SmartContractOpportunity[] = [
   {
     id: 'featured-serralheiro-request',
@@ -454,6 +495,168 @@ export function buildOpportunitySmartContractBrief(
   ].filter(Boolean).join(' ');
 }
 
+export function buildOpportunityVariablePrefill(
+  opportunity: SmartContractOpportunity,
+  context?: {
+    currentUserHandle?: string | null;
+    match?: SmartContractOpportunityMatch | null;
+  },
+): Record<string, string> {
+  const prefill: Record<string, string> = {};
+
+  if (opportunity.templateId === 'freelancer') {
+    const match = context?.match ?? null;
+    const ownerHandle = opportunity.ownerHandle ? `@${opportunity.ownerHandle}` : '';
+    const currentUserHandle = context?.currentUserHandle ? `@${context.currentUserHandle}` : '';
+
+    const contractorHandle = match?.contractorHandle
+      ? `@${match.contractorHandle}`
+      : (opportunity.opportunityType === 'request' ? ownerHandle : currentUserHandle);
+
+    const executorHandle = match?.executorHandle
+      ? `@${match.executorHandle}`
+      : (opportunity.opportunityType === 'request' ? currentUserHandle : ownerHandle);
+
+    if (contractorHandle) prefill.client = contractorHandle;
+    if (executorHandle) prefill.freelancer = executorHandle;
+    if (opportunity.summary) prefill.projectScope = opportunity.summary;
+    if (opportunity.rewardAmount != null) prefill.totalAmount = String(opportunity.rewardAmount);
+    if (opportunity.rewardAsset) prefill.asset = opportunity.rewardAsset;
+    if (opportunity.expiresAt) prefill.deadline = opportunity.expiresAt.slice(0, 10);
+
+    if (!prefill.milestoneCount) {
+      prefill.milestoneCount = opportunity.payoutMode === 'milestone' ? '4' : '2';
+    }
+    if (!prefill.reviewDays) prefill.reviewDays = '5';
+  }
+
+  return prefill;
+}
+
+const FEATURED_DEADLINE_HOURS: Record<string, number> = {
+  'featured-serralheiro-request': 72,
+  'featured-engineering-offer': 12,
+  'featured-rent-request': 240,
+  'featured-ecommerce-request': 96,
+};
+
+function decoratedFeaturedOpportunities(): SmartContractOpportunity[] {
+  return FEATURED_OPPORTUNITIES.map((opportunity) => {
+    const hours = FEATURED_DEADLINE_HOURS[opportunity.id];
+    if (hours == null) return opportunity;
+    return {
+      ...opportunity,
+      expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
+    };
+  });
+}
+
+const proposalStore: Map<string, OpportunityProposal[]> = new Map();
+let proposalStoreSeeded = false;
+
+function ensureSeededProposals() {
+  if (proposalStoreSeeded) return;
+  proposalStoreSeeded = true;
+
+  proposalStore.set('featured-serralheiro-request', [
+    {
+      id: 'prop-seed-001',
+      opportunityId: 'featured-serralheiro-request',
+      proposerId: 'demo-user-serralheirojoao',
+      proposerName: 'João Serralheiros',
+      proposerHandle: 'serralheirojoao',
+      proposerAvatarUrl: null,
+      proposerJobTitle: 'Serralheiro especialista em galpões',
+      proposerVerificationLevel: 'basic',
+      proposerTrustScore: 86,
+      amount: 7800,
+      asset: 'BRZ',
+      note: 'Posso começar segunda. Equipe de 3 pessoas, entrega em 4 etapas.',
+      status: 'pending',
+      createdAt: '2026-05-26T09:15:00.000Z',
+      updatedAt: '2026-05-26T09:15:00.000Z',
+    },
+    {
+      id: 'prop-seed-002',
+      opportunityId: 'featured-serralheiro-request',
+      proposerId: 'demo-user-metalrigida',
+      proposerName: 'MetalRígida',
+      proposerHandle: 'metalrigida',
+      proposerAvatarUrl: null,
+      proposerJobTitle: 'Empresa de estruturas metálicas',
+      proposerVerificationLevel: 'kyc',
+      proposerTrustScore: 91,
+      amount: 8200,
+      asset: 'BRZ',
+      note: 'Inclui projeto executivo, ART e responsável técnico em obra.',
+      status: 'pending',
+      createdAt: '2026-05-26T09:42:00.000Z',
+      updatedAt: '2026-05-26T09:42:00.000Z',
+    },
+  ]);
+
+  proposalStore.set('featured-engineering-offer', [
+    {
+      id: 'prop-seed-003',
+      opportunityId: 'featured-engineering-offer',
+      proposerId: 'demo-user-construtorabr',
+      proposerName: 'Construtora BR',
+      proposerHandle: 'construtorabr',
+      proposerAvatarUrl: null,
+      proposerJobTitle: 'Contratante PJ',
+      proposerVerificationLevel: 'basic',
+      proposerTrustScore: 78,
+      amount: 4500,
+      asset: 'BRZ',
+      note: 'Demanda fixa de 3 laudos/mês, contrato semestral.',
+      status: 'pending',
+      createdAt: '2026-05-26T08:50:00.000Z',
+      updatedAt: '2026-05-26T08:50:00.000Z',
+    },
+  ]);
+
+  proposalStore.set('featured-rent-request', [
+    {
+      id: 'prop-seed-004',
+      opportunityId: 'featured-rent-request',
+      proposerId: 'demo-user-whitehorse',
+      proposerName: 'Imobiliária White Horse',
+      proposerHandle: 'whitehorse',
+      proposerAvatarUrl: null,
+      proposerJobTitle: 'Administração de aluguéis',
+      proposerVerificationLevel: 'kyc',
+      proposerTrustScore: 89,
+      amount: 3700,
+      asset: 'BRZ',
+      note: 'Vistoria digital + caução em escrow já no nosso fluxo.',
+      status: 'pending',
+      createdAt: '2026-05-26T08:30:00.000Z',
+      updatedAt: '2026-05-26T08:30:00.000Z',
+    },
+  ]);
+}
+
+export function getBestProposal(
+  opportunity: Pick<SmartContractOpportunity, 'opportunityType'>,
+  proposals: OpportunityProposal[],
+): OpportunityProposal | null {
+  const pending = proposals.filter((proposal) => proposal.status === 'pending');
+  if (pending.length === 0) return null;
+  const sorted = [...pending].sort((left, right) =>
+    opportunity.opportunityType === 'request' ? left.amount - right.amount : right.amount - left.amount,
+  );
+  return sorted[0];
+}
+
+export function countActiveProposals(proposals: OpportunityProposal[]): number {
+  return proposals.filter((proposal) => proposal.status === 'pending').length;
+}
+
+export function formatProposalAmount(proposal: Pick<OpportunityProposal, 'amount' | 'asset'>) {
+  const amount = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(proposal.amount);
+  return `${amount} ${proposal.asset}`;
+}
+
 export const smartContractOpportunityService = {
   async list(filters: OpportunityFeedFilters = {}): Promise<SmartContractOpportunity[]> {
     const { data, error } = await supabase.rpc('get_smart_contract_opportunity_feed', {
@@ -466,7 +669,7 @@ export const smartContractOpportunityService = {
 
     const source = !error && Array.isArray(data) && data.length > 0
       ? (data as Record<string, any>[]).map(mapOpportunityRow)
-      : FEATURED_OPPORTUNITIES;
+      : decoratedFeaturedOpportunities();
 
     return applyClientFilters(source, filters);
   },
@@ -510,5 +713,98 @@ export const smartContractOpportunityService = {
     if (!row) throw new Error('O servidor não retornou o match da oportunidade aceita.');
 
     return mapOpportunityMatchRow(row as Record<string, any>);
+  },
+
+  async listProposals(opportunityId: string): Promise<OpportunityProposal[]> {
+    ensureSeededProposals();
+    return [...(proposalStore.get(opportunityId) ?? [])];
+  },
+
+  async sendProposal(input: SendProposalInput): Promise<OpportunityProposal> {
+    ensureSeededProposals();
+    const existing = proposalStore.get(input.opportunityId) ?? [];
+    const now = new Date().toISOString();
+
+    const mine = existing.find(
+      (proposal) => proposal.proposerId === input.proposerId && proposal.status === 'pending',
+    );
+    if (mine) {
+      mine.amount = input.amount;
+      mine.asset = input.asset ?? mine.asset;
+      mine.note = input.note ?? null;
+      mine.updatedAt = now;
+      return { ...mine };
+    }
+
+    const proposal: OpportunityProposal = {
+      id: `prop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      opportunityId: input.opportunityId,
+      proposerId: input.proposerId,
+      proposerName: input.proposerName,
+      proposerHandle: input.proposerHandle,
+      proposerAvatarUrl: input.proposerAvatarUrl ?? null,
+      proposerJobTitle: input.proposerJobTitle ?? null,
+      proposerVerificationLevel: input.proposerVerificationLevel ?? 'none',
+      proposerTrustScore: input.proposerTrustScore ?? 0,
+      amount: input.amount,
+      asset: input.asset ?? 'BRZ',
+      note: input.note ?? null,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    };
+    proposalStore.set(input.opportunityId, [proposal, ...existing]);
+    return { ...proposal };
+  },
+
+  async acceptProposal(input: AcceptProposalInput): Promise<{
+    match: SmartContractOpportunityMatch;
+    proposal: OpportunityProposal;
+  }> {
+    ensureSeededProposals();
+    const proposals = proposalStore.get(input.opportunityId) ?? [];
+    const target = proposals.find((proposal) => proposal.id === input.proposalId);
+    if (!target) throw new Error('Proposta não encontrada.');
+    if (target.status !== 'pending') throw new Error('Essa proposta não está mais disponível.');
+
+    const now = new Date().toISOString();
+    target.status = 'accepted';
+    target.updatedAt = now;
+    for (const proposal of proposals) {
+      if (proposal.id !== input.proposalId && proposal.status === 'pending') {
+        proposal.status = 'rejected';
+        proposal.updatedAt = now;
+      }
+    }
+
+    const isRequest = input.opportunity.opportunityType === 'request';
+    const match: SmartContractOpportunityMatch = {
+      id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      opportunityId: input.opportunityId,
+      opportunityStatus: 'matched',
+      contractorId: isRequest ? input.opportunity.ownerId : target.proposerId,
+      contractorName: isRequest ? input.opportunity.ownerName : target.proposerName,
+      contractorHandle: isRequest ? input.opportunity.ownerHandle : target.proposerHandle,
+      executorId: isRequest ? target.proposerId : input.opportunity.ownerId,
+      executorName: isRequest ? target.proposerName : input.opportunity.ownerName,
+      executorHandle: isRequest ? target.proposerHandle : input.opportunity.ownerHandle,
+      acceptedById: input.acceptedById,
+      matchedAt: now,
+    };
+
+    return { match, proposal: { ...target } };
+  },
+
+  async withdrawProposal(proposalId: string): Promise<OpportunityProposal | null> {
+    ensureSeededProposals();
+    for (const list of proposalStore.values()) {
+      const found = list.find((proposal) => proposal.id === proposalId);
+      if (found) {
+        found.status = 'withdrawn';
+        found.updatedAt = new Date().toISOString();
+        return { ...found };
+      }
+    }
+    return null;
   },
 };

@@ -38,9 +38,11 @@ interface Props {
   initialMode?: EditorMode;
   /** Contexto opcional vindo do feed/marketplace para pré-preencher o contrato. */
   initialBrief?: string;
+  /** Valores iniciais opcionais para preencher variáveis do template. */
+  initialVariables?: Record<string, string>;
 }
 
-export default function SmartContractEditor({ template, onClose, onDeployed, initialMode = 'chat', initialBrief }: Props) {
+export default function SmartContractEditor({ template, onClose, onDeployed, initialMode = 'chat', initialBrief, initialVariables }: Props) {
   const notify = useNotificationStore(s => s.add);
   const createMutation = useCreateContract();
   const updateMutation = useUpdateContract();
@@ -56,7 +58,7 @@ export default function SmartContractEditor({ template, onClose, onDeployed, ini
     template.variables.forEach(v => {
       if (v.defaultValue) defaults[v.name] = v.defaultValue;
     });
-    return defaults;
+    return { ...defaults, ...(initialVariables || {}) };
   });
 
   const [messages, setMessages] = useState<AIChatMessage[]>([

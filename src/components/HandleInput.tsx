@@ -154,7 +154,7 @@ export default function HandleInput({ value, onChange, placeholder, required }: 
         ? (resolved ? 'Carteira Stellar reconhecida.' : 'Carteira Stellar válida. Se pertencer a um usuário cadastrado, os dados aparecerão aqui.')
         : trimmed.length >= 2 && suggestions.length === 0
           ? 'Nenhum usuário existente encontrado para esse termo.'
-          : 'Selecione um usuário real da lista ou cole a carteira Stellar.';
+          : 'Selecione um usuário real da lista ou cole a carteira Stellar. Mesmo sem carteira conectada, o perfil pode seguir no fluxo.';
 
   return (
     <div className="relative" ref={wrapRef}>
@@ -243,7 +243,7 @@ export default function HandleInput({ value, onChange, placeholder, required }: 
                     {s.hasWallet ? (
                       <span className="rounded-full border border-emerald-400/16 bg-emerald-500/8 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">Carteira pronta</span>
                     ) : (
-                      <span className="rounded-full border border-amber-400/16 bg-amber-500/8 px-2 py-0.5 text-[10px] font-semibold text-amber-200">Sem carteira</span>
+                      <span className="rounded-full border border-amber-400/16 bg-amber-500/8 px-2 py-0.5 text-[10px] font-semibold text-amber-200">Carteira pendente</span>
                     )}
                   </div>
                   <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] text-neutral-400">
@@ -256,7 +256,7 @@ export default function HandleInput({ value, onChange, placeholder, required }: 
                     ? 'Seleciona @handle'
                     : s.address
                       ? 'Seleciona carteira'
-                      : 'Configure a carteira'}
+                      : 'Seleciona perfil'}
                 </div>
               </button>
             ))}

@@ -149,12 +149,14 @@ const ecommerceQuestions: SCQuestion[] = [
 const freelancerQuestions: SCQuestion[] = [
   {
     id: 'q-client',
-    question: 'Quem é o cliente que contrata o trabalho?',
+    question: 'Quem vai contratar este trabalho?',
+    context: 'Se você veio do feed com match aceito, esse campo normalmente já vem preenchido com o contratante.',
     type: 'open', inputType: 'address', bindTo: 'client', required: true, placeholder: '@cliente ou G...',
   },
   {
     id: 'q-freelancer',
-    question: 'Quem é o freelancer (prestador)?',
+    question: 'Quem vai executar o trabalho?',
+    context: 'Informe o prestador responsável pela execução. Pode ser você ou outro perfil selecionado no fluxo.',
     type: 'open', inputType: 'address', bindTo: 'freelancer', required: true, placeholder: '@freelancer ou G...',
   },
   {

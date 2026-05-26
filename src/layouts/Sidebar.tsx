@@ -10,23 +10,23 @@ const WorkspaceSettingsModal = lazy(() => import('@/components/WorkspaceSettings
 
 const NAV_ITEMS = [
   // Business Items - Core
-  { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Dashboard', profile: 'business', section: 'core' },
-  { to: '/contracts', icon: 'solar:document-text-bold-duotone', label: 'Documentos', profile: 'business', section: 'core' },
+  { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Painel', description: 'ritmo, filas e leitura geral', profile: 'business', section: 'core' },
+  { to: '/contracts', icon: 'solar:document-text-bold-duotone', label: 'Documentos', description: 'contratos, rascunhos e provas', profile: 'business', section: 'core' },
 
   // Business Items - Actions
-  { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo Documento', profile: 'business', section: 'actions' },
-  { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Templates', profile: 'business', section: 'actions' },
-  { to: '/smart-contracts', icon: 'solar:cpu-bolt-bold-duotone', label: 'Smart Contracts IA', profile: 'business', section: 'actions' },
-  { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Feed', profile: 'business', section: 'actions' },
+  { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Criar Contrato', description: 'abrir um novo fluxo contratual', profile: 'business', section: 'actions' },
+  { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Biblioteca', description: 'modelos prontos para acelerar', profile: 'business', section: 'actions' },
+  { to: '/smart-contracts', icon: 'solar:cpu-bolt-bold-duotone', label: 'Contratos Inteligentes', description: 'automação, lógica e execução', profile: 'business', section: 'actions' },
+  { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Oportunidades', description: 'mercado, demanda e match', profile: 'business', section: 'actions' },
 
   // Business Items - Analytics
-  { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Faturamento & Créditos', profile: 'business', section: 'analytics' },
-  { to: '/analytics', icon: 'solar:chart-2-bold-duotone', label: 'Analytics', profile: 'business', section: 'analytics' },
+  { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Financeiro', description: 'receita, créditos e saldo', profile: 'business', section: 'analytics' },
+  { to: '/analytics', icon: 'solar:chart-2-bold-duotone', label: 'Desempenho', description: 'indicadores e leitura de tração', profile: 'business', section: 'analytics' },
 
 
   // Developer Items
-  { to: '/integrations', icon: 'solar:plug-bold-duotone', label: 'Integrações & API', profile: 'developer', section: 'developer' },
-  { to: '/verify', icon: 'solar:shield-check-bold-duotone', label: 'Verificação Blockchain', profile: 'developer', section: 'developer' },
+  { to: '/integrations', icon: 'solar:plug-bold-duotone', label: 'Integrações & API', description: 'entradas, webhooks e conexão', profile: 'developer', section: 'developer' },
+  { to: '/verify', icon: 'solar:shield-check-bold-duotone', label: 'Verificação Blockchain', description: 'provas, hashes e trilha técnica', profile: 'developer', section: 'developer' },
 ];
 
 const ADMIN_ITEMS = [
@@ -131,54 +131,61 @@ export default function Sidebar() {
     <motion.aside
       animate={{ width: sidebarCollapsed ? 72 : 260 }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="hidden sm:flex fixed left-0 top-0 bottom-0 z-40 bg-neutral-950 border-r border-white/5 flex-col"
+      className="hidden sm:flex fixed left-0 top-0 bottom-0 z-40 flex-col border-r border-white/8 bg-[linear-gradient(180deg,rgba(6,9,13,0.98),rgba(7,10,14,0.96))] shadow-[18px_0_60px_rgba(0,0,0,0.26)]"
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-5 gap-3 border-b border-white/5">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-bold text-sm shrink-0">
+      <div className="flex h-16 items-center gap-3 border-b border-white/8 px-5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500 to-cyan-500 text-white font-bold text-sm shrink-0 shadow-[0_10px_24px_rgba(16,185,129,0.18)]">
           CE
         </div>
         {!sidebarCollapsed && (
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="font-bricolage font-bold text-white text-lg tracking-tight whitespace-nowrap"
-          >
-            ContractEase
-          </motion.span>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-w-0">
+            <p className="font-bricolage text-lg font-bold tracking-tight text-white whitespace-nowrap">ContractEase</p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-neutral-500">Command Deck</p>
+          </motion.div>
         )}
       </div>
 
       {/* Workspace Switcher */}
       {!sidebarCollapsed && organization && (
         <div className="px-3 pt-4 mb-2 relative" ref={dropdownRef}>
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest px-2 mb-2">Área de Trabalho</p>
+          <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.24em] text-neutral-500">Ambiente ativo</p>
           <div 
             onClick={() => setIsWorkspaceOpen(!isWorkspaceOpen)}
-            className={`w-full flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer group ${
-              isWorkspaceOpen ? 'bg-white/10 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/10'
+            className={`group w-full cursor-pointer rounded-[22px] border p-2.5 transition-all ${
+              isWorkspaceOpen ? 'border-emerald-400/18 bg-emerald-500/10' : 'border-white/10 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.05]'
             }`}
           >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xs shrink-0 overflow-hidden">
-              {(organization as any).logo_url
-                ? <img src={(organization as any).logo_url} alt={organization.name} className="w-full h-full object-cover" />
-                : organization.name.charAt(0)}
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl border border-emerald-400/18 bg-gradient-to-br from-emerald-500 to-cyan-500 text-white font-bold text-xs shrink-0 shadow-[0_10px_24px_rgba(16,185,129,0.15)]">
+                {(organization as any).logo_url
+                  ? <img src={(organization as any).logo_url} alt={organization.name} className="w-full h-full object-cover" />
+                  : organization.name.charAt(0)}
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.65)]" />
+                  <p className="truncate text-xs font-bold text-white">{organization.name}</p>
+                </div>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-500">workspace operacional</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-emerald-400/18 bg-emerald-500/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                  {organization.plan}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowWorkspaceSettings(true); }}
+                  className="flex h-7 w-7 items-center justify-center rounded-xl text-neutral-500 transition-all hover:bg-white/10 hover:text-white opacity-0 group-hover:opacity-100"
+                  title="Configurações do Workspace"
+                >
+                  <iconify-icon icon="solar:settings-bold" class="text-sm" />
+                </button>
+                <iconify-icon 
+                  icon="solar:alt-arrow-down-bold" 
+                  class={`text-neutral-500 transition-transform duration-300 ${isWorkspaceOpen ? 'rotate-180 text-white' : 'group-hover:text-white'}`} 
+                />
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <p className="text-xs font-bold text-white truncate">{organization.name}</p>
-              <p className="text-[10px] text-emerald-500 font-bold uppercase">{organization.plan}</p>
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowWorkspaceSettings(true); }}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-neutral-500 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
-              title="Configurações do Workspace"
-            >
-              <iconify-icon icon="solar:settings-bold" class="text-sm" />
-            </button>
-            <iconify-icon 
-              icon="solar:alt-arrow-down-bold" 
-              class={`text-neutral-500 transition-transform duration-300 ${isWorkspaceOpen ? 'rotate-180 text-white' : 'group-hover:text-white'}`} 
-            />
           </div>
 
           <AnimatePresence>
@@ -323,10 +330,10 @@ export default function Sidebar() {
       <nav className="flex-1 py-4 px-3 overflow-y-auto space-y-0.5">
         {(() => {
           const sections = {
-            core: 'Principal',
-            actions: 'Ações',
-            analytics: 'Análise & Faturamento',
-            developer: 'Desenvolvimento',
+            core: 'Operação',
+            actions: 'Criação',
+            analytics: 'Negócio',
+            developer: 'Infra',
           };
 
           const filteredItems = NAV_ITEMS.filter(item => item.profile === activeProfile);
@@ -348,7 +355,7 @@ export default function Sidebar() {
             return (
               <div key={sectionKey}>
                 {sectionKey !== 'core' && !sidebarCollapsed && (
-                  <p className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider px-3 py-2">
+                  <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.24em] text-neutral-600">
                     {sections[sectionKey as keyof typeof sections]}
                   </p>
                 )}
@@ -361,40 +368,55 @@ export default function Sidebar() {
                     <NavLink
                       key={item.to}
                       to={item.to}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
-                          isActive
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent'
-                        }`
-                      }
                       title={sidebarCollapsed ? item.label : ''}
                     >
-                      <iconify-icon icon={item.icon} class="text-lg shrink-0" />
-                      {!sidebarCollapsed && (
-                        <motion.span
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className="whitespace-nowrap flex-1 text-left flex items-center gap-2"
-                        >
-                          {item.label}
-                          {(item as any).badge && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">
-                              {(item as any).badge}
-                            </span>
-                          )}
-                        </motion.span>
-                      )}
+                      {({ isActive }) => (
+                        <div className={`group relative flex items-center gap-3 overflow-hidden rounded-[22px] border px-3 py-3 transition-all ${
+                          isActive
+                            ? 'border-emerald-400/18 bg-[linear-gradient(90deg,rgba(16,185,129,0.16),rgba(34,211,238,0.08),transparent)] text-white shadow-[0_10px_30px_rgba(16,185,129,0.08)]'
+                            : 'border-transparent text-neutral-400 hover:border-white/10 hover:bg-white/[0.04] hover:text-white'
+                        }`}>
+                          {isActive && <div className="absolute inset-y-3 left-0 w-[3px] rounded-full bg-gradient-to-b from-emerald-300 to-cyan-300" />}
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition-colors ${
+                            isActive
+                              ? 'border-emerald-400/16 bg-emerald-500/12 text-emerald-300'
+                              : 'border-white/8 bg-white/[0.03] text-neutral-500 group-hover:border-white/12 group-hover:text-neutral-200'
+                          }`}>
+                            <iconify-icon icon={item.icon} class="text-lg" />
+                          </div>
 
-                      {/* Tooltip for collapsed state */}
-                      {sidebarCollapsed && (
-                        <motion.div
-                          initial={{ opacity: 0, x: 10 }}
-                          whileHover={{ opacity: 1, x: 0 }}
-                          className="absolute left-full ml-2 px-3 py-2 rounded-lg bg-neutral-800 text-white text-xs font-medium whitespace-nowrap z-50 pointer-events-none"
-                        >
-                          {item.label}
-                        </motion.div>
+                          {!sidebarCollapsed && (
+                            <motion.div
+                              initial={{ opacity: 0, x: -8 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className="min-w-0 flex-1 text-left"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="truncate text-sm font-semibold text-inherit">{item.label}</span>
+                                {(item as any).badge && (
+                                  <span className="rounded-md border border-fuchsia-500/30 bg-fuchsia-500/20 px-1.5 py-0.5 text-[9px] font-bold text-fuchsia-300">
+                                    {(item as any).badge}
+                                  </span>
+                                )}
+                              </div>
+                              {(item as any).description && (
+                                <p className="mt-1 truncate text-[11px] text-neutral-500 group-hover:text-neutral-400">
+                                  {(item as any).description}
+                                </p>
+                              )}
+                            </motion.div>
+                          )}
+
+                          {sidebarCollapsed && (
+                            <motion.div
+                              initial={{ opacity: 0, x: 10 }}
+                              whileHover={{ opacity: 1, x: 0 }}
+                              className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-lg bg-neutral-800 px-3 py-2 text-xs font-medium text-white z-50"
+                            >
+                              {item.label}
+                            </motion.div>
+                          )}
+                        </div>
                       )}
                     </NavLink>
                   ))}
@@ -435,12 +457,34 @@ export default function Sidebar() {
       </nav>
 
       {/* Bottom section */}
-      <div className="py-3 px-3 border-t border-white/5 space-y-1">
+      <div className="space-y-3 border-t border-white/8 px-3 py-3">
+
+        {!sidebarCollapsed && (
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-neutral-500">Status do sistema</p>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-black/20 px-3 py-2.5">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Rede</p>
+                  <p className="mt-1 text-xs font-semibold text-emerald-300">Testnet ativa</p>
+                </div>
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.7)]" />
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-black/20 px-3 py-2.5">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Assinatura</p>
+                  <p className="mt-1 text-xs font-semibold text-white">{user?.walletAddress ? 'Carteira conectada' : 'Modo assistido'}</p>
+                </div>
+                <iconify-icon icon={user?.walletAddress ? 'solar:shield-check-bold-duotone' : 'solar:magic-stick-3-bold-duotone'} class={user?.walletAddress ? 'text-emerald-300 text-lg' : 'text-cyan-300 text-lg'} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Collapse toggle */}
         <button
           onClick={toggleCollapse}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-neutral-500 hover:text-white hover:bg-white/5 transition-all"
+          className="w-full flex items-center gap-3 rounded-[20px] border border-white/8 px-3 py-2.5 text-sm text-neutral-500 transition-all hover:border-white/12 hover:bg-white/[0.03] hover:text-white"
         >
           <iconify-icon
             icon={sidebarCollapsed ? 'solar:alt-arrow-right-linear' : 'solar:alt-arrow-left-linear'}

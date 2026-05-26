@@ -334,7 +334,7 @@ function mapProfileRowToResolved(row: ProfileLookupRow): ResolvedHandle {
     email: row.email ?? undefined,
     userId: row.id,
     source: 'profile',
-    preferredInput: row.handle ? (address ? `@${row.handle}` : undefined) : (address || undefined),
+    preferredInput: row.handle ? `@${row.handle}` : (address || undefined),
     hasWallet: Boolean(address),
   };
 }

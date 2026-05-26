@@ -13,6 +13,7 @@ import { SmartContractGlyph, getSmartContractVisual } from '@/components/SmartCo
 import { useAuthStore } from '@/stores';
 import {
   buildOpportunitySmartContractBrief,
+  buildOpportunityVariablePrefill,
   formatOpportunityReward,
   type SmartContractOpportunity,
   type SmartContractOpportunityMatch,
@@ -102,6 +103,10 @@ export default function SmartContractsPage() {
           currentUserHandle: user?.handle ?? null,
           match: marketplaceMatch,
         }) : undefined}
+        initialVariables={marketplaceOpportunity ? buildOpportunityVariablePrefill(marketplaceOpportunity, {
+          currentUserHandle: user?.handle ?? null,
+          match: marketplaceMatch,
+        }) : undefined}
         onClose={() => setEditingTemplate(null)}
         onDeployed={(contractId) => navigate(`/contracts/${contractId}`)}
       />
@@ -155,7 +160,7 @@ export default function SmartContractsPage() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300">
               <iconify-icon icon="solar:code-square-bold-duotone" class="text-sm" />
-              Smart Contracts IA
+              Contratos Inteligentes
             </div>
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-white font-bricolage sm:text-4xl">
               Escolha um modelo e comece sem ruído.

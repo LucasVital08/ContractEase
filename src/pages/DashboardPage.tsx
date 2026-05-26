@@ -7,7 +7,6 @@ import { useAuthStore, useNotificationStore } from '@/stores';
 import type { Contract } from '@/types';
 import { api, signingService } from '@/services/supabaseService';
 import { formatOpportunityReward, type SmartContractOpportunity } from '@/services/smartContractOpportunityService';
-import { animations } from '@/tokens';
 
 function isSmartContract(contract: Pick<Contract, 'tags'> | null | undefined) {
   return Boolean(contract?.tags?.includes('smart-contract'));
@@ -25,20 +24,16 @@ function StatCard({ title, value, icon, color, bg, to, subtext, delay = 0 }: {
     >
       <Link
         to={to}
-        className="flex flex-col bg-neutral-900 border border-white/5 rounded-2xl p-5 relative overflow-hidden hover:border-white/15 hover:bg-neutral-800/50 transition-all group cursor-pointer"
+        className="group relative flex flex-col overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.18)] transition-all hover:-translate-y-0.5 hover:border-cyan-400/16 hover:bg-[linear-gradient(180deg,rgba(16,185,129,0.055),rgba(255,255,255,0.018))]"
       >
-        {/* Background blur effect on hover */}
-        <motion.div
-          className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/0 opacity-0 group-hover:opacity-5 transition-opacity"
-          initial={{ opacity: 0 }}
-          whileHover={{ opacity: 0.05 }}
-        />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/45 to-transparent opacity-70" />
+        <div className="absolute -right-10 top-8 h-28 w-28 rounded-full bg-cyan-400/8 blur-3xl transition-opacity group-hover:opacity-90" />
 
-        <div className="flex items-start justify-between mb-3 relative z-10">
+        <div className="relative z-10 mb-3 flex items-start justify-between">
           <motion.div
-            className={`p-2.5 rounded-xl ${bg} transition-transform`}
-            whileHover={{ scale: 1.15, rotate: 5 }}
-            whileTap={{ scale: 0.95 }}
+            className={`flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 ${bg} transition-transform`}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
           >
             <iconify-icon icon={icon} class={`text-xl ${color}`} />
           </motion.div>
@@ -52,25 +47,16 @@ function StatCard({ title, value, icon, color, bg, to, subtext, delay = 0 }: {
         </div>
 
         <div className="relative z-10">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">{title}</p>
           <motion.h4
-            className="text-3xl font-bold text-white font-bricolage"
+            className="mt-3 text-3xl font-bold text-white font-bricolage"
             animate={{ y: 0 }}
             whileHover={{ y: -2 }}
           >
             {value}
           </motion.h4>
-          <p className="text-neutral-500 text-xs font-medium mt-1 uppercase tracking-wide">{title}</p>
-          {subtext && <p className="text-xs text-neutral-600 mt-0.5">{subtext}</p>}
+          {subtext && <p className="mt-2 text-xs leading-5 text-neutral-500">{subtext}</p>}
         </div>
-
-        {/* Decorative background */}
-        <motion.div
-          className="absolute -bottom-3 -right-3 opacity-[0.04] group-hover:opacity-[0.07] transition-opacity"
-          animate={{ rotate: 0, scale: 1 }}
-          whileHover={{ rotate: 10, scale: 1.1 }}
-        >
-          <iconify-icon icon={icon} class="text-[100px]" />
-        </motion.div>
       </Link>
     </motion.div>
   );
@@ -94,8 +80,8 @@ function RecentRow({ contract }: { contract: Contract }) {
         <span className="text-emerald-500 font-mono text-xs">{contract.id}</span>
         <span className="text-white text-sm font-medium">{contract.title}</span>
         {smart && (
-          <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase tracking-wide">
-            Smart
+          <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[10px] font-bold uppercase tracking-wide">
+            Inteligente
           </span>
         )}
         {contract.stellarTxHash && (
@@ -251,14 +237,10 @@ export default function DashboardPage() {
       </div>
 
       {user && (
-        <IdentityHubCard
+        <ProfileStrip
           user={user}
           organizationName={organization?.name}
-          bio={identitySettings.bio}
           jobTitle={identitySettings.jobTitle}
-          activeCount={active}
-          draftCount={draft}
-          pendingSignatureCount={pendingSignatures.length}
           onCopyHandle={handleCopyIdentity}
         />
       )}
@@ -309,13 +291,13 @@ export default function DashboardPage() {
       )}
 
       {smartContracts.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }} className={`bg-neutral-900 border border-cyan-500/10 rounded-2xl p-6 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }} className={`rounded-[28px] border border-cyan-400/12 bg-[linear-gradient(180deg,rgba(8,12,16,0.96),rgba(9,14,18,0.88))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)] ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
           <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
             <div>
               <h3 className="text-lg font-bold text-white font-bricolage flex items-center gap-2">
-                <iconify-icon icon="solar:code-square-bold-duotone" class="text-cyan-400 text-xl" /> Smart Contracts
+                <iconify-icon icon="solar:code-square-bold-duotone" class="text-cyan-300 text-xl" /> Contratos Inteligentes
               </h3>
-              <p className="text-xs text-neutral-400 mt-1">Visão operacional dos contratos inteligentes no dashboard: ativos, pendentes de ciência, rascunhos e provas on-chain.</p>
+              <p className="text-xs text-neutral-400 mt-1">Leitura operacional dos fluxos programáveis: execução, pendências, rascunhos e provas ancoradas.</p>
             </div>
             <Link to="/contracts" className="text-xs text-cyan-400 hover:underline">Abrir documentos</Link>
           </div>
@@ -536,23 +518,15 @@ function OpportunityPreviewCard({ opportunity }: { opportunity: SmartContractOpp
   );
 }
 
-function IdentityHubCard({
+function ProfileStrip({
   user,
   organizationName,
-  bio,
   jobTitle,
-  activeCount,
-  draftCount,
-  pendingSignatureCount,
   onCopyHandle,
 }: {
   user: NonNullable<ReturnType<typeof useAuthStore.getState>['user']>;
   organizationName?: string;
-  bio?: string;
   jobTitle?: string;
-  activeCount: number;
-  draftCount: number;
-  pendingSignatureCount: number;
   onCopyHandle: () => void;
 }) {
   const initials = user.name
@@ -564,91 +538,55 @@ function IdentityHubCard({
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-[30px] border border-white/8 bg-neutral-900/75 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.28)]"
+      className="relative overflow-hidden rounded-2xl border border-white/8 bg-neutral-900/70 px-5 py-4"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.12),transparent_36%)]" />
-      <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_420px] xl:items-start">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 text-2xl font-bold text-white shadow-[0_16px_40px_rgba(16,185,129,0.15)]">
-            {user.avatar
-              ? <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
-              : initials}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 text-base font-bold text-white">
+          {user.avatar
+            ? <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+            : initials}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-base font-bold text-white font-bricolage">{user.name}</h2>
+            <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">{user.plan || 'free'}</span>
+            {user.walletAddress && (
+              <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">Carteira ativa</span>
+            )}
           </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="rounded-full border border-emerald-400/16 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300">Identidade ativa</span>
-              <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400">{user.plan || 'free'}</span>
-            </div>
-            <h2 className="mt-4 text-2xl font-bold text-white font-bricolage sm:text-3xl">{user.name}</h2>
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-sm font-semibold text-cyan-300">
-                {user.handle ? `@${user.handle}` : user.email}
-              </span>
-              {jobTitle && (
-                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs text-neutral-300">{jobTitle}</span>
-              )}
-              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs text-neutral-400">{organizationName || 'Espaço Pessoal'}</span>
-            </div>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300">
-              {bio || 'Seu perfil agora aparece com mais destaque para assinatura, identidade e contexto do dono da conta. Personalize bio, avatar e cargo nas configurações.'}
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                onClick={onCopyHandle}
-                className="inline-flex items-center gap-2 rounded-full border border-cyan-500/18 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/14"
-              >
-                <iconify-icon icon="solar:copy-bold" class="text-base" />
-                Copiar identidade
-              </button>
-              <Link
-                to="/settings"
-                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-4 py-2 text-sm font-medium text-neutral-200 transition-colors hover:border-white/14 hover:text-white"
-              >
-                <iconify-icon icon="solar:pen-2-bold" class="text-base" />
-                Personalizar perfil
-              </Link>
-              {user.handle && (
-                <Link
-                  to={`/@${user.handle}`}
-                  className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-200 transition-colors hover:bg-cyan-500/15"
-                >
-                  <iconify-icon icon="solar:user-id-bold" class="text-base" />
-                  Ver perfil público
-                </Link>
-              )}
-            </div>
+          <div className="mt-1 flex items-center gap-2 flex-wrap text-xs text-neutral-400">
+            <span className="text-cyan-300">{user.handle ? `@${user.handle}` : user.email}</span>
+            <span>·</span>
+            <span>{organizationName || 'Espaço Pessoal'}</span>
+            {jobTitle && (
+              <>
+                <span>·</span>
+                <span>{jobTitle}</span>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-          <IdentityMetric label="Documentos ativos" value={activeCount.toString()} icon="solar:check-circle-bold-duotone" tone="text-emerald-300" />
-          <IdentityMetric label="Rascunhos" value={draftCount.toString()} icon="solar:pen-new-round-bold-duotone" tone="text-neutral-200" />
-          <IdentityMetric label="Sua assinatura" value={pendingSignatureCount.toString()} icon="solar:pen-bold-duotone" tone="text-amber-300" detail={pendingSignatureCount > 0 ? 'pendências aguardando você' : 'nenhuma pendência agora'} />
-          <IdentityMetric label="Créditos" value={`${user.credits ?? 0}`} icon="solar:wallet-money-bold-duotone" tone="text-cyan-300" />
-          <IdentityMetric label="Carteira" value={user.walletAddress ? 'Conectada' : 'Pendente'} icon="solar:wallet-2-bold-duotone" tone={user.walletAddress ? 'text-emerald-300' : 'text-neutral-300'} detail={user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Conecte na aba Configurações'} />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={onCopyHandle}
+            className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/15"
+          >
+            <iconify-icon icon="solar:copy-bold" class="text-sm" />
+            Copiar identidade
+          </button>
+          <Link
+            to="/settings"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:border-white/16 hover:text-white"
+          >
+            <iconify-icon icon="solar:pen-2-bold" class="text-sm" />
+            Editar perfil
+          </Link>
         </div>
       </div>
     </motion.section>
-  );
-}
-
-function IdentityMetric({ label, value, icon, tone, detail }: { label: string; value: string; icon: string; tone: string; detail?: string }) {
-  return (
-    <div className="rounded-2xl border border-white/8 bg-black/25 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">{label}</p>
-          <p className={`mt-2 text-xl font-bold font-bricolage ${tone}`}>{value}</p>
-          {detail && <p className="mt-1 text-[11px] text-neutral-500">{detail}</p>}
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-neutral-400">
-          <iconify-icon icon={icon} class="text-lg" />
-        </div>
-      </div>
-    </div>
   );
 }
