@@ -139,8 +139,11 @@ export default function OpportunitiesPage() {
   const { opportunityId } = useParams<{ opportunityId?: string }>();
   const notify = useNotificationStore((state) => state.add);
   const { user } = useAuthStore();
-  const initialized = useAuthStore((s) => s.initialized);
+  const initialize = useAuthStore((s) => s.initialize);
   const stateOpportunity = (location.state as { opportunity?: SmartContractOpportunity } | null)?.opportunity;
+
+  // Inicializa autenticação para rotas públicas (idempotente — sem custo se já iniciado)
+  useEffect(() => { initialize(); }, [initialize]);
 
   const [kindFilter, setKindFilter] = useState<OpportunityType | 'all'>('all');
   const [search, setSearch] = useState('');
@@ -427,7 +430,7 @@ export default function OpportunitiesPage() {
   };
 
   if (opportunityId) {
-    if (isLoading || !initialized) {
+    if (isLoading) {
       return (
         <div className="min-h-screen p-6 lg:p-10">
           <div className="mx-auto max-w-6xl animate-pulse space-y-5">
@@ -956,9 +959,9 @@ function OpportunityStandalonePage({
     ];
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-5">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="min-h-screen overflow-x-hidden px-4 py-6 sm:px-6 lg:px-10">
+      <div className="mx-auto w-full max-w-5xl space-y-5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onBack}
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-neutral-200 transition hover:bg-white/[0.06]"
@@ -967,49 +970,47 @@ function OpportunityStandalonePage({
             Voltar ao feed
           </button>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={onShareWhatsApp}
-              className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/12 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/18"
-            >
-              <iconify-icon icon="mdi:whatsapp" class="text-base" />
-              Compartilhar
-            </button>
-            <button
-              onClick={onOpenSmartContract}
-              className="inline-flex items-center gap-2 rounded-full border border-cyan-400/22 bg-cyan-500/12 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/18"
-            >
-              <iconify-icon icon="solar:play-circle-bold-duotone" class="text-base" />
-              Abrir template
-            </button>
-          </div>
+          <button
+            onClick={onShareWhatsApp}
+            className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/12 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/18"
+          >
+            <iconify-icon icon="mdi:whatsapp" class="text-base" />
+            Compartilhar
+          </button>
+          <button
+            onClick={onOpenSmartContract}
+            className="inline-flex items-center gap-2 rounded-full border border-cyan-400/22 bg-cyan-500/12 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/18"
+          >
+            <iconify-icon icon="solar:play-circle-bold-duotone" class="text-base" />
+            Abrir template
+          </button>
         </div>
 
-        <article className="overflow-hidden rounded-[34px] border border-white/10 bg-neutral-950/90 shadow-[0_32px_120px_rgba(0,0,0,0.42)]">
+        <article className="w-full overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/90 shadow-[0_32px_120px_rgba(0,0,0,0.42)] sm:rounded-[34px]">
           <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
             <section className={`relative bg-gradient-to-br ${visual.accentGradient} p-6 sm:p-8 lg:min-h-[620px] lg:p-10`}>
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(0,0,0,0.34),transparent_38%)]" />
               <div className="relative flex flex-col justify-between gap-6 lg:min-h-[540px] lg:gap-10">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full border border-white/15 bg-black/18 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
-                      {opportunity.opportunityType === 'request' ? 'Demanda publicada' : 'Disponibilidade publicada'}
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    <span className="rounded-full border border-white/15 bg-black/18 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
+                      {opportunity.opportunityType === 'request' ? 'Demanda' : 'Disponibilidade'}
                     </span>
                     {deadline && (
-                      <span className="rounded-full border border-amber-200/25 bg-amber-950/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-100">
+                      <span className="rounded-full border border-amber-200/25 bg-amber-950/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-100">
                         {deadline.label}
                       </span>
                     )}
                   </div>
-                  <SmartContractGlyph template={template} size="lg" className="shrink-0" />
+                  <SmartContractGlyph template={template} size="md" className="shrink-0" />
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">{metadata.heroLabel || opportunity.serviceCategory}</p>
-                  <h1 className="mt-4 max-w-3xl text-2xl font-bold leading-tight text-white font-bricolage sm:text-4xl lg:text-6xl">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">{metadata.heroLabel || opportunity.serviceCategory}</p>
+                  <h1 className="mt-3 text-xl font-bold leading-snug text-white font-bricolage sm:text-3xl lg:text-5xl">
                     {opportunity.title}
                   </h1>
-                  <p className="mt-5 max-w-2xl text-base leading-8 text-white/82">{opportunity.summary}</p>
+                  <p className="mt-3 text-sm leading-7 text-white/82">{opportunity.summary}</p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">

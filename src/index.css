@@ -18,11 +18,16 @@
   z-index: 0;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background-color: #0a0a0a;
   color: white;
   transition: padding 0.3s ease;
+  overflow-x: hidden;
 }
 
 body.zen-mode aside,

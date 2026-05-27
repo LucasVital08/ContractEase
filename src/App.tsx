@@ -70,6 +70,8 @@ export default function App() {
             <Route path="/:handle" element={<PublicHandleRoute />} />
             <Route path="/profile/:handle" element={<PublicProfilePage />} />
             <Route element={<AppLayout />}>
+              {/* Feed público — visível sem login, interações redirecionam p/ login */}
+              <Route path="opportunities" element={<OpportunitiesPage />} />
               <Route element={<AuthGuard />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
@@ -80,7 +82,6 @@ export default function App() {
                 <Route path="smart-contracts" element={<SmartContractsPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="finance" element={<FinancePage />} />
-                <Route path="opportunities" element={<OpportunitiesPage />} />
                 <Route path="admin" element={<AdminDashboardPage />} />
                 <Route path="verify" element={<VerifyPage />} />
                 <Route path="integrations" element={<IntegrationsPage />} />

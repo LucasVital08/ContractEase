@@ -1,9 +1,10 @@
+import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import BottomNav from './BottomNav';
-import { useUIStore, useNotificationStore } from '@/stores';
+import { useUIStore, useNotificationStore, useAuthStore } from '@/stores';
 import { CookieBanner } from '@/components/CookieBanner';
 import CommandPalette from '@/components/CommandPalette';
 
@@ -11,6 +12,10 @@ export default function AppLayout() {
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
   const notifications = useNotificationStore((s) => s.notifications);
   const removeNotification = useNotificationStore((s) => s.remove);
+  const initialize = useAuthStore((s) => s.initialize);
+
+  // Garante que auth seja verificado mesmo em rotas públicas dentro do layout
+  useEffect(() => { initialize(); }, [initialize]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans">
