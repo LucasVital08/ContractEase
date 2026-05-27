@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
     try {
       keypair = StellarSdk.Keypair.fromSecret(secretKey);
     } catch (kpErr) {
-      throw new Error(`STELLAR_SECRET_KEY inválida (não começa com S ou tem formato errado): ${(kpErr as Error).message}`);
+      throw new Error(`STELLAR_SECRET_KEY inválida (não começa com S ou tem formato errado): ${(kpErr as Error).message}`, { cause: kpErr });
     }
 
     stage = 'load_account';
@@ -58,9 +58,9 @@ Deno.serve(async (req: Request) => {
     } catch (accErr) {
       const msg = (accErr as Error).message;
       if (msg.includes('Not Found') || msg.includes('404')) {
-        throw new Error(`Conta custodial ${keypair.publicKey()} não existe na ${isTestnet ? 'testnet' : 'mainnet'}. Faça friendbot: https://friendbot.stellar.org/?addr=${keypair.publicKey()}`);
+        throw new Error(`Conta custodial ${keypair.publicKey()} não existe na ${isTestnet ? 'testnet' : 'mainnet'}. Faça friendbot: https://friendbot.stellar.org/?addr=${keypair.publicKey()}`, { cause: accErr });
       }
-      throw new Error(`Falha ao carregar conta na Horizon: ${msg}`);
+      throw new Error(`Falha ao carregar conta na Horizon: ${msg}`, { cause: accErr });
     }
 
     stage = 'build_tx';
@@ -85,12 +85,11 @@ Deno.serve(async (req: Request) => {
     let result;
     try {
       result = await server.submitTransaction(tx);
-    } catch (submitErr: any) {
-      // Erros do Horizon vêm com response.data com detalhes
-      const horizonError = submitErr?.response?.data;
+    } catch (submitErr: unknown) {
+      const horizonError = (submitErr as any)?.response?.data;
       const codes = horizonError?.extras?.result_codes;
-      const detail = codes ? JSON.stringify(codes) : submitErr.message;
-      throw new Error(`Stellar rejeitou a transação: ${detail}`);
+      const detail = codes ? JSON.stringify(codes) : (submitErr as Error).message;
+      throw new Error(`Stellar rejeitou a transação: ${detail}`, { cause: submitErr });
     }
 
     stage = 'update_db';
