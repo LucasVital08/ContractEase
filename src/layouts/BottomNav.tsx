@@ -5,7 +5,7 @@ import { useNotificationStore } from '@/stores';
 const MOBILE_NAV_ITEMS = [
   { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Início' },
   { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Feed' },
-  { to: '/contracts', icon: 'solar:document-text-bold-duotone', label: 'Docs' },
+  { to: '/contracts', icon: 'solar:folder-with-files-bold-duotone', label: 'Meus' },
   { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo', highlight: true },
   { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Plano' },
   { to: '/settings', icon: 'solar:settings-bold-duotone', label: 'Menu' },

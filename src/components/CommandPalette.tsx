@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Icon } from '@iconify/react';
-import { useContracts } from '@/hooks/useContractQueries';
 
 interface CommandItem {
   id: string;
@@ -20,31 +19,19 @@ export default function CommandPalette() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
-  const { data: contracts = [] } = useContracts();
 
   const commands: CommandItem[] = [
     { id: 'new-contract', title: 'Novo Contrato', description: 'Criar um novo documento do zero', icon: 'solar:plus-bold', category: 'Ações Rápidas', action: () => navigate('/contracts/new'), shortcut: 'N' },
-    { id: 'contracts', title: 'Ver Contratos', description: 'Lista de todos os seus documentos', icon: 'solar:file-text-bold', category: 'Navegação', action: () => navigate('/contracts') },
-    { id: 'templates', title: 'Modelos / Templates', description: 'Biblioteca de documentos prontos', icon: 'solar:layout-bold', category: 'Navegação', action: () => navigate('/templates') },
+    { id: 'contracts', title: 'Meus Contratos', description: 'Documentos e contratos inteligentes', icon: 'solar:file-text-bold', category: 'Navegação', action: () => navigate('/contracts') },
+    { id: 'templates', title: 'Biblioteca', description: 'Templates de documentos e contratos inteligentes', icon: 'solar:layout-bold', category: 'Navegação', action: () => navigate('/templates') },
     { id: 'finance', title: 'Financeiro & Créditos', description: 'Gerenciar saldo e assinatura', icon: 'ph:coins-bold', category: 'Sistema', action: () => navigate('/finance'), shortcut: 'F' },
     { id: 'settings', title: 'Configurações', description: 'Preferências da conta e organização', icon: 'solar:settings-bold', category: 'Sistema', action: () => navigate('/settings'), shortcut: ',' },
     { id: 'analytics', title: 'Analytics', description: 'Métricas e performance', icon: 'solar:chart-square-bold', category: 'Sistema', action: () => navigate('/analytics') },
   ];
 
-  const contractCommands: CommandItem[] = contracts.map(c => ({
-    id: `contract-${c.id}`,
-    title: c.title,
-    description: `${c.status} · ${c.parties.length} parte${c.parties.length !== 1 ? 's' : ''}`,
-    icon: c.tags?.includes('smart-contract') ? 'solar:code-square-bold' : 'solar:file-text-bold',
-    category: 'Documentos',
-    action: () => navigate(`/contracts/${c.id}`),
-  }));
-
-  const allItems = [...commands, ...contractCommands];
-
   const filteredCommands = query === ''
     ? commands
-    : allItems.filter(c =>
+    : commands.filter(c =>
         c.title.toLowerCase().includes(query.toLowerCase()) ||
         c.description.toLowerCase().includes(query.toLowerCase()) ||
         c.category.toLowerCase().includes(query.toLowerCase())

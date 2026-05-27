@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNotificationStore } from '@/stores';
 import { api } from '@/services/api';
@@ -10,16 +10,29 @@ import {
   type ContractTemplate,
   type TemplateVariable,
 } from '@/services/templateEngine';
+import {
+  CATEGORIES as SMART_CATEGORIES,
+  SMART_CONTRACT_TEMPLATES,
+  type SmartContractCategory,
+  type SmartContractTemplate,
+} from '@/services/smartContractTemplates';
 import { useCreateContract } from '@/hooks/useContractQueries';
+
+type LibraryType = 'documents' | 'smart';
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const notify = useNotificationStore(s => s.add);
   const createMutation = useCreateContract();
+  const initialLibraryType = searchParams.get('library') === 'smart' ? 'smart' : 'documents';
 
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [libraryType, setLibraryType] = useState<LibraryType>(initialLibraryType);
+  const [showLibraryChooser, setShowLibraryChooser] = useState(() => !searchParams.has('library'));
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedSmartCategory, setSelectedSmartCategory] = useState<SmartContractCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<ContractTemplate | null>(null);
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
@@ -63,6 +76,13 @@ export default function TemplatesPage() {
     }
   }
 
+  const selectLibraryType = (type: LibraryType) => {
+    setLibraryType(type);
+    setSelectedTemplate(null);
+    setShowLibraryChooser(false);
+    setSearchParams({ library: type });
+  };
+
   const filteredTemplates = useMemo(() => {
     return templates.filter(t => {
       const matchSearch = !searchQuery || 
@@ -72,6 +92,20 @@ export default function TemplatesPage() {
       return matchSearch;
     });
   }, [templates, searchQuery]);
+
+  const filteredSmartTemplates = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return SMART_CONTRACT_TEMPLATES.filter(template => {
+      const matchCategory = selectedSmartCategory === 'all' || template.category === selectedSmartCategory;
+      const matchSearch = !query
+        || template.name.toLowerCase().includes(query)
+        || template.description.toLowerCase().includes(query)
+        || template.useCases.some(useCase => useCase.toLowerCase().includes(query));
+
+      return matchCategory && matchSearch;
+    });
+  }, [searchQuery, selectedSmartCategory]);
 
   const handleSelectTemplate = (template: ContractTemplate) => {
     setSelectedTemplate(template);
@@ -117,8 +151,8 @@ export default function TemplatesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold font-bricolage text-white">Marketplace de Templates</h2>
-          <p className="text-neutral-400 mt-1">Modelos pré-aprovados para acelerar a criação de contratos.</p>
+          <h2 className="text-2xl font-bold font-bricolage text-white">Biblioteca</h2>
+          <p className="text-neutral-400 mt-1">Modelos para documentos contratuais e contratos inteligentes.</p>
         </div>
         <div className="flex items-center gap-2 bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 w-full sm:w-auto sm:min-w-[280px]">
           <iconify-icon icon="solar:magnifer-bold" class="text-neutral-500" />
@@ -132,26 +166,128 @@ export default function TemplatesPage() {
         </div>
       </div>
 
-      {/* Categories */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {TEMPLATE_CATEGORIES.map(cat => (
+      <AnimatePresence>
+        {showLibraryChooser && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 14 }}
+              className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-neutral-950 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.55)]"
+            >
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-300">Biblioteca</p>
+                  <h3 className="mt-2 text-2xl font-bold text-white font-bricolage">Por onde você quer começar?</h3>
+                  <p className="mt-2 text-sm leading-6 text-neutral-400">Você pode alternar entre as opções depois, dentro da própria biblioteca.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLibraryChooser(false)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 text-neutral-500 hover:bg-white/[0.05] hover:text-white"
+                  title="Fechar"
+                >
+                  <iconify-icon icon="solar:close-circle-bold" class="text-xl" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => selectLibraryType('documents')}
+                  className="group rounded-2xl border border-emerald-400/18 bg-emerald-500/8 p-5 text-left transition-all hover:border-emerald-400/34 hover:bg-emerald-500/12"
+                >
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/18 bg-emerald-500/12 text-emerald-300">
+                    <iconify-icon icon="solar:document-text-bold-duotone" class="text-2xl" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">Documentos Contratuais</h4>
+                  <p className="mt-2 text-sm leading-6 text-neutral-400">Templates com cláusulas, partes, assinatura digital e registro de prova na blockchain.</p>
+                  <span className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-emerald-300">
+                    Ver templates
+                    <iconify-icon icon="solar:arrow-right-linear" class="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => selectLibraryType('smart')}
+                  className="group rounded-2xl border border-cyan-400/18 bg-cyan-500/8 p-5 text-left transition-all hover:border-cyan-400/34 hover:bg-cyan-500/12"
+                >
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/18 bg-cyan-500/12 text-cyan-300">
+                    <iconify-icon icon="solar:cpu-bolt-bold-duotone" class="text-2xl" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">Contratos Inteligentes</h4>
+                  <p className="mt-2 text-sm leading-6 text-neutral-400">Templates com dinheiro programável, automação e execução on-chain.</p>
+                  <span className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-cyan-300">
+                    Ver templates
+                    <iconify-icon icon="solar:arrow-right-linear" class="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {([
+          { id: 'documents', label: 'Documentos Contratuais', description: 'Templates com cláusulas, partes e assinatura digital', icon: 'solar:document-text-bold-duotone' },
+          { id: 'smart', label: 'Contratos Inteligentes', description: 'Templates com dinheiro programável e execução on-chain', icon: 'solar:cpu-bolt-bold-duotone' },
+        ] as const).map(tab => (
           <button
-            key={cat.id}
-            onClick={() => setSelectedCategory(cat.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-              selectedCategory === cat.id
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'bg-neutral-900 text-neutral-400 border border-white/5 hover:border-white/20 hover:text-white'
+            key={tab.id}
+            type="button"
+            onClick={() => selectLibraryType(tab.id)}
+            className={`group rounded-2xl border p-4 text-left transition-all ${
+              libraryType === tab.id
+                ? 'border-emerald-400/30 bg-emerald-500/10 text-white'
+                : 'border-white/8 bg-neutral-900/60 text-neutral-400 hover:border-white/14 hover:text-white'
             }`}
           >
-            <iconify-icon icon={cat.icon} class="text-lg" />
-            {cat.label}
+            <div className="flex items-center gap-3">
+              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
+                libraryType === tab.id ? 'border-emerald-400/20 bg-emerald-500/14 text-emerald-300' : 'border-white/8 bg-white/[0.03] text-neutral-500 group-hover:text-neutral-200'
+              }`}>
+                <iconify-icon icon={tab.icon} class="text-xl" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm">{tab.label}</p>
+                <p className="mt-1 text-xs leading-5 text-neutral-500">{tab.description}</p>
+              </div>
+            </div>
           </button>
         ))}
       </div>
 
+      {/* Categories */}
+      {libraryType === 'documents' ? (
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {TEMPLATE_CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                selectedCategory === cat.id
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-neutral-900 text-neutral-400 border border-white/5 hover:border-white/20 hover:text-white'
+              }`}
+            >
+              <iconify-icon icon={cat.icon} class="text-lg" />
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <SmartTemplateLibrary
+          templates={filteredSmartTemplates}
+          selectedCategory={selectedSmartCategory}
+          onSelectCategory={setSelectedSmartCategory}
+          onSelectTemplate={(template) => navigate('/smart-contracts', { state: { autoSelectTemplateId: template.id } })}
+        />
+      )}
+
       {/* Grid / Detail View */}
-      <AnimatePresence mode="wait">
+      {libraryType === 'documents' && <AnimatePresence mode="wait">
         {selectedTemplate ? (
           <motion.div key="detail" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             {/* Back button */}
@@ -314,8 +450,91 @@ export default function TemplatesPage() {
             )}
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>}
     </motion.div>
+  );
+}
+
+function SmartTemplateLibrary({
+  templates,
+  selectedCategory,
+  onSelectCategory,
+  onSelectTemplate,
+}: {
+  templates: SmartContractTemplate[];
+  selectedCategory: SmartContractCategory | 'all';
+  onSelectCategory: (category: SmartContractCategory | 'all') => void;
+  onSelectTemplate: (template: SmartContractTemplate) => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {SMART_CATEGORIES.map(category => (
+          <button
+            key={category.id}
+            onClick={() => onSelectCategory(category.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+              selectedCategory === category.id
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                : 'bg-neutral-900 text-neutral-400 border border-white/5 hover:border-white/20 hover:text-white'
+            }`}
+          >
+            <iconify-icon icon={category.icon} class="text-lg" />
+            {category.label}
+          </button>
+        ))}
+      </div>
+
+      {templates.length === 0 ? (
+        <div className="text-center py-20 border border-dashed border-white/10 rounded-2xl">
+          <iconify-icon icon="solar:folder-error-bold-duotone" class="text-5xl text-neutral-600 mb-4" />
+          <p className="text-neutral-400">Nenhum template inteligente encontrado para esta busca.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {templates.map(template => (
+            <motion.button
+              key={template.id}
+              whileHover={{ y: -4 }}
+              onClick={() => onSelectTemplate(template)}
+              className="bg-neutral-900 border border-white/5 rounded-2xl p-6 hover:border-cyan-500/30 transition-all cursor-pointer group text-left"
+            >
+              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center mb-4 group-hover:bg-cyan-500/20 transition-colors">
+                <iconify-icon icon="solar:cpu-bolt-bold-duotone" class="text-2xl text-cyan-300" />
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-lg font-bold text-white mb-2 group-hover:text-cyan-300 transition-colors">{template.name}</h3>
+                <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${
+                  template.isFullyImplemented ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                }`}>
+                  {template.isFullyImplemented ? 'Operacional' : 'Beta'}
+                </span>
+              </div>
+              <p className="text-neutral-400 text-sm mb-4 line-clamp-3">{template.description}</p>
+
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Campos</p>
+                  <p className="mt-1 text-sm font-semibold text-white">{template.variables.length}</p>
+                </div>
+                <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Complexidade</p>
+                  <p className="mt-1 text-sm font-semibold text-cyan-300">{template.difficulty}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 pt-4 border-t border-white/5">
+                {template.useCases.slice(0, 3).map(useCase => (
+                  <span key={useCase} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-neutral-500">
+                    {useCase}
+                  </span>
+                ))}
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

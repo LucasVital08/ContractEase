@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { useAuthStore } from '@/stores';
+import { useAuthStore, useUIStore } from '@/stores';
 import { useInbox } from '@/hooks/useInbox';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
@@ -10,9 +10,9 @@ import WalletConnectButton from '@/components/WalletConnectButton';
 
 const ROUTE_TITLES: Record<string, { title: string; icon?: string; breadcrumb?: string[] }> = {
   '/dashboard': { title: 'Dashboard', icon: 'solar:widget-5-bold-duotone', breadcrumb: ['Dashboard'] },
-  '/contracts': { title: 'Documentos', icon: 'solar:document-text-bold-duotone', breadcrumb: ['Documentos'] },
+  '/contracts': { title: 'Meus Contratos', icon: 'solar:folder-with-files-bold-duotone', breadcrumb: ['Meus Contratos'] },
   '/contracts/new': { title: 'Novo Documento', icon: 'solar:add-circle-bold-duotone', breadcrumb: ['Documentos', 'Novo'] },
-  '/templates': { title: 'Templates', icon: 'solar:copy-bold-duotone', breadcrumb: ['Templates'] },
+  '/templates': { title: 'Biblioteca', icon: 'solar:copy-bold-duotone', breadcrumb: ['Biblioteca'] },
   '/analytics': { title: 'Analytics', icon: 'solar:chart-2-bold-duotone', breadcrumb: ['Analytics'] },
   '/settings': { title: 'Configurações', icon: 'solar:settings-bold-duotone', breadcrumb: ['Configurações'] },
   '/finance': { title: 'Faturamento & Créditos', icon: 'solar:card-bold-duotone', breadcrumb: ['Faturamento'] },
@@ -25,6 +25,7 @@ export default function Topbar() {
   const [showProfile, setShowProfile] = useState(false);
   const { user, logout, activeProfile, setActiveProfile } = useAuthStore();
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useInbox();
+  const { theme, setTheme } = useUIStore();
 
   const routeInfo = ROUTE_TITLES[location.pathname] || { title: 'ContractEase', breadcrumb: ['Home'] };
   const title = routeInfo.title;
@@ -214,6 +215,23 @@ export default function Topbar() {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Theme Toggle */}
+        <motion.button
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+          title={theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <motion.div
+            initial={false}
+            animate={{ rotate: theme === 'light' ? 180 : 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <iconify-icon icon={theme === 'dark' ? 'solar:moon-bold' : 'solar:sun-bold'} class="text-lg" />
+          </motion.div>
+        </motion.button>
 
         <div className="w-px h-6 bg-white/10 mx-2" />
 

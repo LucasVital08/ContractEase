@@ -23,6 +23,12 @@ const TYPE_LABELS: Record<string, string> = {
   sale: 'Compra/Venda', power_of_attorney: 'Procuração', declaration: 'Declaração', receipt: 'Recibo'
 };
 
+type ContractScope = 'all' | 'documents' | 'smart';
+
+function isSmartContract(contract: Pick<Contract, 'tags'>) {
+  return contract.tags.includes('smart-contract');
+}
+
 export default function ContractsPage() {
   const notify = useNotificationStore(s => s.add);
   const navigate = useNavigate();
@@ -36,6 +42,7 @@ export default function ContractsPage() {
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>(() =>
     (searchParams.get('status') as ContractStatus) || 'all'
   );
+  const [contractScope, setContractScope] = useState<ContractScope>('all');
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [folderFilter, setFolderFilter] = useState<string | null>(null);
@@ -49,6 +56,8 @@ export default function ContractsPage() {
     const q = search.toLowerCase();
     return contracts.filter((c) => {
       const matchStatus = statusFilter === 'all' ? c.status !== 'archived' : c.status === statusFilter;
+      const matchScope = contractScope === 'all'
+        || (contractScope === 'smart' ? isSmartContract(c) : !isSmartContract(c));
       
       // Full-text search
       const matchSearch = !q || 
@@ -64,9 +73,15 @@ export default function ContractsPage() {
       // Favorites filter
       const matchFavorites = !showFavoritesOnly || c.isFavorite;
 
-      return matchStatus && matchSearch && matchFolder && matchFavorites;
+      return matchStatus && matchScope && matchSearch && matchFolder && matchFavorites;
     });
-  }, [contracts, statusFilter, search, folderFilter, showFavoritesOnly]);
+  }, [contracts, contractScope, statusFilter, search, folderFilter, showFavoritesOnly]);
+
+  const scopeCounts = useMemo(() => ({
+    all: contracts.filter(c => c.status !== 'archived').length,
+    documents: contracts.filter(c => c.status !== 'archived' && !isSmartContract(c)).length,
+    smart: contracts.filter(c => c.status !== 'archived' && isSmartContract(c)).length,
+  }), [contracts]);
 
   if (isLoading) {
     return (
@@ -120,8 +135,8 @@ export default function ContractsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold font-bricolage text-white">Todos os Documentos</h2>
-          <p className="text-neutral-400 text-sm mt-1">{filtered.length} {filtered.length === 1 ? 'documento encontrado' : 'documentos encontrados'}</p>
+          <h2 className="text-2xl font-bold font-bricolage text-white">Meus Contratos</h2>
+          <p className="text-neutral-400 text-sm mt-1">{filtered.length} itens encontrados entre documentos e contratos inteligentes</p>
         </div>
         <div className="flex gap-3">
           <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1">
@@ -156,6 +171,40 @@ export default function ContractsPage() {
             Novo
           </Link>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {([
+          { id: 'all', label: 'Todos', description: 'Documentos contratuais e contratos inteligentes', icon: 'solar:folder-with-files-bold-duotone', count: scopeCounts.all },
+          { id: 'documents', label: 'Documentos Contratuais', description: 'Cláusulas, partes e assinatura na blockchain', icon: 'solar:document-text-bold-duotone', count: scopeCounts.documents },
+          { id: 'smart', label: 'Contratos Inteligentes', description: 'Dinheiro programável, automação e execução on-chain', icon: 'solar:cpu-bolt-bold-duotone', count: scopeCounts.smart },
+        ] as const).map(scope => (
+          <button
+            key={scope.id}
+            type="button"
+            onClick={() => setContractScope(scope.id)}
+            className={`group rounded-2xl border p-4 text-left transition-all ${
+              contractScope === scope.id
+                ? 'border-emerald-400/30 bg-emerald-500/10 text-white'
+                : 'border-white/8 bg-neutral-900/60 text-neutral-400 hover:border-white/14 hover:text-white'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
+                  contractScope === scope.id ? 'border-emerald-400/20 bg-emerald-500/14 text-emerald-300' : 'border-white/8 bg-white/[0.03] text-neutral-500 group-hover:text-neutral-200'
+                }`}>
+                  <iconify-icon icon={scope.icon} class="text-lg" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">{scope.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-neutral-500">{scope.description}</p>
+                </div>
+              </div>
+              <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-xs font-semibold text-neutral-300">{scope.count}</span>
+            </div>
+          </button>
+        ))}
       </div>
 
       {/* Filters Bar */}
@@ -354,6 +403,11 @@ export default function ContractsPage() {
               <span className="px-2 py-0.5 rounded bg-white/5 text-[11px] text-neutral-400">
                 {TYPE_LABELS[contract.type] ?? contract.type}
               </span>
+              {isSmartContract(contract) && (
+                <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-[10px] text-cyan-300 border border-cyan-500/20 flex items-center gap-1">
+                  <iconify-icon icon="solar:cpu-bolt-bold" /> Inteligente
+                </span>
+              )}
               {folder && (
                 <div className="relative">
                   <button 

@@ -1,23 +1,25 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useUIStore, useAuthStore, useNotificationStore } from '@/stores';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { api } from '@/services/api';
 import { animations } from '@/tokens';
+import contracteaseLogo from '@/assets/contractease-logo.svg';
 
 const WorkspaceSetupWizard = lazy(() => import('@/components/WorkspaceSetupWizard'));
 const WorkspaceSettingsModal = lazy(() => import('@/components/WorkspaceSettingsModal'));
 
 const NAV_ITEMS = [
   // Business Items - Core
-  { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Painel', description: 'ritmo, filas e leitura geral', profile: 'business', section: 'core' },
-  { to: '/contracts', icon: 'solar:document-text-bold-duotone', label: 'Documentos', description: 'contratos, rascunhos e provas', profile: 'business', section: 'core' },
+  { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Perfil', description: 'identidade e visão geral', profile: 'business', section: 'core' },
+
+  // Meus Contratos
+  { to: '/contracts', icon: 'solar:folder-with-files-bold-duotone', label: 'Meus Contratos', description: 'documentos e contratos inteligentes', profile: 'business', section: 'core' },
 
   // Business Items - Actions
   { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Criar Contrato', description: 'abrir um novo fluxo contratual', profile: 'business', section: 'actions' },
   { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Biblioteca', description: 'modelos prontos para acelerar', profile: 'business', section: 'actions' },
-  { to: '/smart-contracts', icon: 'solar:cpu-bolt-bold-duotone', label: 'Contratos Inteligentes', description: 'automação, lógica e execução', profile: 'business', section: 'actions' },
-  { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Oportunidades', description: 'mercado, demanda e match', profile: 'business', section: 'actions' },
+  { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Feed de oportunidades', description: 'mercado, demanda e match', profile: 'business', section: 'market' },
 
   // Business Items - Analytics
   { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Financeiro', description: 'receita, créditos e saldo', profile: 'business', section: 'analytics' },
@@ -33,6 +35,38 @@ const ADMIN_ITEMS = [
   { to: '/admin', icon: 'solar:server-square-bold-duotone', label: 'Super-Admin' },
 ];
 
+const SECTION_STYLES: Record<string, {
+  activeCard: string;
+  activeRail: string;
+  activeIcon: string;
+}> = {
+  core: {
+    activeCard: 'border-emerald-400/18 bg-[linear-gradient(90deg,rgba(16,185,129,0.16),rgba(52,211,153,0.08),transparent)] text-white shadow-[0_10px_30px_rgba(16,185,129,0.08)]',
+    activeRail: 'bg-gradient-to-b from-emerald-300 to-teal-300',
+    activeIcon: 'border-emerald-400/16 bg-emerald-500/12 text-emerald-300',
+  },
+  contracts: {
+    activeCard: 'border-violet-400/18 bg-[linear-gradient(90deg,rgba(139,92,246,0.16),rgba(168,85,247,0.08),transparent)] text-white shadow-[0_10px_30px_rgba(139,92,246,0.08)]',
+    activeRail: 'bg-gradient-to-b from-violet-300 to-purple-300',
+    activeIcon: 'border-violet-400/16 bg-violet-500/12 text-violet-300',
+  },
+  actions: {
+    activeCard: 'border-cyan-400/18 bg-[linear-gradient(90deg,rgba(6,182,212,0.16),rgba(59,130,246,0.08),transparent)] text-white shadow-[0_10px_30px_rgba(6,182,212,0.08)]',
+    activeRail: 'bg-gradient-to-b from-cyan-300 to-blue-300',
+    activeIcon: 'border-cyan-400/16 bg-cyan-500/12 text-cyan-300',
+  },
+  analytics: {
+    activeCard: 'border-amber-400/18 bg-[linear-gradient(90deg,rgba(245,158,11,0.16),rgba(249,115,22,0.08),transparent)] text-white shadow-[0_10px_30px_rgba(245,158,11,0.08)]',
+    activeRail: 'bg-gradient-to-b from-amber-300 to-orange-300',
+    activeIcon: 'border-amber-400/16 bg-amber-500/12 text-amber-300',
+  },
+  developer: {
+    activeCard: 'border-fuchsia-400/18 bg-[linear-gradient(90deg,rgba(217,70,239,0.16),rgba(168,85,247,0.08),transparent)] text-white shadow-[0_10px_30px_rgba(217,70,239,0.08)]',
+    activeRail: 'bg-gradient-to-b from-fuchsia-300 to-violet-300',
+    activeIcon: 'border-fuchsia-400/16 bg-fuchsia-500/12 text-fuchsia-300',
+  },
+};
+
 
 export default function Sidebar() {
   const { sidebarCollapsed, toggleCollapse } = useUIStore();
@@ -40,6 +74,7 @@ export default function Sidebar() {
   const addNotification = useNotificationStore(state => state.add);
   const navigate = useNavigate();
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const [isLibraryExpanded, setIsLibraryExpanded] = useState(true);
   const [showCreateFlow, setShowCreateFlow] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [allOrgs, setAllOrgs] = useState<any[]>([]);
@@ -134,79 +169,57 @@ export default function Sidebar() {
       className="hidden sm:flex fixed left-0 top-0 bottom-0 z-40 flex-col border-r border-white/8 bg-[linear-gradient(180deg,rgba(6,9,13,0.98),rgba(7,10,14,0.96))] shadow-[18px_0_60px_rgba(0,0,0,0.26)]"
     >
       {/* Logo */}
-      <div
-        className="flex h-16 items-center gap-3 border-b border-white/8 px-5 cursor-pointer hover:opacity-80 transition-opacity"
-        onClick={() => navigate('/dashboard')}
+      <Link
+        to="/dashboard"
+        title="Ir para o Painel"
+        className="flex h-16 items-center gap-3 border-b border-app-border px-5 transition-opacity hover:opacity-80"
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500 to-cyan-500 text-white font-bold text-sm shrink-0 shadow-[0_10px_24px_rgba(16,185,129,0.18)]">
-          CE
+        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-2xl shadow-[0_8px_24px_rgba(124,58,237,0.34)]">
+          <img src={contracteaseLogo} alt="ContractEase" className="h-full w-full object-contain" />
         </div>
         {!sidebarCollapsed && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-w-0">
-            <p className="font-bricolage text-lg font-bold tracking-tight text-white whitespace-nowrap">ContractEase</p>
-            <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-neutral-500">Command Deck</p>
+            <p className="font-bricolage text-xl font-bold tracking-tight whitespace-nowrap">
+              <span className="text-app-text">Contract</span>
+              <span className="bg-gradient-to-r from-violet-400 to-purple-500 bg-clip-text text-transparent">Ease</span>
+            </p>
           </motion.div>
         )}
-      </div>
+      </Link>
 
       {/* Workspace Switcher */}
       {!sidebarCollapsed && organization && (
-        <div className="px-3 pt-4 mb-2 relative" ref={dropdownRef}>
-          <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.24em] text-neutral-500">Ambiente ativo</p>
-          <div 
+        <div className="px-3 pt-3 mb-2 relative" ref={dropdownRef}>
+          <div
             onClick={() => setIsWorkspaceOpen(!isWorkspaceOpen)}
-            className={`group w-full cursor-pointer rounded-[22px] border p-2.5 transition-all ${
-              isWorkspaceOpen ? 'border-emerald-400/18 bg-emerald-500/10' : 'border-white/10 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.05]'
+            className={`group w-full cursor-pointer rounded-2xl border p-2.5 transition-all ${
+              isWorkspaceOpen ? 'border-emerald-400/18 bg-emerald-500/10' : 'border-app-border bg-white/[0.03] hover:bg-white/[0.05]'
             }`}
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl border border-emerald-400/18 bg-gradient-to-br from-emerald-500 to-cyan-500 text-white font-bold text-xs shrink-0 shadow-[0_10px_24px_rgba(16,185,129,0.15)]">
+              <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 text-white font-bold text-xs shrink-0">
                 {(organization as any).logo_url
                   ? <img src={(organization as any).logo_url} alt={organization.name} className="w-full h-full object-cover" />
                   : organization.name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1 text-left">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.65)]" />
-                  <p className="truncate text-xs font-bold text-white">{organization.name}</p>
-                </div>
-                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-500">workspace operacional</p>
+                <p className="truncate text-sm font-semibold text-app-text">{organization.name}</p>
+                {organization.id !== 'personal' && (
+                  <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-app-text-subtle">{organization.plan}</p>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-emerald-400/18 bg-emerald-500/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-                  {organization.plan}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowWorkspaceSettings(true); }}
-                  className="flex h-7 w-7 items-center justify-center rounded-xl text-neutral-500 transition-all hover:bg-white/10 hover:text-white opacity-0 group-hover:opacity-100"
-                  title="Configurações do Workspace"
-                >
-                  <iconify-icon icon="solar:settings-bold" class="text-sm" />
-                </button>
-                <iconify-icon 
-                  icon="solar:alt-arrow-down-bold" 
-                  class={`text-neutral-500 transition-transform duration-300 ${isWorkspaceOpen ? 'rotate-180 text-white' : 'group-hover:text-white'}`} 
-                />
-              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowWorkspaceSettings(true); }}
+                className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg text-app-text-subtle transition-all hover:bg-white/10 hover:text-app-text group-hover:flex"
+                title="Configurações do workspace"
+              >
+                <iconify-icon icon="solar:settings-bold" class="text-sm" />
+              </button>
+              <iconify-icon
+                icon="solar:alt-arrow-down-bold"
+                class={`shrink-0 text-app-text-subtle transition-transform duration-300 ${isWorkspaceOpen ? 'rotate-180' : ''}`}
+              />
             </div>
-<<<<<<< HEAD
-=======
-            <div className="flex-1 text-left">
-              <p className="text-xs font-bold text-white truncate" title={organization.name}>{organization.name}</p>
-              <p className="text-[10px] text-emerald-500 font-bold uppercase">{organization.plan}</p>
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowWorkspaceSettings(true); }}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-neutral-500 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
-              title="Configurações do Workspace"
-            >
-              <iconify-icon icon="solar:settings-bold" class="text-sm" />
-            </button>
-            <iconify-icon 
-              icon="solar:alt-arrow-down-bold" 
-              class={`text-neutral-500 transition-transform duration-300 ${isWorkspaceOpen ? 'rotate-180 text-white' : 'group-hover:text-white'}`} 
-            />
->>>>>>> 27c3d63 (fix(contractease): corrige bugs do QA e melhorias de UX)
           </div>
 
           <AnimatePresence>
@@ -230,7 +243,6 @@ export default function Sidebar() {
                     </div>
                     <div className="flex-1 min-w-0 text-left">
                       <p className="text-xs font-bold text-white truncate">Espaço Pessoal</p>
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase">{user?.plan || 'free'}</p>
                     </div>
                     {organization.id === 'personal' && <iconify-icon icon="solar:check-circle-bold" class="text-emerald-500" />}
                   </button>
@@ -352,7 +364,9 @@ export default function Sidebar() {
         {(() => {
           const sections = {
             core: 'Operação',
+            contracts: 'Contratos',
             actions: 'Criação',
+            market: 'Mercado',
             analytics: 'Negócio',
             developer: 'Infra',
           };
@@ -368,7 +382,7 @@ export default function Sidebar() {
             groupedItems[section].push(item);
           });
 
-          const sectionOrder = ['core', 'actions', 'analytics', 'developer'];
+          const sectionOrder = ['core', 'contracts', 'actions', 'market', 'analytics', 'developer'];
 
           return sectionOrder.map((sectionKey) => {
             if (!groupedItems[sectionKey] || groupedItems[sectionKey].length === 0) return null;
@@ -386,21 +400,25 @@ export default function Sidebar() {
 
                 <motion.div className="space-y-1">
                   {groupedItems[sectionKey].map((item) => (
+                    <div key={item.to}>
                     <NavLink
-                      key={item.to}
                       to={item.to}
                       title={sidebarCollapsed ? item.label : ''}
                     >
                       {({ isActive }) => (
+                        (() => {
+                          const palette = SECTION_STYLES[sectionKey] ?? SECTION_STYLES.core;
+
+                          return (
                         <div className={`group relative flex items-center gap-3 overflow-hidden rounded-[22px] border px-3 py-3 transition-all ${
                           isActive
-                            ? 'border-emerald-400/18 bg-[linear-gradient(90deg,rgba(16,185,129,0.16),rgba(34,211,238,0.08),transparent)] text-white shadow-[0_10px_30px_rgba(16,185,129,0.08)]'
+                            ? palette.activeCard
                             : 'border-transparent text-neutral-400 hover:border-white/10 hover:bg-white/[0.04] hover:text-white'
                         }`}>
-                          {isActive && <div className="absolute inset-y-3 left-0 w-[3px] rounded-full bg-gradient-to-b from-emerald-300 to-cyan-300" />}
+                          {isActive && <div className={`absolute inset-y-3 left-0 w-[3px] rounded-full ${palette.activeRail}`} />}
                           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition-colors ${
                             isActive
-                              ? 'border-emerald-400/16 bg-emerald-500/12 text-emerald-300'
+                              ? palette.activeIcon
                               : 'border-white/8 bg-white/[0.03] text-neutral-500 group-hover:border-white/12 group-hover:text-neutral-200'
                           }`}>
                             <iconify-icon icon={item.icon} class="text-lg" />
@@ -437,9 +455,61 @@ export default function Sidebar() {
                               {item.label}
                             </motion.div>
                           )}
+
+                          {item.to === '/templates' && !sidebarCollapsed && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setIsLibraryExpanded(open => !open);
+                              }}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-black/20 text-neutral-500 transition-colors hover:border-white/14 hover:text-white"
+                              title={isLibraryExpanded ? 'Recolher opções da biblioteca' : 'Abrir opções da biblioteca'}
+                            >
+                              <iconify-icon
+                                icon="solar:alt-arrow-down-bold"
+                                class={`text-sm transition-transform ${isLibraryExpanded ? 'rotate-180' : ''}`}
+                              />
+                            </button>
+                          )}
                         </div>
+                          );
+                        })()
                       )}
                     </NavLink>
+                    {item.to === '/templates' && isLibraryExpanded && (
+                      <AnimatePresence initial={false}>
+                        {!sidebarCollapsed && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="ml-7 mt-1 space-y-1 overflow-hidden border-l border-white/8 pl-3"
+                          >
+                            <NavLink
+                              to="/templates?library=documents"
+                              className={({ isActive }) => `flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+                                isActive ? 'bg-emerald-500/10 text-emerald-300' : 'text-neutral-500 hover:bg-white/[0.04] hover:text-white'
+                              }`}
+                            >
+                              <iconify-icon icon="solar:document-text-bold-duotone" class="text-sm" />
+                              Documentos Contratuais
+                            </NavLink>
+                            <NavLink
+                              to="/smart-contracts"
+                              className={({ isActive }) => `flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+                                isActive ? 'bg-cyan-500/10 text-cyan-300' : 'text-neutral-500 hover:bg-white/[0.04] hover:text-white'
+                              }`}
+                            >
+                              <iconify-icon icon="solar:cpu-bolt-bold-duotone" class="text-sm" />
+                              Contratos Inteligentes
+                            </NavLink>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    )}
+                    </div>
                   ))}
                 </motion.div>
               </div>
@@ -479,28 +549,6 @@ export default function Sidebar() {
 
       {/* Bottom section */}
       <div className="space-y-3 border-t border-white/8 px-3 py-3">
-
-        {!sidebarCollapsed && (
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-neutral-500">Status do sistema</p>
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-black/20 px-3 py-2.5">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Rede</p>
-                  <p className="mt-1 text-xs font-semibold text-emerald-300">Testnet ativa</p>
-                </div>
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.7)]" />
-              </div>
-              <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-black/20 px-3 py-2.5">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Assinatura</p>
-                  <p className="mt-1 text-xs font-semibold text-white">{user?.walletAddress ? 'Carteira conectada' : 'Modo assistido'}</p>
-                </div>
-                <iconify-icon icon={user?.walletAddress ? 'solar:shield-check-bold-duotone' : 'solar:magic-stick-3-bold-duotone'} class={user?.walletAddress ? 'text-emerald-300 text-lg' : 'text-cyan-300 text-lg'} />
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Collapse toggle */}
         <button
