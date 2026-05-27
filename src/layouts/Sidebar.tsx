@@ -189,24 +189,6 @@ export default function Sidebar() {
                 />
               </div>
             </div>
-<<<<<<< HEAD
-=======
-            <div className="flex-1 text-left">
-              <p className="text-xs font-bold text-white truncate" title={organization.name}>{organization.name}</p>
-              <p className="text-[10px] text-emerald-500 font-bold uppercase">{organization.plan}</p>
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowWorkspaceSettings(true); }}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-neutral-500 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
-              title="Configurações do Workspace"
-            >
-              <iconify-icon icon="solar:settings-bold" class="text-sm" />
-            </button>
-            <iconify-icon 
-              icon="solar:alt-arrow-down-bold" 
-              class={`text-neutral-500 transition-transform duration-300 ${isWorkspaceOpen ? 'rotate-180 text-white' : 'group-hover:text-white'}`} 
-            />
->>>>>>> 27c3d63 (fix(contractease): corrige bugs do QA e melhorias de UX)
           </div>
 
           <AnimatePresence>
