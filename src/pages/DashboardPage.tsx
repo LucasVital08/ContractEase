@@ -8,6 +8,8 @@ import type { Contract } from '@/types';
 import { api, signingService } from '@/services/supabaseService';
 import { supabase } from '@/lib/supabase';
 import { formatOpportunityReward, type SmartContractOpportunity } from '@/services/smartContractOpportunityService';
+import { CATEGORIES, SMART_CONTRACT_TEMPLATES } from '@/services/smartContractTemplates';
+import { SmartContractGlyph, getSmartContractVisual } from '@/components/SmartContractVisual';
 
 function isSmartContract(contract: Pick<Contract, 'tags'> | null | undefined) {
   return Boolean(contract?.tags?.includes('smart-contract'));
@@ -553,7 +555,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
-            {opportunityFeed.map((opportunity) => (
+            {opportunityFeed.slice(0, 3).map((opportunity) => (
               <OpportunityPreviewCard key={opportunity.id} opportunity={opportunity} />
             ))}
           </div>
@@ -704,29 +706,77 @@ export default function DashboardPage() {
 }
 
 function OpportunityPreviewCard({ opportunity }: { opportunity: SmartContractOpportunity }) {
+  const template = SMART_CONTRACT_TEMPLATES.find((candidate) => candidate.id === opportunity.templateId) ?? SMART_CONTRACT_TEMPLATES[0];
+  const visual = getSmartContractVisual(template);
+  const category = CATEGORIES.find((candidate) => candidate.id === template.category);
+  const directionLabel = opportunity.opportunityType === 'request' ? 'Quero contratar' : 'Disponivel';
+  const operationLabel = opportunity.remoteAllowed ? 'Remoto / hibrido' : 'Presencial';
+  const ownerInitials = opportunity.ownerName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((piece) => piece[0])
+    .join('')
+    .toUpperCase() || opportunity.ownerHandle.slice(0, 2).toUpperCase();
+
   return (
     <Link
       to="/smart-contracts"
       state={{ marketplaceOpportunity: opportunity, autoSelectTemplateId: opportunity.templateId }}
-      className="rounded-2xl border border-white/8 bg-black/25 p-4 transition hover:border-emerald-400/20 hover:bg-black/35"
+      className="group relative isolate flex min-h-[260px] flex-col overflow-hidden rounded-[24px] border border-white/8 bg-neutral-950/80 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.20)] transition hover:-translate-y-0.5 hover:border-emerald-400/22 hover:bg-neutral-950/95"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">
-            {opportunity.opportunityType === 'request' ? 'Quero contratar' : 'Disponível'}
-          </p>
-          <h4 className="mt-2 text-sm font-semibold text-white leading-6">{opportunity.title}</h4>
+      <div className={`absolute inset-0 bg-gradient-to-br ${visual.accentGradient} opacity-35 transition-opacity group-hover:opacity-45`} />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.60))]" />
+      <div className={`absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl ${visual.accentGlow} opacity-45`} />
+
+      <div className="relative z-10 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30 text-[11px] font-bold text-white">
+            {opportunity.ownerAvatarUrl
+              ? <img src={opportunity.ownerAvatarUrl} alt={opportunity.ownerName} className="h-full w-full object-cover" />
+              : ownerInitials}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-white">{opportunity.ownerName}</p>
+            <p className="truncate text-[11px] text-neutral-500">@{opportunity.ownerHandle}</p>
+          </div>
         </div>
-        <span className="rounded-full border border-emerald-400/18 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300">
+        <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-500/12 px-2.5 py-1.5 text-right text-[10px] font-bold leading-4 text-emerald-200">
           {formatOpportunityReward(opportunity)}
         </span>
       </div>
 
-      <p className="mt-3 text-xs leading-6 text-neutral-400 line-clamp-3">{opportunity.summary}</p>
+      <div className="relative z-10 mt-4 flex flex-1 flex-col justify-between rounded-[20px] border border-white/8 bg-black/22 p-4 backdrop-blur-sm">
+        <div>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] ${opportunity.opportunityType === 'request' ? 'border-amber-300/22 bg-amber-500/10 text-amber-100' : 'border-cyan-300/22 bg-cyan-500/10 text-cyan-100'}`}>
+                {directionLabel}
+              </span>
+              {category && (
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-neutral-300">
+                  {category.label}
+                </span>
+              )}
+            </div>
+            <SmartContractGlyph template={template} size="sm" className="shrink-0" />
+          </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
-        <span>{opportunity.serviceCategory}</span>
-        <span>@{opportunity.ownerHandle}</span>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-white/50">{opportunity.serviceCategory}</p>
+          <h4 className="mt-2 line-clamp-2 text-base font-bold leading-6 text-white font-bricolage">{opportunity.title}</h4>
+          <p className="mt-3 line-clamp-2 text-xs leading-5 text-neutral-300">{opportunity.summary}</p>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/8 pt-3 text-[11px]">
+          <span className="inline-flex items-center gap-1.5 text-neutral-400">
+            <iconify-icon icon={opportunity.remoteAllowed ? 'solar:laptop-bold-duotone' : 'solar:map-point-bold-duotone'} class="text-sm text-cyan-300" />
+            {operationLabel}
+          </span>
+          <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-300 transition group-hover:gap-2">
+            Abrir template
+            <iconify-icon icon="solar:arrow-right-up-bold" class="text-sm" />
+          </span>
+        </div>
       </div>
     </Link>
   );
