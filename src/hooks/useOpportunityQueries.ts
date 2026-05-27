@@ -6,12 +6,16 @@ import {
   type OpportunityFeedFilters,
   type SendProposalInput,
 } from '@/services/smartContractOpportunityService';
+import { useAuthStore } from '@/stores';
 
 export function useOpportunityFeed(filters: OpportunityFeedFilters = {}) {
+  const initialized = useAuthStore(s => s.initialized);
   return useQuery({
     queryKey: ['opportunity-feed', filters],
     queryFn: () => smartContractOpportunityService.list(filters),
+    enabled: initialized,
     staleTime: 30_000,
+    retry: false,
   });
 }
 

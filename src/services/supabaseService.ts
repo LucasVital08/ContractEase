@@ -2,6 +2,17 @@ import { supabase } from '@/lib/supabase';
 import type { Contract, ContractDraft, Party, Clause } from '@/types';
 import { isHandle, normalizeHandle, resolveHandle } from './handleResolver';
 
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} demorou demais para responder.`)), ms);
+  });
+
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 // ─── Auth ────────────────────────────────────────────────────
 export const authService = {
   login: async (email: string, password: string) => {
@@ -396,7 +407,11 @@ export const contractsService = {
       query = query.is('organization_id', null);
     }
 
-    const { data: ownContracts, error } = await query.order('created_at', { ascending: false });
+    const { data: ownContracts, error } = await withTimeout(
+      query.order('created_at', { ascending: false }),
+      8000,
+      'Listagem de contratos'
+    );
     if (error) {
       console.error('[contractsService.list] query error:', error);
       throw new Error(error.message);
@@ -410,7 +425,11 @@ export const contractsService = {
     // Results are filtered to the same org scope and deduped against Query 1.
     let partyContracts: DbContract[] = [];
     try {
-      const { data: fnData, error: fnError } = await supabase.functions.invoke('get-party-contracts');
+      const { data: fnData, error: fnError } = await withTimeout(
+        supabase.functions.invoke('get-party-contracts'),
+        2500,
+        'Fallback de contratos por assinatura'
+      );
       if (!fnError && Array.isArray(fnData)) {
         partyContracts = (fnData as DbContract[]).filter(c => {
           if (ownIds.has(c.id)) return false;                  // already in Query 1
@@ -420,7 +439,8 @@ export const contractsService = {
           return orgMatch;
         });
       }
-    } catch {
+    } catch (fallbackError) {
+      console.warn('[contractsService.list] party-contracts fallback skipped:', fallbackError);
       // Edge function not deployed — RLS migration is the permanent path.
     }
 
@@ -817,7 +837,7 @@ export const templateService = {
     if (category && category !== 'all') {
       query = query.eq('category', category);
     }
-    const { data, error } = await query;
+    const { data, error } = await withTimeout(query, 8000, 'Listagem de templates');
     if (error) throw error;
     return data;
   },

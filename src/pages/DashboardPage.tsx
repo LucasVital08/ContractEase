@@ -271,6 +271,7 @@ export default function DashboardPage() {
   const { user, organization } = useAuthStore();
   const notify = useNotificationStore(s => s.add);
   const [isEditing, setIsEditing] = useState(false);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const [pendingSignatures, setPendingSignatures] = useState<any[]>([]);
   const [identitySettings, setIdentitySettings] = useState<Record<string, any>>({});
   const [profileExtra, setProfileExtra] = useState<{
@@ -282,6 +283,16 @@ export default function DashboardPage() {
     if (!user?.email) return;
     signingService.getPendingForUser(user.email).then(setPendingSignatures);
   }, [user?.email]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -356,7 +367,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !loadingTimedOut) {
     return (
       <div className="space-y-8">
         {/* Header skeleton */}

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useContracts, useDeleteContract, useFolders, useToggleFavorite, useMoveToFolder, useCreateFolder } from '@/hooks/useContractQueries';
@@ -33,6 +33,7 @@ export default function ContractsPage() {
   const notify = useNotificationStore(s => s.add);
   const navigate = useNavigate();
   const { data: contracts = [], isLoading } = useContracts();
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const { data: folders = [] } = useFolders();
   const deleteMutation = useDeleteContract();
   const toggleFavMutation = useToggleFavorite();
@@ -50,6 +51,16 @@ export default function ContractsPage() {
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState('#3b82f6');
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
 
   // Full-text search inside clauses, description, tags, parties (item 199)
   const filtered = useMemo(() => {
@@ -83,7 +94,7 @@ export default function ContractsPage() {
     smart: contracts.filter(c => c.status !== 'archived' && isSmartContract(c)).length,
   }), [contracts]);
 
-  if (isLoading) {
+  if (isLoading && !loadingTimedOut) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />

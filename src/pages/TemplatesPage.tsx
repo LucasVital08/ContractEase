@@ -29,6 +29,7 @@ export default function TemplatesPage() {
 
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const [libraryType, setLibraryType] = useState<LibraryType>(initialLibraryType);
   const [showLibraryChooser, setShowLibraryChooser] = useState(() => !searchParams.has('library'));
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -41,6 +42,16 @@ export default function TemplatesPage() {
   useEffect(() => {
     loadTemplates();
   }, [selectedCategory]);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   async function loadTemplates() {
     try {
@@ -394,7 +405,18 @@ export default function TemplatesPage() {
           </motion.div>
         ) : (
           <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            {filteredTemplates.length === 0 ? (
+            {loading && !loadingTimedOut ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <motion.div
+                    key={index}
+                    className="h-56 rounded-2xl border border-white/5 bg-neutral-900"
+                    animate={{ opacity: [0.45, 0.75, 0.45] }}
+                    transition={{ duration: 1.4, repeat: Infinity, delay: index * 0.06 }}
+                  />
+                ))}
+              </div>
+            ) : filteredTemplates.length === 0 ? (
               <div className="text-center py-20">
                 <iconify-icon icon="solar:folder-error-bold-duotone" class="text-5xl text-neutral-600 mb-4" />
                 <p className="text-neutral-400">Nenhum template encontrado para esta busca.</p>
