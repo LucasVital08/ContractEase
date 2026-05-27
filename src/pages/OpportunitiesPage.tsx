@@ -987,9 +987,9 @@ function OpportunityStandalonePage({
 
         <article className="overflow-hidden rounded-[34px] border border-white/10 bg-neutral-950/90 shadow-[0_32px_120px_rgba(0,0,0,0.42)]">
           <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
-            <section className={`relative min-h-[620px] bg-gradient-to-br ${visual.accentGradient} p-6 sm:p-8 lg:p-10`}>
+            <section className={`relative bg-gradient-to-br ${visual.accentGradient} p-6 sm:p-8 lg:min-h-[620px] lg:p-10`}>
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(0,0,0,0.34),transparent_38%)]" />
-              <div className="relative flex min-h-[540px] flex-col justify-between gap-10">
+              <div className="relative flex flex-col justify-between gap-6 lg:min-h-[540px] lg:gap-10">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full border border-white/15 bg-black/18 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
@@ -1006,7 +1006,7 @@ function OpportunityStandalonePage({
 
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">{metadata.heroLabel || opportunity.serviceCategory}</p>
-                  <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight text-white font-bricolage sm:text-6xl">
+                  <h1 className="mt-4 max-w-3xl text-2xl font-bold leading-tight text-white font-bricolage sm:text-4xl lg:text-6xl">
                     {opportunity.title}
                   </h1>
                   <p className="mt-5 max-w-2xl text-base leading-8 text-white/82">{opportunity.summary}</p>
