@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { CATEGORIES, SMART_CONTRACT_TEMPLATES } from '@/services/smartContractTemplates';
 import { SmartContractGlyph, getSmartContractVisual } from '@/components/SmartContractVisual';
@@ -135,9 +135,12 @@ function getOpportunityAcceptLabel(opportunity: SmartContractOpportunity) {
 
 export default function OpportunitiesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { opportunityId } = useParams<{ opportunityId?: string }>();
   const notify = useNotificationStore((state) => state.add);
   const { user } = useAuthStore();
+  const initialized = useAuthStore((s) => s.initialized);
+  const stateOpportunity = (location.state as { opportunity?: SmartContractOpportunity } | null)?.opportunity;
 
   const [kindFilter, setKindFilter] = useState<OpportunityType | 'all'>('all');
   const [search, setSearch] = useState('');
@@ -177,10 +180,11 @@ export default function OpportunitiesPage() {
     [feed],
   );
 
-  const routeOpportunity = useMemo(
-    () => opportunityId ? feed.find((opportunity) => opportunity.id === opportunityId) ?? null : null,
-    [feed, opportunityId],
-  );
+  const routeOpportunity = useMemo(() => {
+    if (!opportunityId) return null;
+    if (stateOpportunity?.id === opportunityId) return stateOpportunity;
+    return feed.find((opportunity) => opportunity.id === opportunityId) ?? null;
+  }, [feed, opportunityId, stateOpportunity]);
 
   const feedStats = useMemo(() => ({
     total: feed.length,
@@ -209,7 +213,7 @@ export default function OpportunitiesPage() {
 
   const handleOpenOpportunityPage = (opportunity: SmartContractOpportunity) => {
     setSelectedOpportunity(null);
-    navigate(getOpportunityPagePath(opportunity));
+    navigate(getOpportunityPagePath(opportunity), { state: { opportunity } });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -423,7 +427,7 @@ export default function OpportunitiesPage() {
   };
 
   if (opportunityId) {
-    if (isLoading) {
+    if (isLoading || !initialized) {
       return (
         <div className="min-h-screen p-6 lg:p-10">
           <div className="mx-auto max-w-6xl animate-pulse space-y-5">

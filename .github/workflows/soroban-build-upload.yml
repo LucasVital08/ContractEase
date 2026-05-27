@@ -1,0 +1,50 @@
+name: Soroban — Build & Upload WASMs
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'soroban-contracts/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./soroban-contracts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable + wasm32 target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            soroban-contracts/target
+          key: soroban-${{ runner.os }}-${{ hashFiles('soroban-contracts/Cargo.lock') }}
+          restore-keys: soroban-${{ runner.os }}-
+
+      - name: Install Stellar CLI
+        run: cargo install --locked stellar-cli@22.0.0
+
+      - name: Build WASMs
+        run: bash scripts/build-all.sh
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Upload WASMs to Supabase Storage
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: bash scripts/upload-wasms.sh ftjzxwlbgvghvzoztdik

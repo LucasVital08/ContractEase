@@ -29,6 +29,7 @@ const SeedPage = React.lazy(() => import('@/pages/SeedPage'));
 const StellarAnchorPage = React.lazy(() => import('@/pages/StellarAnchorPage'));
 const PublicProfilePage = React.lazy(() => import('@/pages/PublicProfilePage'));
 const OpportunitiesPage = React.lazy(() => import('@/pages/OpportunitiesPage'));
+const DocumentAuthPage = React.lazy(() => import('@/pages/DocumentAuthPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +88,7 @@ export default function App() {
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="seed" element={<SeedPage />} />
                 <Route path="stellar-anchor" element={<StellarAnchorPage />} />
+                <Route path="document-auth" element={<DocumentAuthPage />} />
               </Route>
               <Route path="*" element={<NotFoundPage />} />
             </Route>

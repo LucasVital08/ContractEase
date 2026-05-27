@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   // Business Items - Actions
   { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Criar Contrato', description: 'abrir um novo fluxo contratual', profile: 'business', section: 'actions' },
   { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Biblioteca', description: 'modelos prontos para acelerar', profile: 'business', section: 'actions' },
+  { to: '/document-auth', icon: 'solar:fingerprint-bold-duotone', label: 'Autenticar Documento', description: 'hash SHA-256 ancorado na blockchain', profile: 'business', section: 'actions' },
   { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Feed de oportunidades', description: 'mercado, demanda e match', profile: 'business', section: 'market' },
 
   // Business Items - Analytics
