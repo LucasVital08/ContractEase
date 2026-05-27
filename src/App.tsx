@@ -64,6 +64,7 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/sign/:contractId/:partyId" element={<PublicSignPage />} />
+            <Route path="/opportunities/:opportunityId" element={<OpportunitiesPage />} />
             {/* Perfis públicos — acessíveis sem autenticação */}
             <Route path="/:handle" element={<PublicHandleRoute />} />
             <Route path="/profile/:handle" element={<PublicProfilePage />} />

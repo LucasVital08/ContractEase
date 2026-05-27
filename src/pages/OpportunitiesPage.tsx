@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { CATEGORIES, SMART_CONTRACT_TEMPLATES } from '@/services/smartContractTemplates';
 import { SmartContractGlyph, getSmartContractVisual } from '@/components/SmartContractVisual';
@@ -120,12 +120,22 @@ function isFeaturedOpportunity(opportunity: SmartContractOpportunity) {
   return opportunity.id.startsWith('featured-') || opportunity.metadata.source === 'featured-suggestion';
 }
 
+function getOpportunityPagePath(opportunity: Pick<SmartContractOpportunity, 'id'>) {
+  return `/opportunities/${encodeURIComponent(opportunity.id)}`;
+}
+
+function getOpportunityShareUrl(opportunity: Pick<SmartContractOpportunity, 'id'>) {
+  const path = getOpportunityPagePath(opportunity);
+  return typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
+}
+
 function getOpportunityAcceptLabel(opportunity: SmartContractOpportunity) {
   return opportunity.opportunityType === 'request' ? 'Aceitar como executor' : 'Aceitar como contratante';
 }
 
 export default function OpportunitiesPage() {
   const navigate = useNavigate();
+  const { opportunityId } = useParams<{ opportunityId?: string }>();
   const notify = useNotificationStore((state) => state.add);
   const { user } = useAuthStore();
 
@@ -136,7 +146,7 @@ export default function OpportunitiesPage() {
   const [selectedOpportunity, setSelectedOpportunity] = useState<SmartContractOpportunity | null>(null);
   const [proposalDraftOpportunity, setProposalDraftOpportunity] = useState<SmartContractOpportunity | null>(null);
 
-  const { data: feed = [], isLoading } = useOpportunityFeed({ limit: 24, status: 'open' });
+  const { data: feed = [], isLoading } = useOpportunityFeed({ limit: opportunityId ? 100 : 24, status: opportunityId ? 'all' : 'open' });
   const createOpportunity = useCreateOpportunity();
   const acceptOpportunity = useAcceptOpportunity();
   const sendProposal = useSendProposal();
@@ -167,6 +177,11 @@ export default function OpportunitiesPage() {
     [feed],
   );
 
+  const routeOpportunity = useMemo(
+    () => opportunityId ? feed.find((opportunity) => opportunity.id === opportunityId) ?? null : null,
+    [feed, opportunityId],
+  );
+
   const feedStats = useMemo(() => ({
     total: feed.length,
     requests: feed.filter((opportunity) => opportunity.opportunityType === 'request').length,
@@ -190,6 +205,23 @@ export default function OpportunitiesPage() {
         autoSelectTemplateId: opportunity.templateId,
       },
     });
+  };
+
+  const handleOpenOpportunityPage = (opportunity: SmartContractOpportunity) => {
+    setSelectedOpportunity(null);
+    navigate(getOpportunityPagePath(opportunity));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleShareOpportunity = (opportunity: SmartContractOpportunity) => {
+    const url = getOpportunityShareUrl(opportunity);
+    const message = [
+      `Oportunidade no ContractEase: ${opportunity.title}`,
+      `${formatOpportunityReward(opportunity)} · ${opportunity.serviceCategory}`,
+      url,
+    ].join('\n');
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleAcceptOpportunity = async (opportunity: SmartContractOpportunity) => {
@@ -390,6 +422,66 @@ export default function OpportunitiesPage() {
     }
   };
 
+  if (opportunityId) {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen p-6 lg:p-10">
+          <div className="mx-auto max-w-6xl animate-pulse space-y-5">
+            <div className="h-8 w-48 rounded-full bg-white/8" />
+            <div className="h-[520px] rounded-[34px] border border-white/8 bg-neutral-900/60" />
+          </div>
+        </div>
+      );
+    }
+
+    if (!routeOpportunity) {
+      return (
+        <div className="min-h-screen p-6 lg:p-10">
+          <div className="mx-auto max-w-3xl rounded-[30px] border border-dashed border-white/10 bg-neutral-950/50 px-6 py-20 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] text-neutral-600">
+              <iconify-icon icon="solar:link-broken-bold-duotone" class="text-3xl" />
+            </div>
+            <p className="text-xl font-bold text-white font-bricolage">Oportunidade não encontrada</p>
+            <p className="mt-2 text-sm text-neutral-500">Esse link pode ter expirado, sido removido ou ainda não estar no feed carregado.</p>
+            <Link
+              to="/opportunities"
+              className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/14"
+            >
+              <iconify-icon icon="solar:arrow-left-bold-duotone" class="text-base" />
+              Voltar ao feed
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <OpportunityStandalonePage
+          opportunity={routeOpportunity}
+          currentUserId={user?.id ?? null}
+          accepting={acceptOpportunity.isPending && acceptOpportunity.variables === routeOpportunity.id}
+          onBack={() => navigate('/opportunities')}
+          onAccept={() => handleAcceptOpportunity(routeOpportunity)}
+          onOpenSmartContract={() => handleOpenSmartContract(routeOpportunity)}
+          onSendProposal={() => handleOpenSendProposal(routeOpportunity)}
+          onShareWhatsApp={() => handleShareOpportunity(routeOpportunity)}
+        />
+
+        <AnimatePresence>
+          {proposalDraftOpportunity && (
+            <SendProposalModal
+              opportunity={proposalDraftOpportunity}
+              onClose={() => setProposalDraftOpportunity(null)}
+              onSubmit={(amount, note) => handleSendProposal(proposalDraftOpportunity, amount, note)}
+              submitting={sendProposal.isPending}
+            />
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <header className="space-y-5">
@@ -553,6 +645,8 @@ export default function OpportunitiesPage() {
               handleOpenSmartContract(selectedOpportunity);
               setSelectedOpportunity(null);
             }}
+            onOpenPage={() => handleOpenOpportunityPage(selectedOpportunity)}
+            onShareWhatsApp={() => handleShareOpportunity(selectedOpportunity)}
             onSendProposal={() => handleOpenSendProposal(selectedOpportunity)}
             onAcceptProposal={(proposal) => handleAcceptProposal(selectedOpportunity, proposal)}
             onWithdrawProposal={(proposal) => handleWithdrawProposal(proposal)}
@@ -821,6 +915,210 @@ function OpportunityHeroMetric({ label, value }: { label: string; value: string 
   );
 }
 
+function OpportunityStandalonePage({
+  opportunity,
+  currentUserId,
+  accepting,
+  onBack,
+  onAccept,
+  onOpenSmartContract,
+  onSendProposal,
+  onShareWhatsApp,
+}: {
+  opportunity: SmartContractOpportunity;
+  currentUserId: string | null;
+  accepting: boolean;
+  onBack: () => void;
+  onAccept: () => void;
+  onOpenSmartContract: () => void;
+  onSendProposal: () => void;
+  onShareWhatsApp: () => void;
+}) {
+  const template = SMART_CONTRACT_TEMPLATES.find((candidate) => candidate.id === opportunity.templateId) ?? SMART_CONTRACT_TEMPLATES[0];
+  const visual = getSmartContractVisual(template);
+  const category = CATEGORIES.find((candidate) => candidate.id === template.category);
+  const metadata = getOpportunityMetadata(opportunity);
+  const isMine = currentUserId === opportunity.ownerId;
+  const acceptLabel = getOpportunityAcceptLabel(opportunity);
+  const { data: proposals = [] } = useOpportunityProposals(opportunity.id);
+  const activeProposalsCount = countActiveProposals(proposals);
+  const deadline = formatDeadline(opportunity.expiresAt);
+  const detailPoints = metadata.detailPoints.length > 0
+    ? metadata.detailPoints
+    : [
+      'Definir as partes, o escopo e a forma de aceite.',
+      'Travar a remuneracao ou o marco financeiro no template escolhido.',
+      'Executar a oportunidade com liberacao programada conforme a regra combinada.',
+    ];
+
+  return (
+    <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-neutral-200 transition hover:bg-white/[0.06]"
+          >
+            <iconify-icon icon="solar:arrow-left-bold-duotone" class="text-base" />
+            Voltar ao feed
+          </button>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={onShareWhatsApp}
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/12 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/18"
+            >
+              <iconify-icon icon="mdi:whatsapp" class="text-base" />
+              Compartilhar
+            </button>
+            <button
+              onClick={onOpenSmartContract}
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-400/22 bg-cyan-500/12 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/18"
+            >
+              <iconify-icon icon="solar:play-circle-bold-duotone" class="text-base" />
+              Abrir template
+            </button>
+          </div>
+        </div>
+
+        <article className="overflow-hidden rounded-[34px] border border-white/10 bg-neutral-950/90 shadow-[0_32px_120px_rgba(0,0,0,0.42)]">
+          <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
+            <section className={`relative min-h-[620px] bg-gradient-to-br ${visual.accentGradient} p-6 sm:p-8 lg:p-10`}>
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(0,0,0,0.34),transparent_38%)]" />
+              <div className="relative flex min-h-[540px] flex-col justify-between gap-10">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border border-white/15 bg-black/18 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
+                      {opportunity.opportunityType === 'request' ? 'Demanda publicada' : 'Disponibilidade publicada'}
+                    </span>
+                    {deadline && (
+                      <span className="rounded-full border border-amber-200/25 bg-amber-950/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-100">
+                        {deadline.label}
+                      </span>
+                    )}
+                  </div>
+                  <SmartContractGlyph template={template} size="lg" className="shrink-0" />
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">{metadata.heroLabel || opportunity.serviceCategory}</p>
+                  <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight text-white font-bricolage sm:text-6xl">
+                    {opportunity.title}
+                  </h1>
+                  <p className="mt-5 max-w-2xl text-base leading-8 text-white/82">{opportunity.summary}</p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <OpportunityHeroMetric label="Valor" value={formatOpportunityReward(opportunity)} />
+                  <OpportunityHeroMetric label="Pagamento" value={PAYOUT_COPY[opportunity.payoutMode]} />
+                  <OpportunityHeroMetric label="Formato" value={ENGAGEMENT_COPY[opportunity.engagementType]} />
+                </div>
+              </div>
+            </section>
+
+            <aside className="space-y-5 p-6 sm:p-8 lg:p-10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 text-sm font-bold text-white">
+                  {opportunity.ownerAvatarUrl
+                    ? <img src={opportunity.ownerAvatarUrl} alt={opportunity.ownerName} className="h-full w-full object-cover" />
+                    : opportunity.ownerName.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <Link to={`/@${opportunity.ownerHandle}`} className="truncate text-sm font-semibold text-white hover:underline">
+                    {opportunity.ownerName}
+                  </Link>
+                  <p className="truncate text-xs text-neutral-500">@{opportunity.ownerHandle}{opportunity.ownerJobTitle ? ` · ${opportunity.ownerJobTitle}` : ''}</p>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-neutral-500">Resumo compartilhavel</p>
+                <p className="mt-3 text-sm leading-7 text-neutral-300">{metadata.socialCaption || opportunity.summary}</p>
+              </div>
+
+              <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-neutral-500">Como essa oportunidade roda</p>
+                <ul className="mt-4 space-y-3">
+                  {detailPoints.map((point) => (
+                    <li key={point} className="flex items-start gap-3 text-sm leading-7 text-neutral-300">
+                      <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-emerald-400/85" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] text-neutral-300">{opportunity.serviceCategory}</span>
+                {category && (
+                  <span className="rounded-full border border-cyan-500/18 bg-cyan-500/10 px-3 py-1.5 text-[11px] text-cyan-300">{category.label}</span>
+                )}
+                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] text-neutral-400">{opportunity.remoteAllowed ? 'Aceita remoto' : 'Execucao presencial'}</span>
+                {opportunity.location && (
+                  <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] text-neutral-400">{opportunity.location}</span>
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-neutral-500">Propostas</p>
+                    <p className="mt-1 text-sm font-semibold text-white">
+                      {activeProposalsCount > 0 ? `${activeProposalsCount} em aberto` : 'Nenhuma proposta aberta'}
+                    </p>
+                  </div>
+                  <p className="text-right text-lg font-bold text-emerald-300 font-bricolage">{formatOpportunityReward(opportunity)}</p>
+                </div>
+                {proposals.slice(0, 2).map((proposal) => (
+                  <div key={proposal.id} className="mt-4 rounded-2xl border border-white/10 bg-black/18 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{proposal.proposerName}</p>
+                        <p className="text-[11px] text-neutral-500">@{proposal.proposerHandle}</p>
+                      </div>
+                      <p className="text-sm font-bold text-emerald-300">{formatProposalAmount(proposal)}</p>
+                    </div>
+                    {proposal.note && <p className="mt-3 line-clamp-2 text-xs leading-5 text-neutral-400">{proposal.note}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                {!isMine && (
+                  <>
+                    <button
+                      onClick={onSendProposal}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:bg-white/[0.08]"
+                    >
+                      <iconify-icon icon="solar:document-add-bold-duotone" class="text-base" />
+                      Enviar proposta
+                    </button>
+                    <button
+                      onClick={onAccept}
+                      disabled={accepting}
+                      className="inline-flex items-center gap-2 rounded-full border border-cyan-400/22 bg-cyan-500/12 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/18 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <iconify-icon icon={accepting ? 'solar:refresh-circle-bold-duotone' : 'solar:hand-shake-bold-duotone'} class="text-base" />
+                      {accepting ? 'Fechando match...' : acceptLabel}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={onOpenSmartContract}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/12 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/18"
+                >
+                  <iconify-icon icon="solar:play-circle-bold-duotone" class="text-base" />
+                  {isMine ? 'Abrir no contrato inteligente' : 'Abrir template base'}
+                </button>
+              </div>
+            </aside>
+          </div>
+        </article>
+      </div>
+    </div>
+  );
+}
+
 function OpportunityDetailModal({
   opportunity,
   currentUserId,
@@ -828,6 +1126,8 @@ function OpportunityDetailModal({
   onAccept,
   accepting,
   onOpenSmartContract,
+  onOpenPage,
+  onShareWhatsApp,
   onSendProposal,
   onAcceptProposal,
   onWithdrawProposal,
@@ -839,6 +1139,8 @@ function OpportunityDetailModal({
   onAccept: () => void;
   accepting: boolean;
   onOpenSmartContract: () => void;
+  onOpenPage: () => void;
+  onShareWhatsApp: () => void;
   onSendProposal: () => void;
   onAcceptProposal: (proposal: OpportunityProposal) => void;
   onWithdrawProposal: (proposal: OpportunityProposal) => void;
@@ -1099,6 +1401,20 @@ function OpportunityDetailModal({
             </div>
 
             <div className="flex items-center gap-3 flex-wrap pt-2">
+              <button
+                onClick={onOpenPage}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-neutral-200 transition hover:bg-white/[0.06]"
+              >
+                <iconify-icon icon="solar:document-text-bold-duotone" class="text-base" />
+                Ver página completa
+              </button>
+              <button
+                onClick={onShareWhatsApp}
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/12 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/18"
+              >
+                <iconify-icon icon="mdi:whatsapp" class="text-base" />
+                Compartilhar WhatsApp
+              </button>
               {!isMine && (
                 <button
                   onClick={onAccept}

@@ -721,8 +721,7 @@ function OpportunityPreviewCard({ opportunity }: { opportunity: SmartContractOpp
 
   return (
     <Link
-      to="/smart-contracts"
-      state={{ marketplaceOpportunity: opportunity, autoSelectTemplateId: opportunity.templateId }}
+      to={`/opportunities/${encodeURIComponent(opportunity.id)}`}
       className="group relative isolate flex min-h-[260px] flex-col overflow-hidden rounded-[24px] border border-white/8 bg-neutral-950/80 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.20)] transition hover:-translate-y-0.5 hover:border-emerald-400/22 hover:bg-neutral-950/95"
     >
       <div className={`absolute inset-0 bg-gradient-to-br ${visual.accentGradient} opacity-35 transition-opacity group-hover:opacity-45`} />
@@ -773,7 +772,7 @@ function OpportunityPreviewCard({ opportunity }: { opportunity: SmartContractOpp
             {operationLabel}
           </span>
           <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-300 transition group-hover:gap-2">
-            Abrir template
+            Ver oportunidade
             <iconify-icon icon="solar:arrow-right-up-bold" class="text-sm" />
           </span>
         </div>

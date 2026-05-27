@@ -486,10 +486,6 @@ export default function PublicProfilePage() {
 }
 
 function ProfileOpportunityCard({ opportunity, isMyProfile }: { opportunity: SmartContractOpportunity; isMyProfile: boolean }) {
-  const actionLabel = opportunity.opportunityType === 'request'
-    ? 'Executar com smart contract'
-    : 'Contratar com smart contract';
-
   return (
     <article className="overflow-hidden rounded-3xl border border-white/8 bg-neutral-900/60">
       <div className={`h-1.5 ${opportunity.opportunityType === 'request' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`} />
@@ -536,12 +532,11 @@ function ProfileOpportunityCard({ opportunity, isMyProfile }: { opportunity: Sma
           </p>
 
           <Link
-            to="/smart-contracts"
-            state={{ marketplaceOpportunity: opportunity, autoSelectTemplateId: opportunity.templateId }}
+            to={`/opportunities/${encodeURIComponent(opportunity.id)}`}
             className="inline-flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/14"
           >
-            <iconify-icon icon="solar:play-circle-bold-duotone" />
-            {actionLabel}
+            <iconify-icon icon="solar:arrow-right-up-bold-duotone" />
+            Ver oportunidade
           </Link>
         </div>
       </div>
