@@ -122,9 +122,9 @@ export default function Topbar() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute right-0 top-full mt-2 w-96 glass-panel rounded-2xl shadow-lg overflow-hidden z-50"
+                  className="absolute right-0 top-full mt-2 w-96 overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/98 shadow-[0_28px_90px_rgba(0,0,0,0.62)] ring-1 ring-black/40 backdrop-blur-xl z-50"
                 >
-                  <div className="p-4 border-b border-white/5 flex justify-between items-center">
+                  <div className="p-4 border-b border-white/10 bg-neutral-950 flex justify-between items-center">
                     <h3 className="text-sm font-bold text-white">Central de Notificações</h3>
                     {unreadCount > 0 && (
                       <motion.button
@@ -136,7 +136,7 @@ export default function Topbar() {
                       </motion.button>
                     )}
                   </div>
-                <div className="max-h-[400px] overflow-y-auto">
+                <div className="max-h-[400px] overflow-y-auto bg-neutral-950">
                     {notifications.length === 0 ? (
                       <div className="p-8 text-center">
                         <iconify-icon icon="solar:bell-off-bold-duotone" class="text-4xl text-neutral-600 mb-2" />
@@ -164,7 +164,7 @@ export default function Topbar() {
                               hidden: { opacity: 0, x: -20 },
                               visible: { opacity: 1, x: 0 },
                             }}
-                            className={`p-4 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer relative group ${!notif.read ? 'bg-emerald-500/5' : ''}`}
+                            className={`p-4 border-b border-white/8 transition-colors cursor-pointer relative group hover:bg-white/[0.06] ${!notif.read ? 'bg-emerald-500/12' : 'bg-neutral-950'}`}
                           >
                             {!notif.read && (
                               <motion.div
@@ -190,14 +190,14 @@ export default function Topbar() {
                               />
                               {notif.title}
                             </p>
-                            <p className="text-xs text-neutral-400 mt-1 line-clamp-2">{notif.message}</p>
+                            <p className="text-xs text-neutral-300 mt-1 line-clamp-2">{notif.message}</p>
                             {notif.link && (
                               <p className="text-[10px] text-emerald-500 mt-2 flex items-center gap-1">
                                 <iconify-icon icon="solar:arrow-right-bold" class="text-[9px]" />
                                 Clique para abrir
                               </p>
                             )}
-                            <p className="text-[10px] text-neutral-500 mt-2">
+                            <p className="text-[10px] text-neutral-400 mt-2">
                               {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: ptBR })}
                             </p>
                           </motion.div>
@@ -206,7 +206,7 @@ export default function Topbar() {
                     )}
                   </div>
                 {notifications.length > 0 && (
-                  <div className="p-2 border-t border-white/5 bg-black/20 text-center">
+                  <div className="p-2 border-t border-white/10 bg-neutral-950 text-center">
                     <button className="text-xs text-neutral-400 hover:text-white transition-colors py-1">Ver todas</button>
                   </div>
                 )}
