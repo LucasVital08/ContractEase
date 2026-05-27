@@ -121,7 +121,7 @@ export default function ContractsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold font-bricolage text-white">Todos os Documentos</h2>
-          <p className="text-neutral-400 text-sm mt-1">{filtered.length} documentos encontrados</p>
+          <p className="text-neutral-400 text-sm mt-1">{filtered.length} {filtered.length === 1 ? 'documento encontrado' : 'documentos encontrados'}</p>
         </div>
         <div className="flex gap-3">
           <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1">

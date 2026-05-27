@@ -134,7 +134,10 @@ export default function Sidebar() {
       className="hidden sm:flex fixed left-0 top-0 bottom-0 z-40 flex-col border-r border-white/8 bg-[linear-gradient(180deg,rgba(6,9,13,0.98),rgba(7,10,14,0.96))] shadow-[18px_0_60px_rgba(0,0,0,0.26)]"
     >
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-white/8 px-5">
+      <div
+        className="flex h-16 items-center gap-3 border-b border-white/8 px-5 cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={() => navigate('/dashboard')}
+      >
         <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500 to-cyan-500 text-white font-bold text-sm shrink-0 shadow-[0_10px_24px_rgba(16,185,129,0.18)]">
           CE
         </div>
@@ -186,6 +189,24 @@ export default function Sidebar() {
                 />
               </div>
             </div>
+<<<<<<< HEAD
+=======
+            <div className="flex-1 text-left">
+              <p className="text-xs font-bold text-white truncate" title={organization.name}>{organization.name}</p>
+              <p className="text-[10px] text-emerald-500 font-bold uppercase">{organization.plan}</p>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowWorkspaceSettings(true); }}
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-neutral-500 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
+              title="Configurações do Workspace"
+            >
+              <iconify-icon icon="solar:settings-bold" class="text-sm" />
+            </button>
+            <iconify-icon 
+              icon="solar:alt-arrow-down-bold" 
+              class={`text-neutral-500 transition-transform duration-300 ${isWorkspaceOpen ? 'rotate-180 text-white' : 'group-hover:text-white'}`} 
+            />
+>>>>>>> 27c3d63 (fix(contractease): corrige bugs do QA e melhorias de UX)
           </div>
 
           <AnimatePresence>

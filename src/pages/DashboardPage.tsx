@@ -77,7 +77,7 @@ function RecentRow({ contract }: { contract: Contract }) {
   return (
     <Link to={`/contracts/${contract.id}`} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0 hover:bg-white/[0.02] px-2 -mx-2 rounded-lg transition-colors">
       <div className="flex items-center gap-3">
-        <span className="text-emerald-500 font-mono text-xs">{contract.id}</span>
+        <span className="text-emerald-500 font-mono text-xs">#{contract.id.slice(0, 8)}</span>
         <span className="text-white text-sm font-medium">{contract.title}</span>
         {smart && (
           <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[10px] font-bold uppercase tracking-wide">
@@ -471,7 +471,7 @@ export default function DashboardPage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-neutral-500">{new Date(c.expiresAt).toLocaleDateString()}</p>
+                    <p className="text-[10px] text-neutral-500">{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('pt-BR') : '— sem data'}</p>
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Em breve</span>

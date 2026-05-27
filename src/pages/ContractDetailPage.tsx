@@ -271,7 +271,7 @@ export default function ContractDetailPage() {
             <iconify-icon icon="solar:arrow-left-bold" class="text-xs" /> Contratos
           </Link>
           <span className="text-neutral-700">/</span>
-          <span className="text-neutral-600 text-xs font-mono truncate max-w-[160px]">{contract.id}</span>
+          <span className="text-neutral-600 text-xs truncate max-w-[200px]">{contract.title}</span>
         </div>
 
         <div className="flex items-start justify-between gap-4">
@@ -372,7 +372,7 @@ export default function ContractDetailPage() {
         <div className="flex items-center gap-5 mt-4 text-xs text-neutral-500">
           <span>Criado {new Date(contract.createdAt).toLocaleDateString('pt-BR')}</span>
           <span className="text-neutral-700">·</span>
-          <span>Validade {new Date(contract.expiresAt).toLocaleDateString('pt-BR')}</span>
+          <span>Validade {contract.expiresAt && !isNaN(new Date(contract.expiresAt).getTime()) ? new Date(contract.expiresAt).toLocaleDateString('pt-BR') : '—'}</span>
           <span className="text-neutral-700">·</span>
           <span>{contract.clauses.length} cláusula{contract.clauses.length !== 1 ? 's' : ''}</span>
         </div>
@@ -411,7 +411,7 @@ export default function ContractDetailPage() {
                 </div>
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                   <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Valor</p>
-                  <p className="text-lg font-bold text-emerald-400">{contract.value?.toLocaleString('pt-BR', { style: 'currency', currency: contract.currency || 'BRL' })}</p>
+                  <p className="text-lg font-bold text-emerald-400">{contract.value != null ? contract.value.toLocaleString('pt-BR', { style: 'currency', currency: contract.currency || 'BRL' }) : '—'}</p>
                 </div>
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                   <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Assinado</p>

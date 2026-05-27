@@ -76,17 +76,19 @@ export default function AnalyticsPage() {
   const maxContracts = Math.max(...monthlyData, 1);
 
   const statusDist = useMemo(() => {
-    if (!stats?.contracts) return { active: 0, pending: 0, completed: 0, other: 0 };
+    if (!stats?.contracts) return { active: 0, pending: 0, completed: 0, draft: 0, other: 0 };
     const total = stats.contracts.length || 1;
     const active = stats.contracts.filter((c: any) => c.status === 'active').length;
     const pending = stats.contracts.filter((c: any) => c.status === 'pending').length;
     const completed = stats.contracts.filter((c: any) => c.status === 'completed' || c.status === 'signed').length;
-    
+    const draft = stats.contracts.filter((c: any) => c.status === 'draft').length;
+    const other = Math.max(0, total - active - pending - completed - draft);
     return {
       active: Math.round((active / total) * 100),
       pending: Math.round((pending / total) * 100),
       completed: Math.round((completed / total) * 100),
-      other: Math.max(0, 100 - Math.round((active / total) * 100) - Math.round((pending / total) * 100) - Math.round((completed / total) * 100))
+      draft: Math.round((draft / total) * 100),
+      other: Math.round((other / total) * 100),
     };
   }, [stats]);
   return (
@@ -166,7 +168,12 @@ export default function AnalyticsPage() {
             <div className="text-xs text-neutral-500">Filtrado por: Ano Atual</div>
           </div>
           <div className="flex-1 flex items-end gap-2 h-48 mt-auto">
-            {monthlyData.map((val, i) => (
+            {monthlyData.every(v => v === 0) ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-neutral-600 gap-2">
+                <iconify-icon icon="solar:chart-square-bold" class="text-3xl" />
+                <p className="text-xs">Nenhum documento criado em {currentYear} ainda.</p>
+              </div>
+            ) : monthlyData.map((val, i) => (
               <div key={i} className="flex-1 flex flex-col justify-end group">
                 <div className="w-full bg-emerald-500/20 hover:bg-emerald-500/40 rounded-t-sm transition-all relative" style={{ height: `${(val / maxContracts) * 100}%` }}>
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-xs text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
@@ -213,6 +220,28 @@ export default function AnalyticsPage() {
                   <div className="h-full bg-amber-500 transition-all duration-1000" style={{ width: `${statusDist.pending}%` }} />
                 </div>
               </div>
+              {statusDist.draft > 0 && (
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-neutral-400 font-bold">Rascunhos</span>
+                    <span className="text-white">{statusDist.draft}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-neutral-500 transition-all duration-1000" style={{ width: `${statusDist.draft}%` }} />
+                  </div>
+                </div>
+              )}
+              {statusDist.other > 0 && (
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-neutral-500 font-bold">Outros</span>
+                    <span className="text-white">{statusDist.other}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-neutral-600 transition-all duration-1000" style={{ width: `${statusDist.other}%` }} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
