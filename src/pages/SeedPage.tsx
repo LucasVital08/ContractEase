@@ -65,6 +65,54 @@ export default function SeedPage() {
     setExistingCount(count ?? 0);
   }
 
+  async function deduplicateMyContracts() {
+    if (!user) return;
+    const confirmed = window.confirm(
+      `Manter apenas 1 contrato por título (o mais recente). Os duplicados serão apagados. Confirmar?`
+    );
+    if (!confirmed) return;
+    setRunning(true);
+    setLog([]);
+    setDone(false);
+    setError('');
+    try {
+      push(`Buscando contratos de ${user.email}...`);
+      const { data: rows, error: selErr } = await supabase
+        .from('contracts')
+        .select('id, title, created_at')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false });
+      if (selErr) throw new Error(selErr.message);
+      const all = rows ?? [];
+      push(`Total atual: ${all.length} contratos.`);
+      const seen = new Set<string>();
+      const toDelete: string[] = [];
+      for (const r of all as { id: string; title: string }[]) {
+        const key = (r.title || '').trim().toLowerCase();
+        if (seen.has(key)) toDelete.push(r.id);
+        else seen.add(key);
+      }
+      push(`Manter: ${seen.size} | Apagar: ${toDelete.length}`);
+      if (toDelete.length === 0) {
+        push(`✔ Nada para deduplicar.`);
+      } else {
+        const { error: cpErr } = await supabase.from('contract_parties').delete().in('contract_id', toDelete);
+        if (cpErr) push(`  ⚠ contract_parties: ${cpErr.message}`);
+        const { error: ccErr } = await supabase.from('contract_clauses').delete().in('contract_id', toDelete);
+        if (ccErr) push(`  ⚠ contract_clauses: ${ccErr.message}`);
+        const { error: cErr } = await supabase.from('contracts').delete().in('id', toDelete);
+        if (cErr) throw new Error(cErr.message);
+        push(`✔ Deduplicação concluída. ${toDelete.length} duplicatas apagadas.`);
+      }
+      await refreshCount();
+    } catch (err: any) {
+      setError(err.message);
+      push(`✖ Erro: ${err.message}`);
+    } finally {
+      setRunning(false);
+    }
+  }
+
   async function clearMyContracts() {
     if (!user) return;
     const confirmed = window.confirm(
@@ -121,7 +169,7 @@ export default function SeedPage() {
           title: 'Acordo de Confidencialidade — Startup FinTech Velox',
           description: 'NDA firmado para avaliação de due diligence de rodada Seed da Velox Soluções Financeiras Ltda.',
           type: 'nda', status: 'completed',
-          daysAgo: 165, expireDays: 365,
+          daysAgo: 178, expireDays: 365,
           value: null, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['startup', 'fintech', 'due-diligence', 'seed'], hasTx: true,
@@ -144,7 +192,7 @@ export default function SeedPage() {
           title: 'Contrato de Prestação de Serviços — Desenvolvimento de Software',
           description: 'Contrato PJ com desenvolvedor sênior para desenvolvimento do módulo de integrações da plataforma ContractEase.',
           type: 'service', status: 'active',
-          daysAgo: 120, expireDays: 240,
+          daysAgo: 170, expireDays: 240,
           value: 18000, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['desenvolvimento', 'pj', 'mensal', 'backend'], hasTx: true,
@@ -165,7 +213,7 @@ export default function SeedPage() {
           title: 'Acordo de Parceria Estratégica — Lawtec & ContractEase',
           description: 'Parceria comercial e tecnológica com a Lawtec Consultoria Jurídica para distribuição conjunta da plataforma no mercado jurídico nacional.',
           type: 'partnership', status: 'active',
-          daysAgo: 95, expireDays: 730,
+          daysAgo: 158, expireDays: 730,
           value: null, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: true,
           tags: ['parceria', 'legaltech', 'distribuição', 'b2b'], hasTx: true,
@@ -189,7 +237,7 @@ export default function SeedPage() {
           title: 'Contrato de Trabalho CLT — Analista Jurídica Plena',
           description: 'Contrato de emprego CLT para analista jurídica especializada em direito contratual e LGPD.',
           type: 'employment', status: 'active',
-          daysAgo: 80, expireDays: null,
+          daysAgo: 148, expireDays: null,
           value: 7500, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['clt', 'rh', 'jurídico', 'lgpd'], hasTx: false,
@@ -211,7 +259,7 @@ export default function SeedPage() {
           title: 'SLA — Infraestrutura Cloud (CloudBrasil Tecnologia)',
           description: 'Acordo de Nível de Serviço para infraestrutura cloud, monitoramento 24/7 e suporte técnico especializado da plataforma ContractEase.',
           type: 'sla', status: 'active',
-          daysAgo: 60, expireDays: 305,
+          daysAgo: 138, expireDays: 305,
           value: 4200, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['cloud', 'infraestrutura', 'suporte', 'devops'], hasTx: true,
@@ -233,7 +281,7 @@ export default function SeedPage() {
           title: 'Locação Comercial — Av. Brigadeiro Faria Lima, 3.477',
           description: 'Locação de espaço comercial de 120m² na Faria Lima para sede e showroom da plataforma ContractEase.',
           type: 'rental', status: 'pending',
-          daysAgo: 18, expireDays: 730,
+          daysAgo: 130, expireDays: 730,
           value: 12500, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['locação', 'escritório', 'faria-lima', 'imóvel-comercial'], hasTx: false,
@@ -255,7 +303,7 @@ export default function SeedPage() {
           title: 'Licença de Software — Suite Jurídica Premium (LexSoft)',
           description: 'Licenciamento da Suite Jurídica Premium para uso corporativo com 25 assentos e suporte prioritário.',
           type: 'license', status: 'review',
-          daysAgo: 12, expireDays: 365,
+          daysAgo: 124, expireDays: 365,
           value: 29900, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['software', 'licença', 'jurídico', 'saas'], hasTx: false,
@@ -277,7 +325,7 @@ export default function SeedPage() {
           title: 'Contrato de Compra e Venda — Equipamentos de TI',
           description: 'Aquisição de notebooks, monitores e periféricos para modernização da infraestrutura do escritório.',
           type: 'sale', status: 'completed',
-          daysAgo: 140, expireDays: 90,
+          daysAgo: 120, expireDays: 90,
           value: 38500, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['compra', 'ti', 'equipamentos', 'notebook'], hasTx: true,
@@ -297,7 +345,7 @@ export default function SeedPage() {
           title: 'NDA — Reunião com Fundo VC Atlântico Capital (Série A)',
           description: 'Acordo de confidencialidade para apresentação da ContractEase ao fundo Atlântico Capital para explorar rodada Série A.',
           type: 'nda', status: 'draft',
-          daysAgo: 3, expireDays: 180,
+          daysAgo: 117, expireDays: 180,
           value: null, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['vc', 'investimento', 'série-a', 'fundraising'], hasTx: false,
@@ -318,7 +366,7 @@ export default function SeedPage() {
           title: 'Contrato de Mútuo — Capital de Giro Operacional',
           description: 'Empréstimo entre sócios para aporte de capital de giro. Cancelado após aprovação de aporte via equity.',
           type: 'loan', status: 'cancelled',
-          daysAgo: 50, expireDays: 180,
+          daysAgo: 114, expireDays: 180,
           value: 75000, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['mútuo', 'capital-giro', 'cancelado', 'interno'], hasTx: false,
@@ -347,7 +395,7 @@ export default function SeedPage() {
           title: 'Consultoria Estratégica de Crescimento — Q3/26',
           description: 'Mentoria executiva trimestral para founders sobre go-to-market B2B e estruturação comercial.',
           type: 'service', status: 'active',
-          daysAgo: 22, expireDays: 90,
+          daysAgo: 110, expireDays: 90,
           value: 12000, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['consultoria', 'mentoria', 'go-to-market'], hasTx: true,
@@ -368,7 +416,7 @@ export default function SeedPage() {
           title: '[Smart] Aluguel Residencial — Apto Vila Madalena com Caução On-Chain',
           description: 'Locação de apartamento de 75m² com caução tokenizada em BRZ e cobrança automatizada via smart contract.',
           type: 'rental', status: 'active',
-          daysAgo: 40, expireDays: 900,
+          daysAgo: 106, expireDays: 900,
           value: 4200, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: true,
           tags: ['smart-contract', 'aluguel', 'caução-onchain', 'rent-template'], hasTx: true,
@@ -389,7 +437,7 @@ export default function SeedPage() {
           title: 'NDA Bilateral — Reunião Técnica com OpenBank',
           description: 'Acordo de confidencialidade para reunião sobre integração com Open Finance.',
           type: 'nda', status: 'completed',
-          daysAgo: 110, expireDays: 365,
+          daysAgo: 103, expireDays: 365,
           value: null, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['nda', 'open-finance', 'integração'], hasTx: true,
@@ -410,7 +458,7 @@ export default function SeedPage() {
           title: '[Smart] Venda Online com Escrow — Marketplace de Eletrônicos',
           description: 'Escrow on-chain para venda de iPhone 15 Pro entre P2P, com liberação automática após confirmação de entrega.',
           type: 'sale', status: 'completed',
-          daysAgo: 58, expireDays: 30,
+          daysAgo: 100, expireDays: 30,
           value: 7800, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['smart-contract', 'escrow', 'p2p', 'ecommerce-template'], hasTx: true,
@@ -431,7 +479,7 @@ export default function SeedPage() {
           title: 'Prestação de Serviços PJ — Designer UI/UX Sênior',
           description: 'Contrato PJ mensal com designer sênior para evolução da identidade visual e fluxos do produto.',
           type: 'service', status: 'active',
-          daysAgo: 75, expireDays: 270,
+          daysAgo: 97, expireDays: 270,
           value: 14500, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['pj', 'design', 'produto'], hasTx: false,
@@ -452,7 +500,7 @@ export default function SeedPage() {
           title: '[Smart] Desenvolvimento Fullstack — Módulo de Telemedicina (4 marcos)',
           description: 'Smart contract de freelancer com 4 marcos de entrega e pagamento liberado por aceite de cada marco.',
           type: 'service', status: 'active',
-          daysAgo: 28, expireDays: 90,
+          daysAgo: 95, expireDays: 90,
           value: 28000, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['smart-contract', 'milestone', 'freelancer-template', 'desenvolvimento'], hasTx: true,
@@ -473,7 +521,7 @@ export default function SeedPage() {
           title: 'Acordo de Afiliação — Programa de Indicação Premium',
           description: 'Programa de indicação com comissão recorrente sobre primeira mensalidade de clientes captados.',
           type: 'partnership', status: 'active',
-          daysAgo: 100, expireDays: 365,
+          daysAgo: 94, expireDays: 365,
           value: null, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['afiliação', 'indicação', 'comissão'], hasTx: false,
@@ -494,7 +542,7 @@ export default function SeedPage() {
           title: '[Smart] Folha de Pagamento Programada — Setembro/26',
           description: 'Folha mensal automatizada com 8 colaboradores PJ pagos via stream programado em BRZ no dia 5.',
           type: 'service', status: 'active',
-          daysAgo: 33, expireDays: 330,
+          daysAgo: 92, expireDays: 330,
           value: 78400, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: true,
           tags: ['smart-contract', 'folha', 'payroll-template', 'recorrente'], hasTx: true,
@@ -515,7 +563,7 @@ export default function SeedPage() {
           title: 'Licença de Uso — Plataforma BI Corporativo (DataLogics)',
           description: 'Licença anual para 15 usuários da plataforma de BI corporativo com dashboards customizados.',
           type: 'license', status: 'active',
-          daysAgo: 130, expireDays: 235,
+          daysAgo: 88, expireDays: 235,
           value: 18900, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['licença', 'bi', 'saas'], hasTx: true,
@@ -536,7 +584,7 @@ export default function SeedPage() {
           title: '[Smart] Social Media com KPI — Marca Beleza Urbana',
           description: 'Pacote mensal de gestão de redes com bônus on-chain liberado ao atingir +500 seguidores qualificados/mês.',
           type: 'service', status: 'active',
-          daysAgo: 15, expireDays: 180,
+          daysAgo: 84, expireDays: 180,
           value: 2800, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['smart-contract', 'social-media', 'kpi', 'social_media_management-template'], hasTx: true,
@@ -557,7 +605,7 @@ export default function SeedPage() {
           title: 'SLA de Atendimento — Conta Enterprise Hospital Sírio',
           description: 'SLA Enterprise com plantão 24/7, SLA de resposta P1 em 15min e gerente de conta dedicado.',
           type: 'sla', status: 'active',
-          daysAgo: 90, expireDays: 275,
+          daysAgo: 80, expireDays: 275,
           value: 8900, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['sla', 'enterprise', 'saúde'], hasTx: true,
@@ -578,7 +626,7 @@ export default function SeedPage() {
           title: '[Smart] Vesting de Cofundador — 4 anos com cliff de 12 meses',
           description: 'Smart contract de vesting de 5% de equity em 4 anos com cliff de 12 meses para CTO cofundador.',
           type: 'service', status: 'active',
-          daysAgo: 155, expireDays: 1310,
+          daysAgo: 76, expireDays: 1310,
           value: null, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: true,
           tags: ['smart-contract', 'vesting', 'equity', 'founderVesting-template'], hasTx: true,
@@ -599,7 +647,7 @@ export default function SeedPage() {
           title: 'Locação Comercial — Sala 1402 Edifício Faria Lima Plaza',
           description: 'Locação comercial de 80m² com 2 vagas, sublocada para coworking parceiro.',
           type: 'rental', status: 'pending',
-          daysAgo: 8, expireDays: 730,
+          daysAgo: 73, expireDays: 730,
           value: 9800, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['rental', 'comercial', 'sublocação'], hasTx: false,
@@ -642,7 +690,7 @@ export default function SeedPage() {
           title: 'Procuração Específica — Representação em AGE da Holding',
           description: 'Procuração ad hoc para representação em Assembleia Geral Extraordinária da holding controladora.',
           type: 'power_of_attorney', status: 'completed',
-          daysAgo: 45, expireDays: 90,
+          daysAgo: 67, expireDays: 90,
           value: null, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['procuração', 'societário', 'age'], hasTx: true,
@@ -663,7 +711,7 @@ export default function SeedPage() {
           title: '[Smart] Antecipação de Recebíveis — NF 023456 (R$ 95k)',
           description: 'Cessão de NF emitida ao sacado Distribuidora Sul para investidor com liquidação automática no vencimento.',
           type: 'service', status: 'active',
-          daysAgo: 18, expireDays: 60,
+          daysAgo: 64, expireDays: 60,
           value: 95000, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['smart-contract', 'factoring', 'factoring-template', 'antecipação'], hasTx: true,
@@ -684,7 +732,7 @@ export default function SeedPage() {
           title: 'Compra de Mobiliário Corporativo — Escritório Nova Sede',
           description: 'Aquisição de 12 estações de trabalho, cadeiras ergonômicas e mobiliário de copa.',
           type: 'sale', status: 'completed',
-          daysAgo: 175, expireDays: 60,
+          daysAgo: 78, expireDays: 60,
           value: 24800, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['compra', 'mobiliário', 'escritório'], hasTx: false,
@@ -705,7 +753,7 @@ export default function SeedPage() {
           title: '[Smart] Identidade Visual — Marca CafeNouveau (escrow + 2 revisões)',
           description: 'Projeto de identidade visual completo com escrow on-chain e 2 rodadas de revisão incluídas.',
           type: 'service', status: 'active',
-          daysAgo: 12, expireDays: 30,
+          daysAgo: 85, expireDays: 30,
           value: 4500, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['smart-contract', 'design', 'escrow', 'design_creative_brief-template'], hasTx: true,
@@ -726,7 +774,7 @@ export default function SeedPage() {
           title: 'Declaração de Tratamento de Dados — Cliente Healthtech',
           description: 'Declaração formal sobre tratamento de dados pessoais sensíveis em conformidade com LGPD para parceiro healthtech.',
           type: 'declaration', status: 'completed',
-          daysAgo: 64, expireDays: 365,
+          daysAgo: 90, expireDays: 365,
           value: null, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['declaração', 'lgpd', 'dados-sensíveis'], hasTx: true,
@@ -747,7 +795,7 @@ export default function SeedPage() {
           title: '[Smart] Tráfego Pago com Performance — VitaFit Suplementos',
           description: 'Gestão de mídia paga com verba e fee em escrow, com bônus liberado on-chain quando ROAS ≥ 3,5x.',
           type: 'service', status: 'active',
-          daysAgo: 10, expireDays: 90,
+          daysAgo: 58, expireDays: 90,
           value: 1500, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['smart-contract', 'tráfego-pago', 'performance', 'paid_traffic_kpi-template'], hasTx: true,
@@ -768,7 +816,7 @@ export default function SeedPage() {
           title: 'Criação de Conteúdo Editorial — Blog Corporativo',
           description: 'Pacote mensal de 8 artigos otimizados para SEO, com pesquisa de palavras-chave e revisão editorial.',
           type: 'service', status: 'active',
-          daysAgo: 38, expireDays: 240,
+          daysAgo: 52, expireDays: 240,
           value: 4800, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['conteúdo', 'seo', 'marketing'], hasTx: false,
@@ -789,7 +837,7 @@ export default function SeedPage() {
           title: '[Smart] Notificação Extrajudicial — Cobrança de Locatário',
           description: 'Smart contract para entrega de notificação extrajudicial com pagamento em escrow ao aceite do cliente.',
           type: 'service', status: 'completed',
-          daysAgo: 35, expireDays: 30,
+          daysAgo: 46, expireDays: 30,
           value: 950, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['smart-contract', 'jurídico', 'legal_simple_service-template'], hasTx: true,
@@ -810,7 +858,7 @@ export default function SeedPage() {
           title: 'Recrutamento Executivo — Head of Engineering',
           description: 'Serviço de headhunting para vaga de Head of Engineering com placement fee de 18% do salário anual.',
           type: 'service', status: 'pending',
-          daysAgo: 25, expireDays: 90,
+          daysAgo: 40, expireDays: 90,
           value: 36000, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['recrutamento', 'executive-search', 'rh'], hasTx: false,
@@ -831,7 +879,7 @@ export default function SeedPage() {
           title: '[Smart] Locação Comercial — Loja Itaim com Caução Tokenizada',
           description: 'Locação comercial com smart contract executando aluguel mensal e caução de 12x retida on-chain.',
           type: 'rental', status: 'pending',
-          daysAgo: 5, expireDays: 1095,
+          daysAgo: 36, expireDays: 1095,
           value: 14500, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: true,
           tags: ['smart-contract', 'rental', 'comercial', 'commercial_rent-template'], hasTx: false,
@@ -852,7 +900,7 @@ export default function SeedPage() {
           title: 'NDA Mútuo — Parceria Frustrada com TradeTech',
           description: 'NDA firmado para negociação que não evoluiu. Arquivado por término do prazo de avaliação.',
           type: 'nda', status: 'archived',
-          daysAgo: 178, expireDays: 180,
+          daysAgo: 34, expireDays: 180,
           value: null, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['nda', 'arquivado', 'parceria-frustrada'], hasTx: true,
@@ -873,7 +921,7 @@ export default function SeedPage() {
           title: '[Smart] Antecipação de Empenho Público — NE 2026/0234 (R$ 180k)',
           description: 'Smart contract de antecipação sobre empenho da prefeitura municipal com liquidação automática no recebimento.',
           type: 'service', status: 'active',
-          daysAgo: 6, expireDays: 75,
+          daysAgo: 28, expireDays: 75,
           value: 180000, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: true,
           tags: ['smart-contract', 'financiamento', 'empenho-público', 'bid_financing-template'], hasTx: true,
@@ -894,7 +942,7 @@ export default function SeedPage() {
           title: 'Auditoria de Segurança da Informação — Pentest Externo',
           description: 'Pentest externo + interno + revisão de código com relatório executivo e plano de remediação.',
           type: 'service', status: 'completed',
-          daysAgo: 105, expireDays: 90,
+          daysAgo: 18, expireDays: 90,
           value: 32000, currency: 'BRL',
           signature_order: 'sequential', multisig_enabled: false,
           tags: ['segurança', 'pentest', 'compliance'], hasTx: true,
@@ -915,7 +963,7 @@ export default function SeedPage() {
           title: '[Smart] Financiamento de Obra Privada — NF 023456 (R$ 250k · 20%/45d)',
           description: 'Antecipação de NF de obra residencial com gatilho de 20% em 45d e quitação total em 120d.',
           type: 'service', status: 'active',
-          daysAgo: 2, expireDays: 120,
+          daysAgo: 10, expireDays: 120,
           value: 250000, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: true,
           tags: ['smart-contract', 'financiamento', 'obra-privada', 'private_construction_funding-template'], hasTx: true,
@@ -936,7 +984,7 @@ export default function SeedPage() {
           title: 'Manutenção Preventiva — Climatização e Elétrica do Escritório',
           description: 'Contrato anual de manutenção preventiva e corretiva de ar-condicionado e instalações elétricas.',
           type: 'service', status: 'active',
-          daysAgo: 145, expireDays: 220,
+          daysAgo: 4, expireDays: 220,
           value: 1850, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['manutenção', 'predial', 'recorrente'], hasTx: false,
@@ -957,7 +1005,7 @@ export default function SeedPage() {
           title: '[Smart] Seguro Paramétrico de Chuva — Evento Outdoor 15/Jul',
           description: 'Seguro paramétrico de chuva para evento corporativo com indenização automática se precipitação > 5mm/h.',
           type: 'service', status: 'active',
-          daysAgo: 4, expireDays: 60,
+          daysAgo: 1, expireDays: 60,
           value: 8500, currency: 'BRL',
           signature_order: 'parallel', multisig_enabled: false,
           tags: ['smart-contract', 'seguro', 'paramétrico', 'parametric_insurance-template', 'evento'], hasTx: true,
@@ -1007,6 +1055,7 @@ export default function SeedPage() {
         });
 
         for (const p of parties) {
+          const safeSignedAgo = p.signedAgo !== null ? Math.min(p.signedAgo, meta.daysAgo) : null;
           await insert('contract_parties', {
             id: uid(),
             contract_id: contractId,
@@ -1014,7 +1063,7 @@ export default function SeedPage() {
             email: p.email,
             role: p.role,
             status: p.status,
-            signed_at: p.signedAgo !== null ? isoDate(p.signedAgo) : null,
+            signed_at: safeSignedAgo !== null ? isoDate(safeSignedAgo) : null,
             cpf: p.cpf ?? null,
             signature_type: p.sig,
             lgpd_consent: true,
@@ -1083,10 +1132,18 @@ export default function SeedPage() {
           <button
             type="button"
             disabled={running || !user}
+            onClick={deduplicateMyContracts}
+            className="px-4 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber-500/25 transition-colors flex items-center gap-2"
+          >
+            ✨ Deduplicar (manter 1 por título)
+          </button>
+          <button
+            type="button"
+            disabled={running || !user}
             onClick={clearMyContracts}
             className="px-4 py-2.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-300 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-red-500/25 transition-colors flex items-center gap-2"
           >
-            🗑 Limpar meus contratos
+            🗑 Limpar TUDO
           </button>
           <button
             type="button"
