@@ -162,21 +162,28 @@ export default function OpportunitiesPage() {
   const filteredFeed = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return feed.filter((opportunity) => {
-      const matchesKind = kindFilter === 'all' || opportunity.opportunityType === kindFilter;
-      const matchesService = selectedService === 'all' || opportunity.serviceCategory === selectedService;
-      const haystack = [
-        opportunity.title,
-        opportunity.summary,
-        opportunity.serviceCategory,
-        opportunity.ownerName,
-        opportunity.ownerHandle,
-        opportunity.location ?? '',
-      ].join(' ').toLowerCase();
-      const matchesSearch = !query || haystack.includes(query);
-      return matchesKind && matchesService && matchesSearch;
-    });
+    return feed
+      .filter((opportunity) => {
+        const matchesKind = kindFilter === 'all' || opportunity.opportunityType === kindFilter;
+        const matchesService = selectedService === 'all' || opportunity.serviceCategory === selectedService;
+        const haystack = [
+          opportunity.title,
+          opportunity.summary,
+          opportunity.serviceCategory,
+          opportunity.ownerName,
+          opportunity.ownerHandle,
+          opportunity.location ?? '',
+        ].join(' ').toLowerCase();
+        const matchesSearch = !query || haystack.includes(query);
+        return matchesKind && matchesService && matchesSearch;
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [feed, kindFilter, search, selectedService]);
+
+  const freshPostsToday = useMemo(() => {
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return feed.filter((o) => new Date(o.createdAt).getTime() >= dayAgo).length;
+  }, [feed]);
 
   const serviceFilters = useMemo(
     () => Array.from(new Set(feed.map((opportunity) => opportunity.serviceCategory))).sort((left, right) => left.localeCompare(right, 'pt-BR')),
@@ -595,10 +602,26 @@ export default function OpportunitiesPage() {
       <section className="space-y-4">
         <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Feed</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Feed ao vivo · do mais novo para o mais antigo</p>
             <h2 className="mt-1 text-xl font-semibold text-white font-bricolage">Oportunidades abertas</h2>
           </div>
-          <p className="text-xs text-neutral-500">{filteredFeed.length} card{filteredFeed.length !== 1 ? 's' : ''} visível{filteredFeed.length !== 1 ? 'eis' : ''}</p>
+          <div className="flex items-center gap-3">
+            {freshPostsToday > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/[0.08] px-3 py-1.5 text-xs font-semibold text-emerald-200"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                </span>
+                <span className="tabular-nums">{freshPostsToday}</span>
+                <span className="text-emerald-300/80">novas hoje</span>
+              </motion.div>
+            )}
+            <p className="text-xs text-neutral-500">{filteredFeed.length} card{filteredFeed.length !== 1 ? 's' : ''}</p>
+          </div>
         </div>
 
         {isLoading ? (
@@ -729,12 +752,23 @@ function OpportunityCard({ opportunity, currentUserId, onViewDetails, onAccept, 
   const bestProposal = getBestProposal(opportunity, proposals);
   const deadline = formatDeadline(opportunity.expiresAt);
   const hasAuctionBar = Boolean(deadline) || activeProposalsCount > 0;
+  const ageHours = (Date.now() - new Date(opportunity.createdAt).getTime()) / (1000 * 60 * 60);
+  const isHot = ageHours < 2;
+  const isFresh = ageHours < 24;
+  const postedAtFull = new Date(opportunity.createdAt).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   return (
     <motion.article
       layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
       role="button"
       tabIndex={0}
       onClick={onViewDetails}
@@ -744,7 +778,9 @@ function OpportunityCard({ opportunity, currentUserId, onViewDetails, onAccept, 
           onViewDetails();
         }
       }}
-      className="cursor-pointer overflow-hidden rounded-[32px] border border-white/8 bg-neutral-900/75 shadow-[0_24px_90px_rgba(0,0,0,0.24)] transition-transform hover:-translate-y-0.5"
+      className={`cursor-pointer overflow-hidden rounded-[32px] border bg-neutral-900/75 shadow-[0_24px_90px_rgba(0,0,0,0.24)] transition-all hover:-translate-y-1 hover:shadow-[0_32px_100px_rgba(0,0,0,0.32)] ${
+        isHot ? 'border-emerald-400/25 ring-1 ring-emerald-400/10' : 'border-white/8'
+      }`}
     >
       <div className="flex items-center justify-between gap-4 px-5 pb-3 pt-4">
         <Link
@@ -752,14 +788,37 @@ function OpportunityCard({ opportunity, currentUserId, onViewDetails, onAccept, 
           onClick={(event) => event.stopPropagation()}
           className="flex min-w-0 items-center gap-3"
         >
-          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 text-xs font-bold text-white">
+          <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 text-xs font-bold text-white">
             {opportunity.ownerAvatarUrl
               ? <img src={opportunity.ownerAvatarUrl} alt={opportunity.ownerName} className="h-full w-full object-cover" />
               : opportunity.ownerName.slice(0, 2).toUpperCase()}
+            {isHot && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-neutral-900 bg-emerald-400" />
+              </span>
+            )}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{opportunity.ownerName}</p>
-            <p className="truncate text-[11px] text-neutral-500">@{opportunity.ownerHandle}{opportunity.ownerJobTitle ? ` · ${opportunity.ownerJobTitle}` : ''}</p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="truncate text-sm font-semibold text-white">{opportunity.ownerName}</p>
+              {isHot && (
+                <span className="shrink-0 rounded-full bg-emerald-500/[0.14] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-300">
+                  🔥 Quente
+                </span>
+              )}
+              {!isHot && isFresh && (
+                <span className="shrink-0 rounded-full bg-amber-500/[0.10] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-200">
+                  ✨ Nova
+                </span>
+              )}
+            </div>
+            <p className="truncate text-[11px] text-neutral-500">
+              @{opportunity.ownerHandle}{opportunity.ownerJobTitle ? ` · ${opportunity.ownerJobTitle}` : ''}
+            </p>
+            <p className="mt-0.5 text-[10px] text-neutral-600" title={postedAtFull}>
+              {formatRelativeTime(opportunity.createdAt)} · {postedAtFull}
+            </p>
           </div>
         </Link>
 
