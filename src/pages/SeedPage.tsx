@@ -1021,18 +1021,23 @@ export default function SeedPage() {
       },
     ];
 
+    // Os primeiros 10 contratos do array são os "originais" que já existiam
+    // na conta do usuário — pula esses pra inserir apenas os 30 novos.
+    const SKIP_FIRST = 10;
+    const newContracts = contracts.slice(SKIP_FIRST);
+
     let ok = 0;
     let fail = 0;
 
-    for (let i = 0; i < contracts.length; i++) {
-      const { meta, parties, clauses } = contracts[i];
+    for (let i = 0; i < newContracts.length; i++) {
+      const { meta, parties, clauses } = newContracts[i];
       const contractId = uid();
       const createdAt = isoDate(meta.daysAgo);
       const updatedAt = isoDate(Math.floor(meta.daysAgo * 0.3));
       const expiresAt = meta.expireDays ? futureIso(meta.daysAgo, meta.expireDays) : null;
 
       try {
-        push(`[${i + 1}/${contracts.length}] ${meta.title.substring(0, 50)}...`);
+        push(`[${i + 1}/${newContracts.length}] ${meta.title.substring(0, 50)}...`);
 
         await insert('contracts', {
           id: contractId,
@@ -1127,7 +1132,7 @@ export default function SeedPage() {
             onClick={runSeed}
             className="px-4 py-2.5 rounded-xl bg-emerald-500 text-black font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-400 transition-colors flex items-center gap-2"
           >
-            {running ? '...' : '▶'} Inserir 40 contratos
+            {running ? '...' : '▶'} Inserir 30 contratos novos
           </button>
           <button
             type="button"
@@ -1162,7 +1167,7 @@ export default function SeedPage() {
         <div className="bg-neutral-900 border border-white/10 rounded-xl p-6 space-y-1 min-h-64">
           {log.length === 0 && (
             <div className="text-neutral-500 text-sm">
-              Nenhuma operação executada. Clique em <span className="text-emerald-400">Inserir 40 contratos</span> ou <span className="text-red-300">Limpar meus contratos</span> para começar.
+              Nenhuma operação executada. Clique em <span className="text-emerald-400">Inserir 30 contratos novos</span>, <span className="text-amber-300">Deduplicar</span> ou <span className="text-red-300">Limpar TUDO</span> para começar.
             </div>
           )}
           {log.map((line, i) => (
