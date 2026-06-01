@@ -274,6 +274,642 @@ export default function SeedPage() {
           { title: 'Motivo do Cancelamento', content: 'As partes cancelam este instrumento de comum acordo em razão da aprovação de aporte societário via aumento de capital, tornando desnecessário o empréstimo. Os efeitos ficam extintos a partir da data de cancelamento.', idx: 4 },
         ],
       },
+
+      // ══════════════════════════════════════════════════════════════
+      // EXPANSÃO: +30 contratos cobrindo 6 meses (alternando documentos
+      // contratuais e smart contracts — marcador: tag "smart-contract")
+      // ══════════════════════════════════════════════════════════════
+
+      // 11. DOC · Service (consultoria)
+      {
+        meta: {
+          title: 'Consultoria Estratégica de Crescimento — Q3/26',
+          description: 'Mentoria executiva trimestral para founders sobre go-to-market B2B e estruturação comercial.',
+          type: 'service', status: 'active',
+          daysAgo: 22, expireDays: 90,
+          value: 12000, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['consultoria', 'mentoria', 'go-to-market'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 21, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Beatriz Camargo Tavares', email: 'beatriz@growthlab.com.br', role: 'counterparty', status: 'signed', signedAgo: 20, cpf: fakeCPF(), sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Escopo da Consultoria', content: 'A CONTRATADA prestará 8 sessões quinzenais de mentoria executiva de 90 minutos, abordando pricing, funil de vendas B2B, ciclo comercial e estruturação de SDR/AE.', idx: 1 },
+          { title: 'Remuneração', content: 'Valor total de R$ 12.000,00 dividido em 3 parcelas mensais de R$ 4.000,00, com NF emitida a cada vencimento.', idx: 2 },
+        ],
+      },
+
+      // 12. SMART · Aluguel residencial com caução
+      {
+        meta: {
+          title: '[Smart] Aluguel Residencial — Apto Vila Madalena com Caução On-Chain',
+          description: 'Locação de apartamento de 75m² com caução tokenizada em BRZ e cobrança automatizada via smart contract.',
+          type: 'rental', status: 'active',
+          daysAgo: 40, expireDays: 900,
+          value: 4200, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: true,
+          tags: ['smart-contract', 'aluguel', 'caução-onchain', 'rent-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 39, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Marcos Antônio Pereira', email: 'marcos.pereira@gmail.com', role: 'counterparty', status: 'signed', signedAgo: 38, cpf: fakeCPF(), sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Imóvel e Valor', content: 'Locação de apartamento de 75m² na Vila Madalena, R$ 4.200,00/mês com caução de 3x retida no smart contract.', idx: 1 },
+          { title: 'Execução Automática', content: 'Smart contract em Soroban executa cobrança mensal no dia 5, marca inadimplência após D+5 e libera caução conforme vistoria final.', idx: 2 },
+        ],
+      },
+
+      // 13. DOC · NDA bilateral curto
+      {
+        meta: {
+          title: 'NDA Bilateral — Reunião Técnica com OpenBank',
+          description: 'Acordo de confidencialidade para reunião sobre integração com Open Finance.',
+          type: 'nda', status: 'completed',
+          daysAgo: 110, expireDays: 365,
+          value: null, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['nda', 'open-finance', 'integração'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 109, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Renata Marin Silveira', email: 'renata.silveira@openbank.com.br', role: 'counterparty', status: 'signed', signedAgo: 108, cpf: fakeCPF(), sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Confidencialidade Bilateral', content: 'Ambas as partes obrigam-se a manter sigilo sobre informações técnicas, comerciais e arquiteturais trocadas no contexto da avaliação de integração.', idx: 1 },
+          { title: 'Vigência', content: 'Vigência de 12 meses, com obrigação de sigilo perdurando por 24 meses após o término.', idx: 2 },
+        ],
+      },
+
+      // 14. SMART · E-commerce escrow
+      {
+        meta: {
+          title: '[Smart] Venda Online com Escrow — Marketplace de Eletrônicos',
+          description: 'Escrow on-chain para venda de iPhone 15 Pro entre P2P, com liberação automática após confirmação de entrega.',
+          type: 'sale', status: 'completed',
+          daysAgo: 58, expireDays: 30,
+          value: 7800, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['smart-contract', 'escrow', 'p2p', 'ecommerce-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 57, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Pedro Henrique Sá', email: 'pedro.sa@gmail.com', role: 'counterparty', status: 'signed', signedAgo: 56, cpf: fakeCPF(), sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Objeto da Venda', content: 'Venda de iPhone 15 Pro 256GB Titânio (IMEI 35238765432156) por R$ 7.800,00 com pagamento em escrow.', idx: 1 },
+          { title: 'Liberação Automática', content: 'Smart contract libera valor ao vendedor após confirmação do comprador OU 7 dias após data de entrega rastreada via API dos Correios.', idx: 2 },
+        ],
+      },
+
+      // 15. DOC · Employment (PJ)
+      {
+        meta: {
+          title: 'Prestação de Serviços PJ — Designer UI/UX Sênior',
+          description: 'Contrato PJ mensal com designer sênior para evolução da identidade visual e fluxos do produto.',
+          type: 'service', status: 'active',
+          daysAgo: 75, expireDays: 270,
+          value: 14500, currency: 'BRL',
+          signature_order: 'sequential', multisig_enabled: false,
+          tags: ['pj', 'design', 'produto'], hasTx: false,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 74, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Larissa Pimentel Souza', email: 'larissa@designcraft.studio', role: 'counterparty', status: 'signed', signedAgo: 72, cpf: fakeCPF(), sig: 'draw' },
+        ],
+        clauses: [
+          { title: 'Escopo Mensal', content: 'Entregáveis: refinamento de UI dos fluxos críticos, manutenção do Design System, prototipação de novas features e revisão de hand-off semanal.', idx: 1 },
+          { title: 'Remuneração e PI', content: 'R$ 14.500,00/mês via NF. Toda PI gerada é cedida integralmente à CONTRATANTE mediante quitação mensal.', idx: 2 },
+        ],
+      },
+
+      // 16. SMART · Freelancer milestone (dev software)
+      {
+        meta: {
+          title: '[Smart] Desenvolvimento Fullstack — Módulo de Telemedicina (4 marcos)',
+          description: 'Smart contract de freelancer com 4 marcos de entrega e pagamento liberado por aceite de cada marco.',
+          type: 'service', status: 'active',
+          daysAgo: 28, expireDays: 90,
+          value: 28000, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['smart-contract', 'milestone', 'freelancer-template', 'desenvolvimento'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 27, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Vinícius Costa Almeida', email: 'vinicius.almeida@devstack.io', role: 'counterparty', status: 'signed', signedAgo: 26, cpf: fakeCPF(), sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Marcos e Liberação', content: 'M1 setup+auth+agenda (R$ 7k) · M2 sala de vídeo+chat (R$ 8k) · M3 prescrição digital (R$ 7k) · M4 painel admin+handoff (R$ 6k). Cada aceite libera o valor automaticamente.', idx: 1 },
+          { title: 'Janela de Revisão', content: 'Cliente tem 5 dias úteis pra aceitar ou solicitar revisão de cada marco. Sem resposta = aceite automático.', idx: 2 },
+        ],
+      },
+
+      // 17. DOC · Partnership (afiliação)
+      {
+        meta: {
+          title: 'Acordo de Afiliação — Programa de Indicação Premium',
+          description: 'Programa de indicação com comissão recorrente sobre primeira mensalidade de clientes captados.',
+          type: 'partnership', status: 'active',
+          daysAgo: 100, expireDays: 365,
+          value: null, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['afiliação', 'indicação', 'comissão'], hasTx: false,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 99, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Diego Marques Andrade', email: 'diego@growthpartners.com.br', role: 'counterparty', status: 'signed', signedAgo: 98, cpf: fakeCPF(), sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Comissionamento', content: 'O AFILIADO recebe 30% sobre o valor da primeira mensalidade de cada cliente captado, pago no mês seguinte à confirmação do pagamento.', idx: 1 },
+          { title: 'Atribuição e Cookies', content: 'Atribuição via link rastreável com cookie de 60 dias. Em caso de múltiplas indicações: last-click ganha.', idx: 2 },
+        ],
+      },
+
+      // 18. SMART · Folha de pagamento
+      {
+        meta: {
+          title: '[Smart] Folha de Pagamento Programada — Setembro/26',
+          description: 'Folha mensal automatizada com 8 colaboradores PJ pagos via stream programado em BRZ no dia 5.',
+          type: 'service', status: 'active',
+          daysAgo: 33, expireDays: 330,
+          value: 78400, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: true,
+          tags: ['smart-contract', 'folha', 'payroll-template', 'recorrente'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 32, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Tesouraria Operacional', email: 'tesouraria@contractease.app', role: 'counterparty', status: 'signed', signedAgo: 31, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Beneficiários e Valores', content: 'Smart contract programa pagamento mensal de 8 colaboradores totalizando R$ 78.400 em BRZ no dia 5 de cada mês. Multi-sig 2-de-3 requerido pra alteração.', idx: 1 },
+          { title: 'Auditoria', content: 'Todos os pagamentos ficam ancorados em testnet com hash recuperável pra conferência fiscal e contábil.', idx: 2 },
+        ],
+      },
+
+      // 19. DOC · License software
+      {
+        meta: {
+          title: 'Licença de Uso — Plataforma BI Corporativo (DataLogics)',
+          description: 'Licença anual para 15 usuários da plataforma de BI corporativo com dashboards customizados.',
+          type: 'license', status: 'active',
+          daysAgo: 130, expireDays: 235,
+          value: 18900, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['licença', 'bi', 'saas'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 129, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Karina Vieira Branco', email: 'karina.branco@datalogics.io', role: 'counterparty', status: 'signed', signedAgo: 128, cpf: fakeCPF(), sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Escopo da Licença', content: 'Licença não-exclusiva para 15 usuários nomeados, com acesso a todos os módulos premium incluindo conectores SAP, Salesforce e Stripe.', idx: 1 },
+          { title: 'Pagamento Anual', content: 'R$ 18.900,00/ano cobrados em parcela única ou 12x sem juros via boleto, com renovação automática salvo notificação 60 dias antes.', idx: 2 },
+        ],
+      },
+
+      // 20. SMART · Social media (template novo)
+      {
+        meta: {
+          title: '[Smart] Social Media com KPI — Marca Beleza Urbana',
+          description: 'Pacote mensal de gestão de redes com bônus on-chain liberado ao atingir +500 seguidores qualificados/mês.',
+          type: 'service', status: 'active',
+          daysAgo: 15, expireDays: 180,
+          value: 2800, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['smart-contract', 'social-media', 'kpi', 'social_media_management-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 14, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Beleza Urbana Cosméticos Ltda.', email: 'marketing@belezaurbana.com.br', role: 'counterparty', status: 'signed', signedAgo: 13, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Pacote Mensal', content: '12 posts no feed + 40 stories + 4 reels por mês. Mensalidade de R$ 2.800 + bônus de R$ 500 se +500 seguidores qualificados validados via report.', idx: 1 },
+          { title: 'Aceite e Liberação', content: 'Manager envia report ao fim de cada ciclo. Cliente tem 5 dias pra aceitar — sem resposta = aceite automático.', idx: 2 },
+        ],
+      },
+
+      // 21. DOC · SLA cliente (atendimento)
+      {
+        meta: {
+          title: 'SLA de Atendimento — Conta Enterprise Hospital Sírio',
+          description: 'SLA Enterprise com plantão 24/7, SLA de resposta P1 em 15min e gerente de conta dedicado.',
+          type: 'sla', status: 'active',
+          daysAgo: 90, expireDays: 275,
+          value: 8900, currency: 'BRL',
+          signature_order: 'sequential', multisig_enabled: false,
+          tags: ['sla', 'enterprise', 'saúde'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 89, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Ricardo Yamamoto', email: 'ricardo.yamamoto@hsiriolibanes.com.br', role: 'counterparty', status: 'signed', signedAgo: 87, cpf: fakeCPF(), sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Níveis de Serviço', content: 'P1 resposta 15min, resolução 4h · P2 1h/8h · P3 4h/24h · P4 1 dia útil/5 dias úteis. Disponibilidade 99,95%.', idx: 1 },
+          { title: 'Penalidades', content: 'Descumprimento gera créditos automáticos: 15% para P1 perdido, 10% por queda abaixo de 99,9%, 25% abaixo de 99%.', idx: 2 },
+        ],
+      },
+
+      // 22. SMART · Vesting cofundador
+      {
+        meta: {
+          title: '[Smart] Vesting de Cofundador — 4 anos com cliff de 12 meses',
+          description: 'Smart contract de vesting de 5% de equity em 4 anos com cliff de 12 meses para CTO cofundador.',
+          type: 'service', status: 'active',
+          daysAgo: 155, expireDays: 1310,
+          value: null, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: true,
+          tags: ['smart-contract', 'vesting', 'equity', 'founderVesting-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 154, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Gustavo Henrique Rocha', email: 'gustavo.rocha@contractease.app', role: 'counterparty', status: 'signed', signedAgo: 153, cpf: fakeCPF(), sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Cronograma de Vesting', content: '5% de equity total, vested em 48 meses com cliff de 12 meses. 25% libera no aniversário do cliff, restante linear mensal.', idx: 1 },
+          { title: 'Aceleração e Bad Leaver', content: 'Aceleração de 100% em mudança de controle. Bad leaver (rescisão por justa causa) implica perda de tokens não vested e recompra dos vested ao valor nominal.', idx: 2 },
+        ],
+      },
+
+      // 23. DOC · Rental comercial pendente
+      {
+        meta: {
+          title: 'Locação Comercial — Sala 1402 Edifício Faria Lima Plaza',
+          description: 'Locação comercial de 80m² com 2 vagas, sublocada para coworking parceiro.',
+          type: 'rental', status: 'pending',
+          daysAgo: 8, expireDays: 730,
+          value: 9800, currency: 'BRL',
+          signature_order: 'sequential', multisig_enabled: false,
+          tags: ['rental', 'comercial', 'sublocação'], hasTx: false,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 7, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'JFL Realty Investimentos S.A.', email: 'contratos@jflrealty.com.br', role: 'counterparty', status: 'pending', signedAgo: null, cpf: null, sig: 'upload' },
+        ],
+        clauses: [
+          { title: 'Imóvel e Valor', content: 'Sala 1402, 80m², com 2 vagas, R$ 9.800/mês reajustável pelo IGP-M anualmente.', idx: 1 },
+          { title: 'Garantia', content: 'Seguro fiança Porto Seguro apólice 2026/884412 no valor de 12 aluguéis.', idx: 2 },
+        ],
+      },
+
+      // 24. SMART · Royalties (música)
+      {
+        meta: {
+          title: '[Smart] Split de Royalties — Álbum "Atlântico" (Estúdio Lunar)',
+          description: 'Distribuição automática de royalties entre 4 cocriadores conforme percentuais acordados e plataformas DSP.',
+          type: 'service', status: 'active',
+          daysAgo: 70, expireDays: 1825,
+          value: null, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: true,
+          tags: ['smart-contract', 'royalties', 'royalties-template', 'música'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 69, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Estúdio Lunar Produções', email: 'estudio@lunarproducoes.com.br', role: 'counterparty', status: 'signed', signedAgo: 68, cpf: null, sig: 'freighter' },
+          { name: 'Felipe Vieira (compositor)', email: 'felipe.vieira@gmail.com', role: 'counterparty', status: 'signed', signedAgo: 67, cpf: fakeCPF(), sig: 'draw' },
+        ],
+        clauses: [
+          { title: 'Splits Programados', content: 'Compositor 40%, Intérprete 30%, Estúdio 20%, Produtor 10%. Receita entra → contrato distribui em até 1h conforme split.', idx: 1 },
+          { title: 'Alteração de Split', content: 'Qualquer mudança requer aprovação multi-sig de todos os beneficiários atuais.', idx: 2 },
+        ],
+      },
+
+      // 25. DOC · Power of Attorney
+      {
+        meta: {
+          title: 'Procuração Específica — Representação em AGE da Holding',
+          description: 'Procuração ad hoc para representação em Assembleia Geral Extraordinária da holding controladora.',
+          type: 'power_of_attorney', status: 'completed',
+          daysAgo: 45, expireDays: 90,
+          value: null, currency: 'BRL',
+          signature_order: 'sequential', multisig_enabled: false,
+          tags: ['procuração', 'societário', 'age'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 44, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Dra. Cláudia Beraldo Toledo', email: 'claudia.toledo@beraldoadvocacia.com.br', role: 'counterparty', status: 'signed', signedAgo: 43, cpf: fakeCPF(), sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Poderes Outorgados', content: 'Representar o OUTORGANTE em AGE prevista para 18/06/2026, votar matérias da ordem do dia, assinar atas e demais documentos correlatos.', idx: 1 },
+          { title: 'Prazo de Validade', content: 'Validade restrita à AGE de 18/06/2026 e atos imediatamente correlatos, extinguindo-se automaticamente em 90 dias.', idx: 2 },
+        ],
+      },
+
+      // 26. SMART · Factoring (antecipação NF)
+      {
+        meta: {
+          title: '[Smart] Antecipação de Recebíveis — NF 023456 (R$ 95k)',
+          description: 'Cessão de NF emitida ao sacado Distribuidora Sul para investidor com liquidação automática no vencimento.',
+          type: 'service', status: 'active',
+          daysAgo: 18, expireDays: 60,
+          value: 95000, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['smart-contract', 'factoring', 'factoring-template', 'antecipação'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 17, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Fundo Antares Crédito FIDC', email: 'op@antarescredito.fidc.br', role: 'counterparty', status: 'signed', signedAgo: 16, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Cessão e Desconto', content: 'Cessão de NF 023456 ao FIDC com desconto de 2,4% a.m. por 45 dias. Investidor adianta R$ 91.580 hoje.', idx: 1 },
+          { title: 'Liquidação Automática', content: 'No vencimento, sacado paga R$ 95.000 ao contrato, que libera valor cheio ao FIDC. Em caso de atraso, smart contract aciona regra de mora.', idx: 2 },
+        ],
+      },
+
+      // 27. DOC · Sale equipamentos pequeno porte
+      {
+        meta: {
+          title: 'Compra de Mobiliário Corporativo — Escritório Nova Sede',
+          description: 'Aquisição de 12 estações de trabalho, cadeiras ergonômicas e mobiliário de copa.',
+          type: 'sale', status: 'completed',
+          daysAgo: 175, expireDays: 60,
+          value: 24800, currency: 'BRL',
+          signature_order: 'sequential', multisig_enabled: false,
+          tags: ['compra', 'mobiliário', 'escritório'], hasTx: false,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 174, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Mobiplan Móveis Corporativos Ltda.', email: 'comercial@mobiplan.com.br', role: 'counterparty', status: 'signed', signedAgo: 173, cpf: null, sig: 'upload' },
+        ],
+        clauses: [
+          { title: 'Objeto e Valor', content: '12 estações modulares Slim Plus, 12 cadeiras Flexform Ergo, conjunto de copa (geladeira + bancada). Total R$ 24.800.', idx: 1 },
+          { title: 'Garantia', content: 'Garantia de 5 anos da fabricante, com troca expressa em até 30 dias para defeitos de fabricação.', idx: 2 },
+        ],
+      },
+
+      // 28. SMART · Design (template novo)
+      {
+        meta: {
+          title: '[Smart] Identidade Visual — Marca CafeNouveau (escrow + 2 revisões)',
+          description: 'Projeto de identidade visual completo com escrow on-chain e 2 rodadas de revisão incluídas.',
+          type: 'service', status: 'active',
+          daysAgo: 12, expireDays: 30,
+          value: 4500, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['smart-contract', 'design', 'escrow', 'design_creative_brief-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 11, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Estúdio Folha Design', email: 'oi@estudiofolha.com.br', role: 'counterparty', status: 'signed', signedAgo: 10, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Entregáveis', content: 'Logo, manual de marca, papelaria institucional, perfis sociais e key visual para campanha de lançamento.', idx: 1 },
+          { title: 'Escrow e Revisões', content: 'R$ 4.500 em escrow. 30% liberado após briefing aprovado. 2 revisões incluídas, extras a R$ 300/cada. Cessão total na entrega final.', idx: 2 },
+        ],
+      },
+
+      // 29. DOC · Declaration (LGPD)
+      {
+        meta: {
+          title: 'Declaração de Tratamento de Dados — Cliente Healthtech',
+          description: 'Declaração formal sobre tratamento de dados pessoais sensíveis em conformidade com LGPD para parceiro healthtech.',
+          type: 'declaration', status: 'completed',
+          daysAgo: 64, expireDays: 365,
+          value: null, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['declaração', 'lgpd', 'dados-sensíveis'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 63, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Acme Health Tecnologia Ltda.', email: 'dpo@acmehealth.com.br', role: 'counterparty', status: 'signed', signedAgo: 62, cpf: null, sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Bases Legais', content: 'Tratamento fundado em consentimento expresso (LGPD art. 7º I) e tutela da saúde (art. 11 II f).', idx: 1 },
+          { title: 'Medidas de Segurança', content: 'Criptografia em repouso AES-256, em trânsito TLS 1.3, controle de acesso por RBAC, auditoria contínua e notificação de incidentes em até 72h.', idx: 2 },
+        ],
+      },
+
+      // 30. SMART · Tráfego pago (template novo)
+      {
+        meta: {
+          title: '[Smart] Tráfego Pago com Performance — VitaFit Suplementos',
+          description: 'Gestão de mídia paga com verba e fee em escrow, com bônus liberado on-chain quando ROAS ≥ 3,5x.',
+          type: 'service', status: 'active',
+          daysAgo: 10, expireDays: 90,
+          value: 1500, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['smart-contract', 'tráfego-pago', 'performance', 'paid_traffic_kpi-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 9, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'VitaFit Suplementos Ltda.', email: 'growth@vitafit.com.br', role: 'counterparty', status: 'signed', signedAgo: 8, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Estrutura de Pagamento', content: 'R$ 5.000 de verba/mês em Meta + Google Ads. Fee fixo de R$ 1.500/mês. Bônus de R$ 800 quando ROAS ≥ 3,5x no ciclo.', idx: 1 },
+          { title: 'Verificação', content: 'Settle do ciclo só com report contendo ID das campanhas e prints da plataforma — auditável.', idx: 2 },
+        ],
+      },
+
+      // 31. DOC · Service — Marketing/conteúdo
+      {
+        meta: {
+          title: 'Criação de Conteúdo Editorial — Blog Corporativo',
+          description: 'Pacote mensal de 8 artigos otimizados para SEO, com pesquisa de palavras-chave e revisão editorial.',
+          type: 'service', status: 'active',
+          daysAgo: 38, expireDays: 240,
+          value: 4800, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['conteúdo', 'seo', 'marketing'], hasTx: false,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 37, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Mariana Schmidt Lopes', email: 'mariana@contentlab.com.br', role: 'counterparty', status: 'signed', signedAgo: 36, cpf: fakeCPF(), sig: 'draw' },
+        ],
+        clauses: [
+          { title: 'Entregáveis Mensais', content: '8 artigos de 1500-2000 palavras com pesquisa SEO, briefing aprovado, revisão e publicação no CMS.', idx: 1 },
+          { title: 'Direitos Autorais', content: 'Cessão integral e exclusiva dos direitos para uso comercial perpétuo a partir do pagamento mensal.', idx: 2 },
+        ],
+      },
+
+      // 32. SMART · Jurídico simples (template novo)
+      {
+        meta: {
+          title: '[Smart] Notificação Extrajudicial — Cobrança de Locatário',
+          description: 'Smart contract para entrega de notificação extrajudicial com pagamento em escrow ao aceite do cliente.',
+          type: 'service', status: 'completed',
+          daysAgo: 35, expireDays: 30,
+          value: 950, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['smart-contract', 'jurídico', 'legal_simple_service-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 34, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Dra. Ana Clara Mendes', email: 'anaclara.mendes@gmail.com', role: 'counterparty', status: 'signed', signedAgo: 33, cpf: fakeCPF(), sig: 'draw' },
+        ],
+        clauses: [
+          { title: 'Escopo', content: 'Redação e protocolo de notificação extrajudicial via cartório de títulos e documentos, com AR e comprovante digital.', idx: 1 },
+          { title: 'Honorário em Escrow', content: 'R$ 950 em escrow, liberado automaticamente após aceite do cliente ou em D+3 do envio do comprovante sem resposta.', idx: 2 },
+        ],
+      },
+
+      // 33. DOC · Service — RH/recrutamento
+      {
+        meta: {
+          title: 'Recrutamento Executivo — Head of Engineering',
+          description: 'Serviço de headhunting para vaga de Head of Engineering com placement fee de 18% do salário anual.',
+          type: 'service', status: 'pending',
+          daysAgo: 25, expireDays: 90,
+          value: 36000, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['recrutamento', 'executive-search', 'rh'], hasTx: false,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 24, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Talent Search Brasil Consultoria', email: 'parcerias@talentsearch.com.br', role: 'counterparty', status: 'pending', signedAgo: null, cpf: null, sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Placement Fee', content: 'Comissão de 18% sobre o salário anual da posição preenchida, paga em 3 parcelas (50% no aceite, 25% em 30d, 25% em 60d).', idx: 1 },
+          { title: 'Garantia', content: 'Garantia de 90 dias: se o profissional sair no período, recrutadora repõe sem custo adicional.', idx: 2 },
+        ],
+      },
+
+      // 34. SMART · Aluguel comercial
+      {
+        meta: {
+          title: '[Smart] Locação Comercial — Loja Itaim com Caução Tokenizada',
+          description: 'Locação comercial com smart contract executando aluguel mensal e caução de 12x retida on-chain.',
+          type: 'rental', status: 'pending',
+          daysAgo: 5, expireDays: 1095,
+          value: 14500, currency: 'BRL',
+          signature_order: 'sequential', multisig_enabled: true,
+          tags: ['smart-contract', 'rental', 'comercial', 'commercial_rent-template'], hasTx: false,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 4, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Imobiliária Pádua Negócios', email: 'locacao@paduanegocios.com.br', role: 'counterparty', status: 'pending', signedAgo: null, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Imóvel e Valor', content: 'Loja térrea de 95m² no Itaim, R$ 14.500/mês com caução de 12 meses retida no smart contract.', idx: 1 },
+          { title: 'Execução', content: 'Reajuste anual pelo IGP-M, cobrança automática no dia 5, vistoria final on-chain libera caução.', idx: 2 },
+        ],
+      },
+
+      // 35. DOC · NDA mais antigo arquivado
+      {
+        meta: {
+          title: 'NDA Mútuo — Parceria Frustrada com TradeTech',
+          description: 'NDA firmado para negociação que não evoluiu. Arquivado por término do prazo de avaliação.',
+          type: 'nda', status: 'archived',
+          daysAgo: 178, expireDays: 180,
+          value: null, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['nda', 'arquivado', 'parceria-frustrada'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 177, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Mauricio Lustosa Filho', email: 'mauricio.lustosa@tradetech.io', role: 'counterparty', status: 'signed', signedAgo: 176, cpf: fakeCPF(), sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Confidencialidade', content: 'Manutenção do sigilo sobre informações trocadas pelo prazo de 18 meses contados desta data.', idx: 1 },
+          { title: 'Arquivamento', content: 'Arquivado pelo decurso do prazo de avaliação sem evolução para contrato definitivo.', idx: 2 },
+        ],
+      },
+
+      // 36. SMART · Financiamento empenho (template novo)
+      {
+        meta: {
+          title: '[Smart] Antecipação de Empenho Público — NE 2026/0234 (R$ 180k)',
+          description: 'Smart contract de antecipação sobre empenho da prefeitura municipal com liquidação automática no recebimento.',
+          type: 'service', status: 'active',
+          daysAgo: 6, expireDays: 75,
+          value: 180000, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: true,
+          tags: ['smart-contract', 'financiamento', 'empenho-público', 'bid_financing-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 5, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Construtora Bandeirantes Ltda.', email: 'financeiro@constbandeirantes.com.br', role: 'counterparty', status: 'signed', signedAgo: 4, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Empenho e Antecipação', content: 'NE 2026/0234 da Prefeitura de Campinas, face R$ 180.000, vencimento 75 dias. Taxa de antecipação 2,4% a.m. — adiantado R$ 169.200.', idx: 1 },
+          { title: 'Liquidação', content: 'No pagamento do órgão, contrato libera valor cheio ao financiador e sobra ao contractor automaticamente.', idx: 2 },
+        ],
+      },
+
+      // 37. DOC · Service — auditoria
+      {
+        meta: {
+          title: 'Auditoria de Segurança da Informação — Pentest Externo',
+          description: 'Pentest externo + interno + revisão de código com relatório executivo e plano de remediação.',
+          type: 'service', status: 'completed',
+          daysAgo: 105, expireDays: 90,
+          value: 32000, currency: 'BRL',
+          signature_order: 'sequential', multisig_enabled: false,
+          tags: ['segurança', 'pentest', 'compliance'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 104, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'RedTeam Security Solutions', email: 'comercial@redteamsec.com.br', role: 'counterparty', status: 'signed', signedAgo: 103, cpf: null, sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Escopo do Pentest', content: 'Pentest externo black-box + interno gray-box + revisão de código nas APIs críticas, com 20 dias úteis de duração.', idx: 1 },
+          { title: 'Entregáveis', content: 'Relatório executivo, relatório técnico detalhado com CVSS, PoCs reprodutíveis e plano de remediação priorizado.', idx: 2 },
+        ],
+      },
+
+      // 38. SMART · Financiamento obra privada (template novo)
+      {
+        meta: {
+          title: '[Smart] Financiamento de Obra Privada — NF 023456 (R$ 250k · 20%/45d)',
+          description: 'Antecipação de NF de obra residencial com gatilho de 20% em 45d e quitação total em 120d.',
+          type: 'service', status: 'active',
+          daysAgo: 2, expireDays: 120,
+          value: 250000, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: true,
+          tags: ['smart-contract', 'financiamento', 'obra-privada', 'private_construction_funding-template'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 1, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Incorporadora Mirante S.A.', email: 'cfo@incmirante.com.br', role: 'counterparty', status: 'signed', signedAgo: 1, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Antecipação', content: 'NF 023456 — valor de face R$ 250.000. Antecipação descontada a 2,8% a.m. por 120d. Funder adianta R$ 222.000 hoje.', idx: 1 },
+          { title: 'Gatilho de 20% e Quitação', content: 'Cliente final paga 20% (R$ 50.000) obrigatoriamente em 45d e saldo em até 120d. Cada parcela libera proporcional ao funder.', idx: 2 },
+        ],
+      },
+
+      // 39. DOC · Service — manutenção
+      {
+        meta: {
+          title: 'Manutenção Preventiva — Climatização e Elétrica do Escritório',
+          description: 'Contrato anual de manutenção preventiva e corretiva de ar-condicionado e instalações elétricas.',
+          type: 'service', status: 'active',
+          daysAgo: 145, expireDays: 220,
+          value: 1850, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['manutenção', 'predial', 'recorrente'], hasTx: false,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 144, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'TecnoClima Engenharia Ltda.', email: 'contratos@tecnoclima.com.br', role: 'counterparty', status: 'signed', signedAgo: 143, cpf: null, sig: 'type' },
+        ],
+        clauses: [
+          { title: 'Periodicidade', content: 'Manutenção preventiva mensal de 12 splits + quadros elétricos + ronda predial. Corretivas atendidas em até 8h úteis.', idx: 1 },
+          { title: 'Mensalidade', content: 'R$ 1.850/mês com NF emitida no dia 1º, pagamento via boleto até o dia 10.', idx: 2 },
+        ],
+      },
+
+      // 40. SMART · Seguro paramétrico
+      {
+        meta: {
+          title: '[Smart] Seguro Paramétrico de Chuva — Evento Outdoor 15/Jul',
+          description: 'Seguro paramétrico de chuva para evento corporativo com indenização automática se precipitação > 5mm/h.',
+          type: 'service', status: 'active',
+          daysAgo: 4, expireDays: 60,
+          value: 8500, currency: 'BRL',
+          signature_order: 'parallel', multisig_enabled: false,
+          tags: ['smart-contract', 'seguro', 'paramétrico', 'parametric_insurance-template', 'evento'], hasTx: true,
+        },
+        parties: [
+          { name: userName, email: userEmail, role: 'creator', status: 'signed', signedAgo: 3, cpf: fakeCPF(), sig: 'freighter' },
+          { name: 'Resseguradora Cardinal', email: 'paramétrico@cardinalre.com', role: 'counterparty', status: 'signed', signedAgo: 2, cpf: null, sig: 'freighter' },
+        ],
+        clauses: [
+          { title: 'Cobertura', content: 'Indenização automática de R$ 80.000 se oracle Chainlink registrar precipitação > 5mm/h na coordenada do evento entre 14h-22h de 15/07/2026.', idx: 1 },
+          { title: 'Prêmio', content: 'Prêmio único de R$ 8.500 pago no ato. Liquidação automática em até 30 minutos do trigger climático.', idx: 2 },
+        ],
+      },
     ];
 
     let ok = 0;
@@ -287,7 +923,7 @@ export default function SeedPage() {
       const expiresAt = meta.expireDays ? futureIso(meta.daysAgo, meta.expireDays) : null;
 
       try {
-        push(`[${i + 1}/10] ${meta.title.substring(0, 50)}...`);
+        push(`[${i + 1}/${contracts.length}] ${meta.title.substring(0, 50)}...`);
 
         await insert('contracts', {
           id: contractId,

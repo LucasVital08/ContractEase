@@ -1045,6 +1045,7 @@ impl ParametricInsurance {
 };
 
 import { EXTENDED_TEMPLATES } from './additionalSmartContractTemplates';
+import { MARKETPLACE_TEMPLATES } from './marketplaceSmartContractTemplates';
 
 export const SMART_CONTRACT_TEMPLATES: SmartContractTemplate[] = [
   rentTemplate,
@@ -1058,6 +1059,7 @@ export const SMART_CONTRACT_TEMPLATES: SmartContractTemplate[] = [
   groupBuyTemplate,
   parametricInsuranceTemplate,
   ...EXTENDED_TEMPLATES,
+  ...MARKETPLACE_TEMPLATES,
 ];
 
 export const TEMPLATES_BY_ID: Record<string, SmartContractTemplate> = Object.fromEntries(
