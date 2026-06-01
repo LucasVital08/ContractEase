@@ -19,45 +19,26 @@ function StatCard({ title, value, icon, color, bg, to, subtext, delay = 0 }: {
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay, type: 'spring', stiffness: 300, damping: 30 }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
     >
       <Link
         to={to}
-        className="group relative flex flex-col overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.18)] transition-all hover:-translate-y-0.5 hover:border-cyan-400/16 hover:bg-[linear-gradient(180deg,rgba(16,185,129,0.055),rgba(255,255,255,0.018))]"
+        className="group relative flex h-full flex-col rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5 transition-colors hover:border-emerald-400/25 hover:bg-white/[0.035]"
       >
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/45 to-transparent opacity-70" />
-        <div className="absolute -right-10 top-8 h-28 w-28 rounded-full bg-cyan-400/8 blur-3xl transition-opacity group-hover:opacity-90" />
-
-        <div className="relative z-10 mb-3 flex items-start justify-between">
-          <motion.div
-            className={`flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 ${bg} transition-transform`}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <iconify-icon icon={icon} class={`text-xl ${color}`} />
-          </motion.div>
-          <motion.div
-            animate={{ x: 0, opacity: 0 }}
-            whileHover={{ x: 4, opacity: 1 }}
-            transition={{ duration: 0.2 }}
-          >
-            <iconify-icon icon="solar:arrow-right-up-bold" class={`text-neutral-600 group-hover:text-neutral-400 text-sm transition-colors`} />
-          </motion.div>
+        <div className="mb-5 flex items-center justify-between">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${bg}`}>
+            <iconify-icon icon={icon} class={`text-base ${color}`} />
+          </div>
+          <iconify-icon
+            icon="solar:arrow-right-up-linear"
+            class="text-neutral-700 text-sm opacity-0 transition-opacity group-hover:opacity-100"
+          />
         </div>
-
-        <div className="relative z-10">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">{title}</p>
-          <motion.h4
-            className="mt-3 text-3xl font-bold text-white font-bricolage"
-            animate={{ y: 0 }}
-            whileHover={{ y: -2 }}
-          >
-            {value}
-          </motion.h4>
-          {subtext && <p className="mt-2 text-xs leading-5 text-neutral-500">{subtext}</p>}
-        </div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">{title}</p>
+        <p className="mt-2 font-bricolage text-[2.5rem] font-bold leading-none tabular-nums text-white">{value}</p>
+        {subtext && <p className="mt-2 text-[11px] leading-5 text-neutral-500">{subtext}</p>}
       </Link>
     </motion.div>
   );
@@ -65,35 +46,32 @@ function StatCard({ title, value, icon, color, bg, to, subtext, delay = 0 }: {
 
 function RecentRow({ contract }: { contract: Contract }) {
   const statusMap: Record<string, { label: string; cls: string }> = {
-    active: { label: 'Ativo', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-    pending: { label: 'Pendente', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
-    completed: { label: 'Concluído', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-    draft: { label: 'Rascunho', cls: 'bg-neutral-500/20 text-neutral-400 border-neutral-500/30' },
-    cancelled: { label: 'Cancelado', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
-    archived: { label: 'Arquivado', cls: 'bg-neutral-600/20 text-neutral-500 border-neutral-600/30' },
+    active: { label: 'Ativo', cls: 'bg-emerald-500/[0.10] text-emerald-300' },
+    pending: { label: 'Pendente', cls: 'bg-amber-500/[0.08] text-amber-200' },
+    completed: { label: 'Concluído', cls: 'bg-indigo-500/[0.08] text-indigo-300' },
+    draft: { label: 'Rascunho', cls: 'bg-white/[0.04] text-neutral-400' },
+    cancelled: { label: 'Cancelado', cls: 'bg-rose-500/[0.08] text-rose-300' },
+    archived: { label: 'Arquivado', cls: 'bg-white/[0.03] text-neutral-500' },
   };
   const s = statusMap[contract.status] ?? statusMap.draft;
   const smart = isSmartContract(contract);
 
   return (
-    <Link to={`/contracts/${contract.id}`} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0 hover:bg-white/[0.02] px-2 -mx-2 rounded-lg transition-colors">
-      <div className="flex items-center gap-3">
-        <span className="text-emerald-500 font-mono text-xs">{contract.id}</span>
-        <span className="text-white text-sm font-medium">{contract.title}</span>
+    <Link to={`/contracts/${contract.id}`} className="flex items-center justify-between gap-3 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] px-2 -mx-2 rounded-lg transition-colors">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span className="text-white text-sm font-medium truncate">{contract.title}</span>
         {smart && (
-          <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[10px] font-bold uppercase tracking-wide">
-            Inteligente
+          <span className="shrink-0 px-2 py-0.5 rounded-full bg-emerald-500/[0.10] text-emerald-300 text-[10px] font-bold uppercase tracking-wide">
+            Smart
           </span>
         )}
         {contract.stellarTxHash && (
-          <iconify-icon icon="solar:shield-check-bold" class="text-emerald-500 text-sm" />
+          <iconify-icon icon="solar:shield-check-linear" class="text-emerald-400/70 text-sm shrink-0" />
         )}
       </div>
-      <div className="flex items-center gap-4">
-        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${s.cls}`}>
-          {s.label}
-        </span>
-      </div>
+      <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${s.cls}`}>
+        {s.label}
+      </span>
     </Link>
   );
 }
@@ -149,10 +127,10 @@ function ContractsTrendChart({ contracts }: { contracts: Contract[] }) {
   }, [contracts]);
 
   const W = 640;
-  const H = 120;
-  const PX = 10;
-  const PT = 12;
-  const PB = 8;
+  const H = 180;
+  const PX = 16;
+  const PT = 20;
+  const PB = 12;
   const innerW = W - PX * 2;
   const innerH = H - PT - PB;
   const step = innerW / Math.max(series.length - 1, 1);
@@ -172,36 +150,47 @@ function ContractsTrendChart({ contracts }: { contracts: Contract[] }) {
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.14 }}
-      className="rounded-[24px] border border-app-border bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)]"
+      transition={{ delay: 0.14, duration: 0.4 }}
+      className="rounded-3xl border border-white/[0.06] bg-white/[0.018] p-7"
     >
-      <div className="mb-3 flex items-end justify-between gap-4 flex-wrap">
+      <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-app-text-muted">Evolução</p>
-          <h3 className="font-bricolage text-base font-bold text-app-text">Contratos por mês</h3>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Evolução</p>
+          <h3 className="mt-1 font-bricolage text-2xl font-bold text-white">Contratos por mês</h3>
+          <p className="mt-1 text-xs text-neutral-500">Os últimos 6 meses · clique num mês pra ver a lista</p>
         </div>
-        <p className="text-[11px] text-app-text-subtle">Clique num mês pra ver os contratos</p>
+        {selectedData && (
+          <div className="text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">{selectedData.fullLabel}</p>
+            <p className="font-bricolage text-3xl font-bold tabular-nums text-emerald-300">{selectedData.count}</p>
+          </div>
+        )}
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 'auto' }} role="img" aria-label="Contratos por mês">
         <defs>
           <linearGradient id="dashAreaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.30" />
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
             <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
           </linearGradient>
-          <linearGradient id="dashLineGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#34d399" />
-            <stop offset="100%" stopColor="#22d3ee" />
-          </linearGradient>
         </defs>
+        {/* horizontal guide line at midpoint */}
+        <line x1={PX} x2={W - PX} y1={PT + innerH / 2} y2={PT + innerH / 2} stroke="rgba(255,255,255,0.04)" strokeDasharray="2 4" />
         {areaPath && <path d={areaPath} fill="url(#dashAreaGrad)" />}
-        {linePath && <path d={linePath} fill="none" stroke="url(#dashLineGrad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+        {linePath && <path d={linePath} fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
         {points.map((p, i) => (
           <g key={i}>
             {selected === i && (
-              <line x1={p.x} x2={p.x} y1={PT} y2={PT + innerH} stroke="#34d399" strokeOpacity="0.5" strokeWidth="1" strokeDasharray="3 3" />
+              <line x1={p.x} x2={p.x} y1={PT} y2={PT + innerH} stroke="#34d399" strokeOpacity="0.35" strokeWidth="1" strokeDasharray="3 3" />
             )}
-            <circle cx={p.x} cy={p.y} r={selected === i ? 5.5 : 3.5} fill="var(--app-bg)" stroke="url(#dashLineGrad)" strokeWidth="2" />
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={selected === i ? 6 : 4}
+              fill={selected === i ? '#34d399' : '#0a0b0d'}
+              stroke="#34d399"
+              strokeWidth="2"
+            />
             <rect
               x={p.x - step / 2}
               y={PT}
@@ -215,17 +204,17 @@ function ContractsTrendChart({ contracts }: { contracts: Contract[] }) {
         ))}
       </svg>
 
-      <div className="mt-2 flex justify-between gap-1 px-1">
+      <div className="mt-3 flex justify-between gap-1 px-1">
         {series.map((s, i) => (
           <button
             key={i}
             onClick={() => setSelected(selected === i ? null : i)}
-            className={`flex flex-1 flex-col items-center rounded-lg py-1 transition-colors ${
-              selected === i ? 'bg-emerald-500/10 text-emerald-300' : 'text-app-text-subtle hover:bg-white/[0.04]'
+            className={`flex flex-1 flex-col items-center rounded-xl py-2 transition-colors ${
+              selected === i ? 'bg-emerald-500/[0.08] text-emerald-300' : 'text-neutral-500 hover:bg-white/[0.025]'
             }`}
           >
-            <span className="text-[10px] font-medium uppercase tracking-wide">{s.label}</span>
-            <span className={`text-xs font-bold ${selected === i ? 'text-emerald-300' : 'text-app-text-muted'}`}>{s.count}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">{s.label}</span>
+            <span className={`mt-0.5 font-bricolage text-sm font-bold tabular-nums ${selected === i ? 'text-emerald-300' : 'text-neutral-400'}`}>{s.count}</span>
           </button>
         ))}
       </div>
@@ -238,27 +227,24 @@ function ContractsTrendChart({ contracts }: { contracts: Contract[] }) {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="mt-4 border-t border-app-border pt-4">
-              <p className="mb-2 text-xs font-semibold capitalize text-app-text">
-                {selectedData.fullLabel} · {selectedData.count} contrato{selectedData.count !== 1 ? 's' : ''}
-              </p>
+            <div className="mt-6 border-t border-white/[0.06] pt-5">
               {selectedData.items.length > 0 ? (() => {
                 const docItems = selectedData.items.filter(c => !isSmartContract(c));
                 const smartItems = selectedData.items.filter(c => isSmartContract(c));
                 return (
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {/* Documentos Contratuais */}
-                    <div className="rounded-xl border border-cyan-400/14 bg-cyan-500/[0.04] overflow-hidden">
+                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] overflow-hidden">
                       <button
                         onClick={() => setDocsOpen(o => !o)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.03] transition-colors"
+                        className="flex w-full items-center gap-2.5 px-4 py-3 text-left hover:bg-white/[0.025] transition-colors"
                       >
-                        <iconify-icon icon="solar:document-text-bold-duotone" class="text-cyan-300 shrink-0" />
-                        <span className="flex-1 text-xs font-semibold text-cyan-200">Documentos Contratuais</span>
-                        <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300">{docItems.length}</span>
+                        <iconify-icon icon="solar:document-text-linear" class="text-neutral-400 shrink-0" />
+                        <span className="flex-1 text-sm font-semibold text-neutral-200">Documentos Contratuais</span>
+                        <span className="rounded-full bg-white/[0.06] px-2.5 py-0.5 text-[11px] font-bold tabular-nums text-neutral-300">{docItems.length}</span>
                         <iconify-icon
-                          icon="solar:alt-arrow-down-bold"
-                          class={`text-xs text-cyan-400/60 transition-transform ${docsOpen ? 'rotate-180' : ''}`}
+                          icon="solar:alt-arrow-down-linear"
+                          class={`text-sm text-neutral-500 transition-transform ${docsOpen ? 'rotate-180' : ''}`}
                         />
                       </button>
                       <AnimatePresence initial={false}>
@@ -282,17 +268,17 @@ function ContractsTrendChart({ contracts }: { contracts: Contract[] }) {
                     </div>
 
                     {/* Contratos Inteligentes */}
-                    <div className="rounded-xl border border-violet-400/14 bg-violet-500/[0.04] overflow-hidden">
+                    <div className="rounded-2xl border border-emerald-400/[0.12] bg-emerald-500/[0.025] overflow-hidden">
                       <button
                         onClick={() => setSmartOpen(o => !o)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.03] transition-colors"
+                        className="flex w-full items-center gap-2.5 px-4 py-3 text-left hover:bg-white/[0.025] transition-colors"
                       >
-                        <iconify-icon icon="solar:cpu-bolt-bold-duotone" class="text-violet-300 shrink-0" />
-                        <span className="flex-1 text-xs font-semibold text-violet-200">Contratos Inteligentes</span>
-                        <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-300">{smartItems.length}</span>
+                        <iconify-icon icon="solar:cpu-bolt-linear" class="text-emerald-300 shrink-0" />
+                        <span className="flex-1 text-sm font-semibold text-emerald-100/90">Contratos Inteligentes</span>
+                        <span className="rounded-full bg-emerald-500/[0.12] px-2.5 py-0.5 text-[11px] font-bold tabular-nums text-emerald-300">{smartItems.length}</span>
                         <iconify-icon
-                          icon="solar:alt-arrow-down-bold"
-                          class={`text-xs text-violet-400/60 transition-transform ${smartOpen ? 'rotate-180' : ''}`}
+                          icon="solar:alt-arrow-down-linear"
+                          class={`text-sm text-emerald-400/70 transition-transform ${smartOpen ? 'rotate-180' : ''}`}
                         />
                       </button>
                       <AnimatePresence initial={false}>
@@ -347,24 +333,24 @@ function ContractListItem({ contract }: { contract: Contract }) {
   const statusInfo: { label: string; color: string; icon: string } = (() => {
     if (isPastDue) {
       return isSmart
-        ? { label: 'Em atraso', color: 'border-rose-400/30 bg-rose-500/15 text-rose-300', icon: 'solar:danger-triangle-bold-duotone' }
-        : { label: 'Expirado', color: 'border-rose-400/30 bg-rose-500/15 text-rose-300', icon: 'solar:clock-circle-bold-duotone' };
+        ? { label: 'Em atraso', color: 'bg-rose-500/[0.10] text-rose-300', icon: 'solar:danger-triangle-linear' }
+        : { label: 'Expirado', color: 'bg-rose-500/[0.10] text-rose-300', icon: 'solar:clock-circle-linear' };
     }
     switch (contract.status) {
       case 'active':
-        return { label: isSmart ? 'Em execução' : 'Ativo', color: 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300', icon: 'solar:play-circle-bold-duotone' };
+        return { label: isSmart ? 'Em execução' : 'Ativo', color: 'bg-emerald-500/[0.10] text-emerald-300', icon: 'solar:play-circle-linear' };
       case 'pending':
-        return { label: 'Pendente de assinatura', color: 'border-amber-400/30 bg-amber-500/15 text-amber-300', icon: 'solar:hourglass-bold-duotone' };
+        return { label: 'Pendente de assinatura', color: 'bg-amber-500/[0.08] text-amber-200', icon: 'solar:hourglass-linear' };
       case 'completed':
-        return { label: 'Concluído', color: 'border-blue-400/30 bg-blue-500/15 text-blue-300', icon: 'solar:check-circle-bold-duotone' };
+        return { label: 'Concluído', color: 'bg-indigo-500/[0.08] text-indigo-300', icon: 'solar:check-circle-linear' };
       case 'draft':
-        return { label: 'Rascunho', color: 'border-white/15 bg-white/[0.04] text-neutral-400', icon: 'solar:pen-new-square-bold-duotone' };
+        return { label: 'Rascunho', color: 'bg-white/[0.04] text-neutral-400', icon: 'solar:pen-new-square-linear' };
       case 'cancelled':
-        return { label: 'Cancelado', color: 'border-rose-400/24 bg-rose-500/10 text-rose-300', icon: 'solar:close-circle-bold-duotone' };
+        return { label: 'Cancelado', color: 'bg-rose-500/[0.08] text-rose-300', icon: 'solar:close-circle-linear' };
       case 'archived':
-        return { label: 'Arquivado', color: 'border-white/12 bg-white/[0.03] text-app-text-subtle', icon: 'solar:archive-bold-duotone' };
+        return { label: 'Arquivado', color: 'bg-white/[0.03] text-neutral-500', icon: 'solar:archive-linear' };
       default:
-        return { label: String(contract.status), color: 'border-white/15 bg-white/[0.04] text-neutral-400', icon: 'solar:document-bold-duotone' };
+        return { label: String(contract.status), color: 'bg-white/[0.04] text-neutral-400', icon: 'solar:document-linear' };
     }
   })();
 
@@ -402,13 +388,13 @@ function ContractListItem({ contract }: { contract: Contract }) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
               isSmart
-                ? 'border-violet-400/30 bg-violet-500/12 text-violet-300'
-                : 'border-cyan-400/30 bg-cyan-500/12 text-cyan-300'
+                ? 'bg-emerald-500/[0.10] text-emerald-300'
+                : 'bg-white/[0.06] text-neutral-300'
             }`}
           >
-            <iconify-icon icon={isSmart ? 'solar:cpu-bolt-bold-duotone' : 'solar:document-text-bold-duotone'} class="text-xs" />
+            <iconify-icon icon={isSmart ? 'solar:cpu-bolt-linear' : 'solar:document-text-linear'} class="text-xs" />
             {isSmart ? 'Inteligente' : 'Documento'}
           </span>
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusInfo.color}`}>
@@ -576,19 +562,20 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white font-bricolage">Dashboard</h1>
-          <p className="text-neutral-400 text-sm">Bem-vindo de volta, {user?.name?.split(' ')[0] ?? 'usuário'}!</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Dashboard</p>
+          <h1 className="mt-1 font-bricolage text-4xl font-bold text-white">Olá, {user?.name?.split(' ')[0] ?? 'usuário'}.</h1>
+          <p className="mt-2 text-sm text-neutral-500">Sua leitura operacional de contratos, smart contracts e ancoragens.</p>
         </div>
-        <button 
+        <button
           onClick={() => setIsEditing(!isEditing)}
-          className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-2 text-xs font-bold ${
-            isEditing 
-              ? 'bg-emerald-500 border-emerald-400 text-black' 
-              : 'bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10'
+          className={`px-3.5 py-2 rounded-xl border transition-colors flex items-center gap-2 text-xs font-semibold ${
+            isEditing
+              ? 'border-emerald-400/40 bg-emerald-500/[0.10] text-emerald-300'
+              : 'border-white/[0.06] bg-white/[0.02] text-neutral-400 hover:bg-white/[0.05] hover:text-white'
           }`}
         >
-          <iconify-icon icon={isEditing ? 'solar:check-read-bold' : 'solar:widget-add-bold'} />
-          {isEditing ? 'Salvar Layout' : 'Customizar Painel'}
+          <iconify-icon icon={isEditing ? 'solar:check-read-linear' : 'solar:widget-add-linear'} />
+          {isEditing ? 'Salvar layout' : 'Customizar painel'}
         </button>
       </div>
 
@@ -618,25 +605,24 @@ export default function DashboardPage() {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden mb-8"
           >
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-wrap gap-4 items-center">
-              <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest mr-2">Widgets Disponíveis:</p>
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 flex flex-wrap gap-3 items-center">
+              <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.22em] mr-2">Widgets disponíveis</p>
               {Object.keys(DEFAULT_WIDGETS).map((id) => (
                 <button
                   key={id}
                   onClick={() => toggleWidget(id as any)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-2 ${
                     visibleWidgets[id as keyof typeof DEFAULT_WIDGETS]
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                      : 'bg-white/5 border-white/10 text-neutral-500 opacity-50'
+                      ? 'border-emerald-400/30 bg-emerald-500/[0.08] text-emerald-300'
+                      : 'border-white/[0.05] bg-white/[0.01] text-neutral-500 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <iconify-icon icon={
-                    id === 'stats' ? 'solar:chart-2-bold' :
-                    id === 'blockchain' ? 'solar:shield-check-bold' :
-                    id === 'expirations' ? 'solar:calendar-bold' : 'solar:list-bold'
+                    id === 'stats' ? 'solar:chart-2-linear' :
+                    id === 'blockchain' ? 'solar:shield-check-linear' :
+                    id === 'expirations' ? 'solar:calendar-linear' : 'solar:list-linear'
                   } />
                   {id.charAt(0).toUpperCase() + id.slice(1)}
-                  {visibleWidgets[id as keyof typeof DEFAULT_WIDGETS] && <iconify-icon icon="solar:check-circle-bold" />}
                 </button>
               ))}
             </div>
@@ -647,11 +633,11 @@ export default function DashboardPage() {
       {/* Stats & AI Insight */}
       {visibleWidgets.stats && (
         <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 transition-all ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
-          <StatCard title="Total" value={contracts.length.toString()} icon="solar:document-text-bold-duotone" color="text-neutral-300" bg="bg-white/5" to="/contracts" subtext="todos os documentos" delay={0} />
-          <StatCard title="Ativos" value={active.toString()} icon="solar:check-circle-bold-duotone" color="text-emerald-400" bg="bg-emerald-500/10" to="/contracts?status=active" subtext="em vigência" delay={0.04} />
-          <StatCard title="Rascunhos" value={draft.toString()} icon="solar:pen-new-round-bold-duotone" color="text-neutral-400" bg="bg-white/5" to="/contracts?status=draft" subtext="aguardando revisão" delay={0.08} />
-          <StatCard title="Assinatura Pendente" value={pending.toString()} icon="solar:hourglass-bold-duotone" color="text-amber-400" bg="bg-amber-500/10" to="/contracts?status=pending" subtext="aguardando partes" delay={0.12} />
-          <StatCard title="Concluídos" value={completed.toString()} icon="solar:diploma-verified-bold-duotone" color="text-blue-400" bg="bg-blue-500/10" to="/contracts?status=completed" subtext="todos assinaram" delay={0.16} />
+          <StatCard title="Total" value={contracts.length.toString()} icon="solar:document-text-linear" color="text-neutral-300" bg="bg-white/[0.04]" to="/contracts" subtext="todos os documentos" delay={0} />
+          <StatCard title="Ativos" value={active.toString()} icon="solar:check-circle-linear" color="text-emerald-300" bg="bg-emerald-500/10" to="/contracts?status=active" subtext="em vigência" delay={0.04} />
+          <StatCard title="Rascunhos" value={draft.toString()} icon="solar:pen-new-round-linear" color="text-neutral-400" bg="bg-white/[0.04]" to="/contracts?status=draft" subtext="aguardando revisão" delay={0.08} />
+          <StatCard title="Assinatura Pendente" value={pending.toString()} icon="solar:hourglass-linear" color="text-amber-200" bg="bg-amber-500/[0.08]" to="/contracts?status=pending" subtext="aguardando partes" delay={0.12} />
+          <StatCard title="Concluídos" value={completed.toString()} icon="solar:diploma-verified-linear" color="text-indigo-300" bg="bg-indigo-500/[0.08]" to="/contracts?status=completed" subtext="todos assinaram" delay={0.16} />
         </div>
       )}
 
@@ -662,29 +648,28 @@ export default function DashboardPage() {
       )}
 
       {smartContracts.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }} className={`rounded-[28px] border border-cyan-400/12 bg-[linear-gradient(180deg,rgba(8,12,16,0.96),rgba(9,14,18,0.88))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)] ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
-          <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.4 }} className={`rounded-3xl border border-white/[0.06] bg-white/[0.018] p-7 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+          <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
             <div>
-              <h3 className="text-lg font-bold text-white font-bricolage flex items-center gap-2">
-                <iconify-icon icon="solar:code-square-bold-duotone" class="text-cyan-300 text-xl" /> Contratos Inteligentes
-              </h3>
-              <p className="text-xs text-neutral-400 mt-1">Leitura operacional dos fluxos programáveis: execução, pendências, rascunhos e provas ancoradas.</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Smart Contracts</p>
+              <h3 className="mt-1 font-bricolage text-2xl font-bold text-white">Contratos Inteligentes</h3>
+              <p className="mt-1 text-xs text-neutral-500 max-w-md">Fluxos programáveis: execução, pendências, rascunhos e provas ancoradas na rede.</p>
             </div>
-            <Link to="/contracts" className="text-xs text-cyan-400 hover:underline">Abrir documentos</Link>
+            <Link to="/contracts" className="text-xs text-emerald-300 hover:text-emerald-200 transition-colors">Abrir documentos →</Link>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-              { label: 'Total', value: smartContracts.length, tone: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20', subtext: 'contratos inteligentes' },
-              { label: 'Ativos', value: smartActive, tone: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', subtext: 'em execução' },
-              { label: 'Pendentes', value: smartPending, tone: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', subtext: 'pendente de ciência' },
-              { label: 'Rascunhos', value: smartDraft, tone: 'text-neutral-300', bg: 'bg-white/5 border-white/10', subtext: 'ainda não publicados' },
-              { label: 'Ancorados', value: smartAnchored, tone: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', subtext: 'com hash na Stellar' },
+              { label: 'Total', value: smartContracts.length, tone: 'text-white', subtext: 'contratos inteligentes' },
+              { label: 'Ativos', value: smartActive, tone: 'text-emerald-300', subtext: 'em execução' },
+              { label: 'Pendentes', value: smartPending, tone: 'text-amber-200', subtext: 'pendente de ciência' },
+              { label: 'Rascunhos', value: smartDraft, tone: 'text-neutral-300', subtext: 'ainda não publicados' },
+              { label: 'Ancorados', value: smartAnchored, tone: 'text-indigo-300', subtext: 'com hash na Stellar' },
             ].map(card => (
-              <div key={card.label} className={`rounded-2xl border p-4 ${card.bg}`}>
-                <p className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">{card.label}</p>
-                <p className={`text-2xl font-bold ${card.tone}`}>{card.value}</p>
-                <p className="text-[11px] text-neutral-500 mt-1">{card.subtext}</p>
+              <div key={card.label} className="rounded-2xl border border-white/[0.05] bg-white/[0.02] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{card.label}</p>
+                <p className={`mt-2 font-bricolage text-[2rem] font-bold leading-none tabular-nums ${card.tone}`}>{card.value}</p>
+                <p className="mt-2 text-[11px] text-neutral-500">{card.subtext}</p>
               </div>
             ))}
           </div>
@@ -719,37 +704,45 @@ export default function DashboardPage() {
 
       {/* Blockchain Stats */}
       {visibleWidgets.blockchain && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className={`bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 border border-emerald-500/10 rounded-2xl p-6 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2 bg-emerald-500/10 rounded-xl">
-              <iconify-icon icon="solar:shield-network-bold-duotone" class="text-2xl text-emerald-500" />
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }} className={`rounded-3xl border border-white/[0.06] bg-white/[0.018] p-7 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+          <div className="flex items-start gap-3 mb-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/[0.08]">
+              <iconify-icon icon="solar:shield-network-linear" class="text-xl text-emerald-300" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white font-bricolage">Stellar Blockchain</h3>
-              <p className="text-xs text-neutral-400">Testnet · Proof of Existence</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Blockchain</p>
+              <h3 className="mt-0.5 font-bricolage text-xl font-bold text-white">Stellar · Testnet</h3>
+              <p className="text-xs text-neutral-500">Proof of Existence on-chain</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-black/30 rounded-xl p-4 border border-white/5">
-              <p className="text-xs text-neutral-500 mb-1">Documentos Ancorados</p>
-              <p className="text-2xl font-bold text-emerald-400 font-bricolage">{anchored}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Ancorados</p>
+              <p className="mt-2 font-bricolage text-[2rem] font-bold leading-none tabular-nums text-emerald-300">{anchored}</p>
+              <p className="mt-2 text-[11px] text-neutral-500">documentos on-chain</p>
             </div>
-            <div className="bg-black/30 rounded-xl p-4 border border-white/5">
-              <p className="text-xs text-neutral-500 mb-1">Assinaturas Coletadas</p>
-              <p className="text-2xl font-bold text-blue-400 font-bricolage">{totalSignatures}</p>
+            <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Assinaturas</p>
+              <p className="mt-2 font-bricolage text-[2rem] font-bold leading-none tabular-nums text-white">{totalSignatures}</p>
+              <p className="mt-2 text-[11px] text-neutral-500">coletadas</p>
             </div>
-            <div className="bg-black/30 rounded-xl p-4 border border-white/5">
-              <p className="text-xs text-neutral-500 mb-1">Taxa de Ancoragem</p>
-              <p className="text-2xl font-bold text-amber-400 font-bricolage">
-                {contracts.length > 0 ? Math.round((anchored / contracts.length) * 100) : 0}%
+            <div className="rounded-2xl border border-white/[0.05] bg-white/[0.02] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Taxa</p>
+              <p className="mt-2 font-bricolage text-[2rem] font-bold leading-none tabular-nums text-white">
+                {contracts.length > 0 ? Math.round((anchored / contracts.length) * 100) : 0}<span className="text-base text-neutral-500">%</span>
               </p>
+              <p className="mt-2 text-[11px] text-neutral-500">de ancoragem</p>
             </div>
-            <div className="bg-black/30 rounded-xl p-4 border border-white/5">
-              <p className="text-xs text-neutral-500 mb-1">Rede</p>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <p className="text-sm font-semibold text-emerald-400">Testnet Ativa</p>
+            <div className="rounded-2xl border border-emerald-400/[0.10] bg-emerald-500/[0.02] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Rede</p>
+              <div className="mt-3 flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                </span>
+                <p className="text-sm font-semibold text-emerald-300">Testnet ativa</p>
               </div>
+              <p className="mt-2 text-[11px] text-neutral-500">latência baixa</p>
             </div>
           </div>
         </motion.div>
@@ -757,14 +750,15 @@ export default function DashboardPage() {
 
       {/* Pending signatures for current user */}
       {pendingSignatures.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-emerald-500/10 rounded-xl">
-              <iconify-icon icon="solar:pen-bold-duotone" class="text-xl text-emerald-400" />
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl border border-emerald-400/[0.12] bg-emerald-500/[0.025] p-7">
+          <div className="flex items-start gap-3 mb-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/[0.10]">
+              <iconify-icon icon="solar:pen-linear" class="text-xl text-emerald-300" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white font-bricolage">Aguardando sua Assinatura</h3>
-              <p className="text-xs text-neutral-400">{pendingSignatures.length} documento(s) aguardam sua assinatura eletrônica.</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Aguardando você</p>
+              <h3 className="mt-0.5 font-bricolage text-xl font-bold text-white">Pendentes de assinatura</h3>
+              <p className="text-xs text-neutral-500">{pendingSignatures.length} documento(s) aguardam sua assinatura eletrônica.</p>
             </div>
           </div>
           <div className="space-y-2">
@@ -772,11 +766,11 @@ export default function DashboardPage() {
               <Link
                 key={party.id}
                 to={`/contracts/${party.contract_id}`}
-                className="flex items-center justify-between p-3 bg-black/30 border border-white/5 rounded-xl hover:border-emerald-500/30 transition-all group"
+                className="flex items-center justify-between p-3.5 bg-white/[0.02] border border-white/[0.05] rounded-2xl hover:border-emerald-400/30 hover:bg-white/[0.04] transition-colors group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/20 flex items-center justify-center">
-                    <iconify-icon icon="solar:document-text-bold" class="text-emerald-400 text-sm" />
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/[0.10] flex items-center justify-center">
+                    <iconify-icon icon="solar:document-text-linear" class="text-emerald-300 text-base" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -784,7 +778,7 @@ export default function DashboardPage() {
                         {(party.contracts as any)?.title ?? 'Documento'}
                       </p>
                       {isSmartContract((party.contracts as any) ?? undefined) && (
-                        <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase tracking-wide">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/[0.10] text-emerald-300 text-[10px] font-bold uppercase tracking-wide">
                           Smart
                         </span>
                       )}
@@ -801,13 +795,16 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Recent contracts */}
         {visibleWidgets.activity && (
-          <div className={`bg-neutral-900 border border-white/5 rounded-2xl p-6 lg:col-span-2 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white font-bricolage">Documentos Recentes</h3>
-              <Link to="/contracts" className="text-xs text-emerald-400 hover:underline">Ver todos</Link>
+          <div className={`rounded-3xl border border-white/[0.06] bg-white/[0.018] p-7 lg:col-span-2 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Atividade</p>
+                <h3 className="mt-0.5 font-bricolage text-xl font-bold text-white">Documentos recentes</h3>
+              </div>
+              <Link to="/contracts" className="text-xs text-emerald-300 hover:text-emerald-200 transition-colors">Ver todos →</Link>
             </div>
             {contracts.length === 0 ? (
               <p className="text-neutral-500 text-sm">Nenhum documento encontrado.</p>
@@ -823,30 +820,29 @@ export default function DashboardPage() {
 
         {/* Next Expirations Widget */}
         {visibleWidgets.expirations && (
-          <div className={`bg-neutral-900 border border-white/5 rounded-2xl p-6 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-white font-bricolage flex items-center gap-2">
-                <iconify-icon icon="solar:alarm-bold" class="text-amber-500" /> Próximos Vencimentos
-              </h3>
-              <span className="text-[10px] text-neutral-500 uppercase font-bold">30 dias</span>
+          <div className={`rounded-3xl border border-white/[0.06] bg-white/[0.018] p-7 ${isEditing ? 'opacity-50 scale-[0.98]' : ''}`}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">Próximos 30 dias</p>
+                <h3 className="mt-0.5 font-bricolage text-xl font-bold text-white">Vencimentos</h3>
+              </div>
+              <iconify-icon icon="solar:alarm-linear" class="text-amber-200/70 text-lg" />
             </div>
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {contracts.filter(c => c.status === 'active').slice(0, 3).map(c => (
-                <div key={c.id} className="p-3 bg-black/30 border border-white/5 rounded-xl flex items-center justify-between">
-                  <div>
+                <div key={c.id} className="p-3 bg-white/[0.02] border border-white/[0.05] rounded-2xl flex items-center justify-between">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-xs font-bold text-white truncate max-w-[120px]">{c.title}</p>
+                      <p className="text-xs font-semibold text-white truncate max-w-[140px]">{c.title}</p>
                       {isSmartContract(c) && (
-                        <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[9px] font-bold uppercase tracking-wide">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/[0.10] text-emerald-300 text-[9px] font-bold uppercase tracking-wide">
                           Smart
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-neutral-500">{new Date(c.expiresAt).toLocaleDateString()}</p>
+                    <p className="text-[11px] text-neutral-500 mt-1">{new Date(c.expiresAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Em breve</span>
-                  </div>
+                  <span className="text-[10px] text-amber-200 font-semibold bg-amber-500/[0.08] px-2.5 py-1 rounded-full uppercase tracking-wide">Em breve</span>
                 </div>
               ))}
               {contracts.filter(c => c.status === 'active').length === 0 && (
