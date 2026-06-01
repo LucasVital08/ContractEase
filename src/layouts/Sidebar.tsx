@@ -19,10 +19,11 @@ const NAV_ITEMS = [
   // Business Items - Actions
   { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Criar Contrato', description: 'abrir um novo fluxo contratual', profile: 'business', section: 'actions' },
   { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Biblioteca', description: 'modelos prontos para acelerar', profile: 'business', section: 'actions' },
-  { to: '/document-auth', icon: 'solar:fingerprint-bold-duotone', label: 'Autenticar Documento', description: 'hash SHA-256 ancorado na blockchain', profile: 'business', section: 'actions' },
   { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Feed de oportunidades', description: 'mercado, demanda e match', profile: 'business', section: 'market' },
+  { to: '/partners', icon: 'solar:users-group-rounded-bold-duotone', label: 'Parceiros', description: 'sua rede no ContractEase', profile: 'business', section: 'market' },
 
-  // Business Items - Analytics
+  // Business Items - Analytics / Financeiro
+  { to: '/wallet', icon: 'solar:wallet-2-bold-duotone', label: 'Carteira', description: 'saldo on-chain e depósitos via anchor', profile: 'business', section: 'analytics' },
   { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Financeiro', description: 'receita, créditos e saldo', profile: 'business', section: 'analytics' },
   { to: '/analytics', icon: 'solar:chart-2-bold-duotone', label: 'Desempenho', description: 'indicadores e leitura de tração', profile: 'business', section: 'analytics' },
 

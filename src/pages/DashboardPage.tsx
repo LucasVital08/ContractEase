@@ -8,8 +8,6 @@ import type { Contract } from '@/types';
 import { api, signingService } from '@/services/supabaseService';
 import { supabase } from '@/lib/supabase';
 import { formatOpportunityReward, type SmartContractOpportunity } from '@/services/smartContractOpportunityService';
-import { CATEGORIES, SMART_CONTRACT_TEMPLATES } from '@/services/smartContractTemplates';
-import { SmartContractGlyph, getSmartContractVisual } from '@/components/SmartContractVisual';
 
 function isSmartContract(contract: Pick<Contract, 'tags'> | null | undefined) {
   return Boolean(contract?.tags?.includes('smart-contract'));
@@ -127,6 +125,8 @@ function buildSmoothPath(pts: { x: number; y: number }[]) {
 
 function ContractsTrendChart({ contracts }: { contracts: Contract[] }) {
   const [selected, setSelected] = useState<number | null>(null);
+  const [docsOpen, setDocsOpen] = useState(true);
+  const [smartOpen, setSmartOpen] = useState(true);
 
   const series = useMemo(() => {
     const now = new Date();
@@ -242,20 +242,81 @@ function ContractsTrendChart({ contracts }: { contracts: Contract[] }) {
               <p className="mb-2 text-xs font-semibold capitalize text-app-text">
                 {selectedData.fullLabel} · {selectedData.count} contrato{selectedData.count !== 1 ? 's' : ''}
               </p>
-              {selectedData.items.length > 0 ? (
-                <div className="space-y-1.5">
-                  {selectedData.items.map((c) => (
-                    <Link
-                      key={c.id}
-                      to={`/contracts/${c.id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-app-border bg-white/[0.02] px-3 py-2 transition-colors hover:bg-white/[0.05]"
-                    >
-                      <span className="truncate text-sm text-app-text">{c.title || 'Sem título'}</span>
-                      <iconify-icon icon="solar:arrow-right-up-linear" class="shrink-0 text-app-text-subtle" />
-                    </Link>
-                  ))}
-                </div>
-              ) : (
+              {selectedData.items.length > 0 ? (() => {
+                const docItems = selectedData.items.filter(c => !isSmartContract(c));
+                const smartItems = selectedData.items.filter(c => isSmartContract(c));
+                return (
+                  <div className="space-y-2">
+                    {/* Documentos Contratuais */}
+                    <div className="rounded-xl border border-cyan-400/14 bg-cyan-500/[0.04] overflow-hidden">
+                      <button
+                        onClick={() => setDocsOpen(o => !o)}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.03] transition-colors"
+                      >
+                        <iconify-icon icon="solar:document-text-bold-duotone" class="text-cyan-300 shrink-0" />
+                        <span className="flex-1 text-xs font-semibold text-cyan-200">Documentos Contratuais</span>
+                        <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300">{docItems.length}</span>
+                        <iconify-icon
+                          icon="solar:alt-arrow-down-bold"
+                          class={`text-xs text-cyan-400/60 transition-transform ${docsOpen ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {docsOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="space-y-1.5 px-3 pb-3">
+                              {docItems.length > 0 ? docItems.map(c => (
+                                <ContractListItem key={c.id} contract={c} />
+                              )) : (
+                                <p className="py-2 text-[11px] text-app-text-subtle">Nenhum documento neste mês.</p>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Contratos Inteligentes */}
+                    <div className="rounded-xl border border-violet-400/14 bg-violet-500/[0.04] overflow-hidden">
+                      <button
+                        onClick={() => setSmartOpen(o => !o)}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.03] transition-colors"
+                      >
+                        <iconify-icon icon="solar:cpu-bolt-bold-duotone" class="text-violet-300 shrink-0" />
+                        <span className="flex-1 text-xs font-semibold text-violet-200">Contratos Inteligentes</span>
+                        <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-300">{smartItems.length}</span>
+                        <iconify-icon
+                          icon="solar:alt-arrow-down-bold"
+                          class={`text-xs text-violet-400/60 transition-transform ${smartOpen ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {smartOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="space-y-1.5 px-3 pb-3">
+                              {smartItems.length > 0 ? smartItems.map(c => (
+                                <ContractListItem key={c.id} contract={c} />
+                              )) : (
+                                <p className="py-2 text-[11px] text-app-text-subtle">Nenhum contrato inteligente neste mês.</p>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                );
+              })() : (
                 <p className="text-xs text-app-text-subtle">Nenhum contrato criado neste mês.</p>
               )}
             </div>
@@ -266,6 +327,111 @@ function ContractsTrendChart({ contracts }: { contracts: Contract[] }) {
   );
 }
 
+function ContractListItem({ contract }: { contract: Contract }) {
+  const isSmart = isSmartContract(contract);
+  const parties = contract.parties || [];
+  const total = parties.length;
+  const signed = parties.filter((p) => p.signedAt).length;
+  const isAnchored = Boolean(contract.stellarTxHash);
+  const now = Date.now();
+  const expiresAtMs = contract.expiresAt ? new Date(contract.expiresAt).getTime() : null;
+  const isPastDue =
+    expiresAtMs !== null
+    && !Number.isNaN(expiresAtMs)
+    && expiresAtMs < now
+    && contract.status !== 'completed'
+    && contract.status !== 'cancelled'
+    && contract.status !== 'archived';
+
+  // Status efetivo (substitui pelo "Em atraso" / "Expirado" quando vencido)
+  const statusInfo: { label: string; color: string; icon: string } = (() => {
+    if (isPastDue) {
+      return isSmart
+        ? { label: 'Em atraso', color: 'border-rose-400/30 bg-rose-500/15 text-rose-300', icon: 'solar:danger-triangle-bold-duotone' }
+        : { label: 'Expirado', color: 'border-rose-400/30 bg-rose-500/15 text-rose-300', icon: 'solar:clock-circle-bold-duotone' };
+    }
+    switch (contract.status) {
+      case 'active':
+        return { label: isSmart ? 'Em execução' : 'Ativo', color: 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300', icon: 'solar:play-circle-bold-duotone' };
+      case 'pending':
+        return { label: 'Pendente de assinatura', color: 'border-amber-400/30 bg-amber-500/15 text-amber-300', icon: 'solar:hourglass-bold-duotone' };
+      case 'completed':
+        return { label: 'Concluído', color: 'border-blue-400/30 bg-blue-500/15 text-blue-300', icon: 'solar:check-circle-bold-duotone' };
+      case 'draft':
+        return { label: 'Rascunho', color: 'border-white/15 bg-white/[0.04] text-neutral-400', icon: 'solar:pen-new-square-bold-duotone' };
+      case 'cancelled':
+        return { label: 'Cancelado', color: 'border-rose-400/24 bg-rose-500/10 text-rose-300', icon: 'solar:close-circle-bold-duotone' };
+      case 'archived':
+        return { label: 'Arquivado', color: 'border-white/12 bg-white/[0.03] text-app-text-subtle', icon: 'solar:archive-bold-duotone' };
+      default:
+        return { label: String(contract.status), color: 'border-white/15 bg-white/[0.04] text-neutral-400', icon: 'solar:document-bold-duotone' };
+    }
+  })();
+
+  // Linha de detalhes contextuais
+  const details: string[] = [];
+  if (total > 0) {
+    if (contract.status === 'pending' && signed < total) {
+      details.push(`aguardando ${total - signed} de ${total} assinatura${total - signed !== 1 ? 's' : ''}`);
+    } else {
+      details.push(`${signed}/${total} assinado${total !== 1 ? 's' : ''}`);
+    }
+  }
+  if (isAnchored) details.push('ancorado on-chain');
+  if (expiresAtMs !== null && !Number.isNaN(expiresAtMs)) {
+    const diffDays = Math.floor((expiresAtMs - now) / (24 * 60 * 60 * 1000));
+    if (isPastDue) {
+      const overdueDays = Math.floor((now - expiresAtMs) / (24 * 60 * 60 * 1000));
+      details.push(overdueDays > 0 ? `vencido há ${overdueDays}d` : 'vencido hoje');
+    } else if (diffDays >= 0 && diffDays <= 14) {
+      details.push(diffDays === 0 ? 'vence hoje' : `vence em ${diffDays}d`);
+    } else {
+      const fmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+      details.push(`vence ${fmt.format(new Date(contract.expiresAt))}`);
+    }
+  }
+
+  return (
+    <Link
+      to={`/contracts/${contract.id}`}
+      className={`block rounded-xl border bg-white/[0.02] px-3 py-2.5 transition-colors hover:bg-white/[0.05] ${
+        isPastDue ? 'border-rose-400/30 hover:bg-rose-500/[0.06]' : 'border-app-border'
+      }`}
+    >
+      {/* Linha 1: tipo + status + seta */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              isSmart
+                ? 'border-violet-400/30 bg-violet-500/12 text-violet-300'
+                : 'border-cyan-400/30 bg-cyan-500/12 text-cyan-300'
+            }`}
+          >
+            <iconify-icon icon={isSmart ? 'solar:cpu-bolt-bold-duotone' : 'solar:document-text-bold-duotone'} class="text-xs" />
+            {isSmart ? 'Inteligente' : 'Documento'}
+          </span>
+          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusInfo.color}`}>
+            <iconify-icon icon={statusInfo.icon} class="text-xs" />
+            {statusInfo.label}
+          </span>
+        </div>
+        <iconify-icon icon="solar:arrow-right-up-linear" class="shrink-0 text-app-text-subtle" />
+      </div>
+
+      {/* Linha 2: titulo */}
+      <p className="mt-1.5 truncate text-sm font-semibold text-app-text">{contract.title || 'Sem título'}</p>
+
+      {/* Linha 3: detalhes (assinaturas + ancoragem + expiração / atraso) */}
+      {details.length > 0 && (
+        <p className={`mt-1 truncate text-[11px] ${isPastDue ? 'text-rose-300' : 'text-app-text-muted'}`}>
+          {details.join(' · ')}
+        </p>
+      )}
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const { data: contracts = [], isLoading, error: contractsError } = useContracts();
   const { data: opportunityFeed = [] } = useOpportunityFeed({ limit: 3, status: 'open' });
@@ -273,7 +439,6 @@ export default function DashboardPage() {
   const { user, organization } = useAuthStore();
   const notify = useNotificationStore(s => s.add);
   const [isEditing, setIsEditing] = useState(false);
-  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const [pendingSignatures, setPendingSignatures] = useState<any[]>([]);
   const [identitySettings, setIdentitySettings] = useState<Record<string, any>>({});
   const [profileExtra, setProfileExtra] = useState<{
@@ -285,16 +450,6 @@ export default function DashboardPage() {
     if (!user?.email) return;
     signingService.getPendingForUser(user.email).then(setPendingSignatures);
   }, [user?.email]);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setLoadingTimedOut(false);
-      return;
-    }
-
-    const timer = window.setTimeout(() => setLoadingTimedOut(true), 5000);
-    return () => window.clearTimeout(timer);
-  }, [isLoading]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -369,7 +524,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (isLoading && !loadingTimedOut) {
+  if (isLoading) {
     return (
       <div className="space-y-8">
         {/* Header skeleton */}
@@ -555,7 +710,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
-            {opportunityFeed.slice(0, 3).map((opportunity) => (
+            {opportunityFeed.map((opportunity) => (
               <OpportunityPreviewCard key={opportunity.id} opportunity={opportunity} />
             ))}
           </div>
@@ -706,76 +861,29 @@ export default function DashboardPage() {
 }
 
 function OpportunityPreviewCard({ opportunity }: { opportunity: SmartContractOpportunity }) {
-  const template = SMART_CONTRACT_TEMPLATES.find((candidate) => candidate.id === opportunity.templateId) ?? SMART_CONTRACT_TEMPLATES[0];
-  const visual = getSmartContractVisual(template);
-  const category = CATEGORIES.find((candidate) => candidate.id === template.category);
-  const directionLabel = opportunity.opportunityType === 'request' ? 'Quero contratar' : 'Disponivel';
-  const operationLabel = opportunity.remoteAllowed ? 'Remoto / hibrido' : 'Presencial';
-  const ownerInitials = opportunity.ownerName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((piece) => piece[0])
-    .join('')
-    .toUpperCase() || opportunity.ownerHandle.slice(0, 2).toUpperCase();
-
   return (
     <Link
-      to={`/opportunities/${encodeURIComponent(opportunity.id)}`}
-      className="group relative isolate flex min-h-[260px] flex-col overflow-hidden rounded-[24px] border border-white/8 bg-neutral-950/80 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.20)] transition hover:-translate-y-0.5 hover:border-emerald-400/22 hover:bg-neutral-950/95"
+      to="/smart-contracts"
+      state={{ marketplaceOpportunity: opportunity, autoSelectTemplateId: opportunity.templateId }}
+      className="rounded-2xl border border-white/8 bg-black/25 p-4 transition hover:border-emerald-400/20 hover:bg-black/35"
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${visual.accentGradient} opacity-35 transition-opacity group-hover:opacity-45`} />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.60))]" />
-      <div className={`absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl ${visual.accentGlow} opacity-45`} />
-
-      <div className="relative z-10 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30 text-[11px] font-bold text-white">
-            {opportunity.ownerAvatarUrl
-              ? <img src={opportunity.ownerAvatarUrl} alt={opportunity.ownerName} className="h-full w-full object-cover" />
-              : ownerInitials}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{opportunity.ownerName}</p>
-            <p className="truncate text-[11px] text-neutral-500">@{opportunity.ownerHandle}</p>
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+            {opportunity.opportunityType === 'request' ? 'Quero contratar' : 'Disponível'}
+          </p>
+          <h4 className="mt-2 text-sm font-semibold text-white leading-6">{opportunity.title}</h4>
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-500/12 px-2.5 py-1.5 text-right text-[10px] font-bold leading-4 text-emerald-200">
+        <span className="rounded-full border border-emerald-400/18 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-300">
           {formatOpportunityReward(opportunity)}
         </span>
       </div>
 
-      <div className="relative z-10 mt-4 flex flex-1 flex-col justify-between rounded-[20px] border border-white/8 bg-black/22 p-4 backdrop-blur-sm">
-        <div>
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] ${opportunity.opportunityType === 'request' ? 'border-amber-300/22 bg-amber-500/10 text-amber-100' : 'border-cyan-300/22 bg-cyan-500/10 text-cyan-100'}`}>
-                {directionLabel}
-              </span>
-              {category && (
-                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-neutral-300">
-                  {category.label}
-                </span>
-              )}
-            </div>
-            <SmartContractGlyph template={template} size="sm" className="shrink-0" />
-          </div>
+      <p className="mt-3 text-xs leading-6 text-neutral-400 line-clamp-3">{opportunity.summary}</p>
 
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-white/50">{opportunity.serviceCategory}</p>
-          <h4 className="mt-2 line-clamp-2 text-base font-bold leading-6 text-white font-bricolage">{opportunity.title}</h4>
-          <p className="mt-3 line-clamp-2 text-xs leading-5 text-neutral-300">{opportunity.summary}</p>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/8 pt-3 text-[11px]">
-          <span className="inline-flex items-center gap-1.5 text-neutral-400">
-            <iconify-icon icon={opportunity.remoteAllowed ? 'solar:laptop-bold-duotone' : 'solar:map-point-bold-duotone'} class="text-sm text-cyan-300" />
-            {operationLabel}
-          </span>
-          <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-300 transition group-hover:gap-2">
-            Ver oportunidade
-            <iconify-icon icon="solar:arrow-right-up-bold" class="text-sm" />
-          </span>
-        </div>
+      <div className="mt-4 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
+        <span>{opportunity.serviceCategory}</span>
+        <span>@{opportunity.ownerHandle}</span>
       </div>
     </Link>
   );
