@@ -33,12 +33,22 @@ export default function SeedPage() {
   const [log, setLog] = useState<string[]>([]);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  const [running, setRunning] = useState(false);
+  const [existingCount, setExistingCount] = useState<number | null>(null);
 
   const push = (msg: string) => setLog(prev => [...prev, msg]);
 
   useEffect(() => {
     if (!user) return;
-    runSeed();
+    let cancelled = false;
+    (async () => {
+      const { count } = await supabase
+        .from('contracts')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_id', user.id);
+      if (!cancelled) setExistingCount(count ?? 0);
+    })();
+    return () => { cancelled = true; };
   }, [user]);
 
   async function insert(table: string, row: object) {
@@ -46,7 +56,58 @@ export default function SeedPage() {
     if (error) throw new Error(`[${table}] ${error.message}`);
   }
 
+  async function refreshCount() {
+    if (!user) return;
+    const { count } = await supabase
+      .from('contracts')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', user.id);
+    setExistingCount(count ?? 0);
+  }
+
+  async function clearMyContracts() {
+    if (!user) return;
+    const confirmed = window.confirm(
+      `Tem certeza? Isto vai apagar TODOS os contratos do usuário ${user.email}. ` +
+      `Esta ação é irreversível.`
+    );
+    if (!confirmed) return;
+    setRunning(true);
+    setLog([]);
+    setDone(false);
+    setError('');
+    try {
+      push(`Apagando contratos de ${user.email}...`);
+      const { data: rows, error: selErr } = await supabase
+        .from('contracts')
+        .select('id')
+        .eq('owner_id', user.id);
+      if (selErr) throw new Error(selErr.message);
+      const ids = (rows ?? []).map((r: any) => r.id);
+      push(`Encontrados ${ids.length} contratos para apagar.`);
+      if (ids.length > 0) {
+        const { error: cpErr } = await supabase.from('contract_parties').delete().in('contract_id', ids);
+        if (cpErr) push(`  ⚠ contract_parties: ${cpErr.message}`);
+        const { error: ccErr } = await supabase.from('contract_clauses').delete().in('contract_id', ids);
+        if (ccErr) push(`  ⚠ contract_clauses: ${ccErr.message}`);
+        const { error: cErr } = await supabase.from('contracts').delete().in('id', ids);
+        if (cErr) throw new Error(cErr.message);
+      }
+      push(`✔ Limpeza concluída.`);
+      await refreshCount();
+    } catch (err: any) {
+      setError(err.message);
+      push(`✖ Erro: ${err.message}`);
+    } finally {
+      setRunning(false);
+    }
+  }
+
   async function runSeed() {
+    setRunning(true);
+    setLog([]);
+    setDone(false);
+    setError('');
     push(`Usuário: ${user!.email} (${user!.id})`);
     push('Iniciando inserção de contratos...\n');
 
@@ -981,10 +1042,9 @@ export default function SeedPage() {
 
     push(`\n═══════════════════════════════════`);
     push(`Concluído! ${ok} contratos inseridos, ${fail} erros.`);
-    push('Redirecionando para o dashboard...');
     setDone(true);
-
-    setTimeout(() => navigate('/dashboard'), 2500);
+    setRunning(false);
+    await refreshCount();
   }
 
   return (
@@ -994,8 +1054,48 @@ export default function SeedPage() {
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center font-bold text-lg">CE</div>
           <div>
             <h1 className="text-xl font-bold">ContractEase — Seed de Dados</h1>
-            <p className="text-neutral-500 text-sm">Inserindo contratos mockados para demonstração</p>
+            <p className="text-neutral-500 text-sm">Painel manual de inserção e limpeza de dados mockados</p>
           </div>
+        </div>
+
+        <div className="mb-6 p-4 rounded-xl bg-neutral-900 border border-white/10 text-sm">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-neutral-500 text-xs uppercase tracking-wider">Conta logada</p>
+              <p className="text-white">{user?.email ?? '—'}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-neutral-500 text-xs uppercase tracking-wider">Contratos atuais</p>
+              <p className="text-emerald-400 text-2xl font-bold">{existingCount ?? '…'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            disabled={running || !user}
+            onClick={runSeed}
+            className="px-4 py-2.5 rounded-xl bg-emerald-500 text-black font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-400 transition-colors flex items-center gap-2"
+          >
+            {running ? '...' : '▶'} Inserir 40 contratos
+          </button>
+          <button
+            type="button"
+            disabled={running || !user}
+            onClick={clearMyContracts}
+            className="px-4 py-2.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-300 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-red-500/25 transition-colors flex items-center gap-2"
+          >
+            🗑 Limpar meus contratos
+          </button>
+          <button
+            type="button"
+            disabled={running}
+            onClick={() => navigate('/dashboard')}
+            className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-neutral-300 font-bold text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+          >
+            ← Voltar ao dashboard
+          </button>
         </div>
 
         {error && (
@@ -1004,9 +1104,8 @@ export default function SeedPage() {
 
         <div className="bg-neutral-900 border border-white/10 rounded-xl p-6 space-y-1 min-h-64">
           {log.length === 0 && (
-            <div className="flex items-center gap-2 text-neutral-500">
-              <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              Inicializando...
+            <div className="text-neutral-500 text-sm">
+              Nenhuma operação executada. Clique em <span className="text-emerald-400">Inserir 40 contratos</span> ou <span className="text-red-300">Limpar meus contratos</span> para começar.
             </div>
           )}
           {log.map((line, i) => (
@@ -1018,7 +1117,7 @@ export default function SeedPage() {
 
         {done && (
           <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm text-center">
-            ✔ Tudo pronto! Redirecionando para o dashboard...
+            ✔ Operação finalizada.
           </div>
         )}
       </div>
