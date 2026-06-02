@@ -20,7 +20,13 @@ import {
 
 const STORAGE_KEY = 'contractease.testnet.wallet.v1';
 const HORIZON_URL = 'https://horizon-testnet.stellar.org';
-const FRIENDBOT_URL = 'https://friendbot.stellar.org';
+// Endpoints de friendbot — tentamos o do Horizon primeiro (CORS aberto, canônico)
+// e caímos pro friendbot.stellar.org como fallback. Alguns ambientes/edge nodes
+// bloqueiam um ou outro.
+const FRIENDBOT_URLS = [
+  'https://horizon-testnet.stellar.org/friendbot',
+  'https://friendbot.stellar.org',
+] as const;
 
 /** Stellar Reference Anchor da SDF — pública, testnet, fluxo simulado de PIX. */
 export const TEST_ANCHOR = {
@@ -81,12 +87,21 @@ export function clearWallet(): void {
 
 /** Fundamenta a conta com XLM via friendbot da testnet (10k XLM). */
 export async function fundWithFriendbot(publicKey: string): Promise<void> {
-  const res = await fetch(`${FRIENDBOT_URL}/?addr=${encodeURIComponent(publicKey)}`);
-  if (res.ok) return;
-  const text = await res.text();
-  // "createAccountAlreadyExist" é OK — conta já estava criada
-  if (/createAccountAlreadyExist|op_already_exists/i.test(text)) return;
-  throw new Error(`Friendbot falhou: ${text.slice(0, 200)}`);
+  const errors: string[] = [];
+  for (const base of FRIENDBOT_URLS) {
+    try {
+      const res = await fetch(`${base}?addr=${encodeURIComponent(publicKey)}`);
+      if (res.ok) return;
+      const text = await res.text();
+      // "createAccountAlreadyExist" / "op_already_exists" — conta já estava criada
+      if (/createAccountAlreadyExist|op_already_exists/i.test(text)) return;
+      errors.push(`${base} → ${res.status} ${text.slice(0, 160)}`);
+    } catch (err: any) {
+      // erros de rede/CORS caem aqui — registra e tenta o próximo endpoint
+      errors.push(`${base} → ${err?.message || 'network error'}`);
+    }
+  }
+  throw new Error(`Friendbot falhou em todos os endpoints. ${errors.join(' | ')}`);
 }
 
 /** Lê os saldos da conta na testnet. Retorna [] se conta ainda não existe. */
