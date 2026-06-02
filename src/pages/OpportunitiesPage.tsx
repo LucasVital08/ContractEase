@@ -803,12 +803,12 @@ function OpportunityCard({ opportunity, currentUserId, onViewDetails, onAccept, 
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="truncate text-sm font-semibold text-white">{opportunity.ownerName}</p>
               {isHot && (
-                <span className="shrink-0 rounded-full bg-emerald-500/[0.14] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-300">
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-500/[0.14] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
                   🔥 Quente
                 </span>
               )}
               {!isHot && isFresh && (
-                <span className="shrink-0 rounded-full bg-amber-500/[0.10] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-200">
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-500/[0.10] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">
                   ✨ Nova
                 </span>
               )}
@@ -816,15 +816,18 @@ function OpportunityCard({ opportunity, currentUserId, onViewDetails, onAccept, 
             <p className="truncate text-[11px] text-neutral-500">
               @{opportunity.ownerHandle}{opportunity.ownerJobTitle ? ` · ${opportunity.ownerJobTitle}` : ''}
             </p>
-            <p className="mt-0.5 text-[10px] text-neutral-600" title={postedAtFull}>
-              {formatRelativeTime(opportunity.createdAt)} · {postedAtFull}
+            <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-neutral-400" title={postedAtFull}>
+              <iconify-icon icon="solar:clock-circle-linear" class="text-sm text-neutral-500" />
+              <span className="font-semibold text-neutral-300">{formatRelativeTime(opportunity.createdAt)}</span>
+              <span className="text-neutral-600">·</span>
+              <span className="tabular-nums">{postedAtFull}</span>
             </p>
           </div>
         </Link>
 
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <p className="text-[10px] uppercase tracking-[0.22em] text-neutral-500">Valor</p>
-          <p className="mt-1 text-lg font-bold font-bricolage text-emerald-300">{formatOpportunityReward(opportunity)}</p>
+          <p className="mt-1 font-bricolage text-xl font-bold tabular-nums text-white">{formatOpportunityReward(opportunity)}</p>
         </div>
       </div>
 
@@ -1226,6 +1229,14 @@ function OpportunityDetailModal({
       'Travar a remuneração ou o marco financeiro no template escolhido.',
       'Executar a oportunidade com liberação programada conforme a regra combinada.',
     ];
+  const modalPostedRelative = formatRelativeTime(opportunity.createdAt);
+  const modalPostedFull = new Date(opportunity.createdAt).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   return (
     <motion.div
@@ -1247,9 +1258,18 @@ function OpportunityDetailModal({
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.15),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(0,0,0,0.3),transparent_36%)]" />
             <div className="relative flex h-full flex-col justify-between">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-white/15 bg-black/18 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
                     {opportunity.opportunityType === 'request' ? 'Demanda publicada' : 'Disponibilidade publicada'}
+                  </span>
+                  <span
+                    title={modalPostedFull}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/18 px-3 py-1 text-[11px] font-semibold text-white/90"
+                  >
+                    <iconify-icon icon="solar:clock-circle-linear" class="text-sm text-white/80" />
+                    <span>{modalPostedRelative}</span>
+                    <span className="text-white/45">·</span>
+                    <span className="tabular-nums">{modalPostedFull}</span>
                   </span>
                   {metadata.urgency && (
                     <span className="rounded-full border border-amber-200/25 bg-amber-950/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-100">
@@ -1257,12 +1277,22 @@ function OpportunityDetailModal({
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={onClose}
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70 transition hover:text-white"
-                >
-                  <iconify-icon icon="solar:close-circle-linear" class="text-2xl" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={onShareWhatsApp}
+                    title="Compartilhar no WhatsApp"
+                    className="flex h-11 items-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 px-3.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/25"
+                  >
+                    <iconify-icon icon="mdi:whatsapp" class="text-xl" />
+                    <span className="hidden sm:inline">Compartilhar</span>
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70 transition hover:text-white"
+                  >
+                    <iconify-icon icon="solar:close-circle-linear" class="text-2xl" />
+                  </button>
+                </div>
               </div>
 
               <div>
