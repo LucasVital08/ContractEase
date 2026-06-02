@@ -31,6 +31,7 @@ const PublicProfilePage = React.lazy(() => import('@/pages/PublicProfilePage'));
 const OpportunitiesPage = React.lazy(() => import('@/pages/OpportunitiesPage'));
 const DocumentAuthPage = React.lazy(() => import('@/pages/DocumentAuthPage'));
 const PartnersPage = React.lazy(() => import('@/pages/PartnersPage'));
+const AffiliatesPage = React.lazy(() => import('@/pages/AffiliatesPage'));
 const WalletPage = React.lazy(() => import('@/pages/WalletPage'));
 
 const queryClient = new QueryClient({
@@ -83,6 +84,7 @@ export default function App() {
                 <Route path="templates" element={<TemplatesPage />} />
                 <Route path="smart-contracts" element={<SmartContractsPage />} />
                 <Route path="partners" element={<PartnersPage />} />
+                <Route path="affiliates" element={<AffiliatesPage />} />
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="finance" element={<FinancePage />} />

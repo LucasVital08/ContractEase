@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { to: '/templates', icon: 'solar:copy-bold-duotone', label: 'Biblioteca', description: 'modelos prontos para acelerar', profile: 'business', section: 'actions' },
   { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Feed de oportunidades', description: 'mercado, demanda e match', profile: 'business', section: 'market' },
   { to: '/partners', icon: 'solar:users-group-rounded-bold-duotone', label: 'Parceiros', description: 'sua rede no ContractEase', profile: 'business', section: 'market' },
+  { to: '/affiliates', icon: 'solar:share-bold-duotone', label: 'Afiliados', description: 'compartilhe e ganhe em cada contrato', profile: 'business', section: 'market' },
 
   // Business Items - Analytics / Financeiro
   { to: '/wallet', icon: 'solar:wallet-2-bold-duotone', label: 'Carteira', description: 'saldo on-chain e depósitos via anchor', profile: 'business', section: 'analytics' },
