@@ -57,12 +57,29 @@ export default function WalletPage() {
   const handleFriendbot = async () => {
     if (!wallet) return;
     setBusy('friendbot');
+    const url = `https://horizon-testnet.stellar.org/friendbot?addr=${encodeURIComponent(wallet.publicKey)}`;
     try {
       await fundWithFriendbot(wallet.publicKey);
       notify({ type: 'success', title: 'Conta fundada', message: '10.000 XLM testnet liberados.' });
       await refreshBalances(wallet.publicKey);
     } catch (err: any) {
-      notify({ type: 'error', title: 'Friendbot falhou', message: err?.message });
+      // Falhou via fetch (bloqueio por extensão/firewall/CORS) — tenta abrir em nova aba
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (win) {
+        notify({
+          type: 'info',
+          title: 'Abri Friendbot em nova aba',
+          message: 'A chamada direta foi bloqueada. Aguarda a nova aba retornar JSON com "successful":true, fecha ela e clica em Atualizar.',
+        });
+        // Tenta refresh em ~6s — tempo médio do friendbot processar
+        setTimeout(() => { void refreshBalances(wallet.publicKey); }, 6000);
+      } else {
+        notify({
+          type: 'error',
+          title: 'Friendbot bloqueado',
+          message: `${err?.message || 'fetch falhou'} — popup também bloqueado. Permita popups e tente de novo, ou abre manualmente: ${url}`,
+        });
+      }
     } finally {
       setBusy(null);
     }
