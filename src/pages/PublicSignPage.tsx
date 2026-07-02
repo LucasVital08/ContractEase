@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import SignatureCanvas from 'react-signature-canvas';
-import { useContract, useUpdateContract } from '@/hooks/useContractQueries';
+import { useContract } from '@/hooks/useContractQueries';
 import { useNotificationStore } from '@/stores';
 import { isAllowed, setAllowed, requestAccess } from '@stellar/freighter-api';
 import { validateCPF, formatCPF } from '@/utils/validators';
@@ -17,7 +17,6 @@ export default function PublicSignPage() {
   const { contractId, partyId } = useParams<{ contractId: string; partyId: string }>();
   const notify = useNotificationStore(s => s.add);
   const { data: contract, isLoading } = useContract(contractId!);
-  const updateMutation = useUpdateContract();
 
   const [step, setStep] = useState<Step>('identify');
   const [cpf, setCpf] = useState('');

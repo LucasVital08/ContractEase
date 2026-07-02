@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { motion } from 'motion/react';
 import type { Contract } from '../data/mockContractEase';
-import { animations } from '@/tokens';
 
 interface Props {
   onSubmit: (data: Omit<Contract, 'id' | 'createdAt' | 'status'>) => Promise<void>;

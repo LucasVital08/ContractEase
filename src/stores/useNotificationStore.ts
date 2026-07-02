@@ -6,6 +6,7 @@ interface Notification {
   title: string;
   message?: string;
   duration?: number;
+  read?: boolean;
 }
 
 interface NotificationStore {

@@ -15,6 +15,7 @@
  */
 
 import {
+  Account,
   Address,
   BASE_FEE,
   Contract,
@@ -22,6 +23,7 @@ import {
   TransactionBuilder,
   xdr,
   nativeToScVal,
+  scValToNative,
   rpc as sorobanRpc,
 } from '@stellar/stellar-sdk';
 import { supabase } from '@/lib/supabase';
@@ -207,9 +209,7 @@ export async function readState<T = unknown>(
   const net = passphrase(network);
 
   // Conta dummy para construir a tx (não precisa existir on-chain p/ simulação)
-  const dummyAccount = new (
-    await import('@stellar/stellar-sdk')
-  ).Account('GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ', '0');
+  const dummyAccount = new Account('GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVSGZ', '0');
 
   const contract = new Contract(contractAddress);
   const scArgs = args.map(payloadToScVal);
@@ -335,10 +335,9 @@ function payloadToScVal(p: ScValPayload): xdr.ScVal {
 }
 
 function scValToJs(value: xdr.ScVal): unknown {
-  // Stellar SDK já oferece scValToNative, mas falha em alguns enums
-  // customizados — tentamos primeiro, com fallback manual.
+  // scValToNative cobre a maioria dos tipos; enums customizados que ele
+  // não entende caem no fallback XDR base64.
   try {
-    const { scValToNative } = require('@stellar/stellar-sdk');
     return scValToNative(value);
   } catch {
     return value.toXDR('base64');
@@ -346,10 +345,12 @@ function scValToJs(value: xdr.ScVal): unknown {
 }
 
 async function waitForTx(rpc: sorobanRpc.Server, hash: string, maxAttempts = 30) {
+  // Soroban RPC responde NOT_FOUND enquanto a tx não entra num ledger;
+  // os estados terminais são SUCCESS e FAILED.
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise((r) => setTimeout(r, 2000));
     const tx = await rpc.getTransaction(hash);
-    if (tx.status !== 'NOT_FOUND' && (tx.status as string) !== 'PENDING') return tx;
+    if (tx.status !== 'NOT_FOUND') return tx;
   }
   throw new Error(`Timeout aguardando tx ${hash}`);
 }

@@ -12,7 +12,7 @@
  */
 
 import type { SmartContractTemplate, SCVariable } from './smartContractTemplates';
-import { resolveHandleSync, extractHandlesFromText, normalizeHandle } from './handleResolver';
+import { resolveHandleSync, extractHandlesFromText } from './handleResolver';
 
 // ─── Tipos ───────────────────────────────────────────────────────────
 
@@ -378,14 +378,14 @@ export async function extractFieldsFromMessage(
     fields: extracted,
     unmatched,
     confidence,
-    followUpQuestion: nextMissing ? buildFollowUpQuestion(template, nextMissing) : undefined,
+    followUpQuestion: nextMissing ? buildFollowUpQuestion(nextMissing) : undefined,
   };
 }
 
 /**
  * Constrói uma pergunta em linguagem natural para um campo
  */
-function buildFollowUpQuestion(template: SmartContractTemplate, variable: SCVariable): string {
+function buildFollowUpQuestion(variable: SCVariable): string {
   const intros = [
     'Pra eu montar esse contrato, me diz só mais uma coisa:',
     'Falta uma informação pra fechar:',

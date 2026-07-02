@@ -1,14 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { api } from '@/services/api';
-import { useAuthStore } from '@/stores';
 
-const MONTH_LABELS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const user = useAuthStore(s => s.user);
+  const [, setLoading] = useState(true);
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {

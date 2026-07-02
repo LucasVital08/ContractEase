@@ -10,7 +10,6 @@ import {
   getStellarExplorerUrl,
   formatFileSize,
   truncateHash,
-  computeSha256,
   type DocumentAuth,
   type VerifyResult,
 } from '@/services/documentAuthService';

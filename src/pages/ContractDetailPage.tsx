@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { useContract, useDeleteContract, useCreateContract, useUpdateContract, useToggleFavorite } from '@/hooks/useContractQueries';
+import { useContract, useCreateContract, useUpdateContract, useToggleFavorite } from '@/hooks/useContractQueries';
 import { useNotificationStore, useAuthStore } from '@/stores';
 import SignDocumentModal from '@/components/SignDocumentModal';
 import { useStellar } from '@/hooks/useStellar';
@@ -43,7 +43,6 @@ export default function ContractDetailPage() {
   const notify = useNotificationStore(s => s.add);
   const currentUser = useAuthStore(s => s.user);
   const { data: contract, isLoading, refetch } = useContract(id!);
-  const deleteMutation = useDeleteContract();
   const createMutation = useCreateContract();
   const updateMutation = useUpdateContract();
   const toggleFavMutation = useToggleFavorite();
@@ -759,7 +758,7 @@ export default function ContractDetailPage() {
                     <p className="text-xs text-neutral-500">{new Date(contract.createdAt).toLocaleString('pt-BR')}</p>
                   </div>
                 </div>
-                {contract.parties.filter(p => p.signedAt).map((party, idx) => (
+                {contract.parties.filter(p => p.signedAt).map((party) => (
                   <div key={party.id} className="flex items-start gap-3 pb-3 border-b border-white/5 last:border-b-0">
                     <iconify-icon icon="solar:pen-bold" class="text-blue-500 text-lg flex-shrink-0 mt-0.5" />
                     <div>

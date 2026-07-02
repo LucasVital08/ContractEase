@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Contract, ContractDraft, Party, Clause } from '@/types';
+import type { Contract, ContractDraft, Party } from '@/types';
 import { isHandle, normalizeHandle, resolveHandle } from './handleResolver';
 
 function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
@@ -304,15 +304,16 @@ interface DbContract {
   description: string;
   type: string;
   status: string;
-  value: number | null;
-  currency: string;
+  value?: number | null;
+  currency?: string;
   stellar_tx_hash: string | null;
-  stellar_tx_id: string | null;
+  stellar_tx_id?: string | null;
   tags: string[];
   signature_order: string;
-  multisig_enabled: boolean;
+  multisig_enabled?: boolean;
   contract_hash: string | null;
   owner_id: string;
+  organization_id?: string | null;
   expires_at: string | null;
   created_at: string;
   updated_at: string;
@@ -354,6 +355,8 @@ function mapDbToContract(row: DbContract): Contract {
     description: row.description,
     type: row.type as Contract['type'],
     status: row.status as Contract['status'],
+    value: row.value ?? null,
+    currency: row.currency ?? 'BRL',
     tags: row.tags ?? [],
     stellarTxHash: row.stellar_tx_hash ?? undefined,
     signatureOrder: row.signature_order as 'parallel' | 'sequential',
@@ -399,7 +402,7 @@ export const contractsService = {
     // they were invited to sign — so this single query covers both roles.
     let query = supabase
       .from('contracts')
-      .select('id, title, description, type, status, created_at, updated_at, expires_at, stellar_tx_hash, contract_hash, tags, folder_id, signature_order, owner_id, organization_id, contract_parties(id, name, email, role, signed_at, cpf, ip_address, user_agent, geolocation, signature_type, signature_image, lgpd_consent), favorites:favorites(id)');
+      .select('id, title, description, type, status, value, currency, created_at, updated_at, expires_at, stellar_tx_hash, contract_hash, tags, folder_id, signature_order, owner_id, organization_id, contract_parties(id, name, email, role, signed_at, cpf, ip_address, user_agent, geolocation, signature_type, signature_image, lgpd_consent), favorites:favorites(id)');
 
     if (!isPersonal) {
       query = query.eq('organization_id', orgId);
@@ -629,8 +632,8 @@ export const aiService = {
     try {
       const cleanedText = data.text.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanedText);
-    } catch(e) {
-      throw new Error('IA retornou resposta em formato inesperado. Tente novamente.');
+    } catch (e) {
+      throw new Error('IA retornou resposta em formato inesperado. Tente novamente.', { cause: e });
     }
   },
   chat: async (contract: any, message: string) => {
@@ -1087,6 +1090,7 @@ export const signingService = {
 // ─── Unified API export (drop-in replacement) ────────────────
 export const api = {
   auth: authService,
+  otp: authService.otp,
   contracts: contractsService,
   ai: aiService,
   organization: organizationService,

@@ -325,7 +325,6 @@ ${extractedKeys.map((key) => {
             title: 'Contrato Soroban no ar!',
             message: `Endereço: ${shortenAddress(result.contractAddress)} · ver no Stellar Expert`,
           });
-          // eslint-disable-next-line no-console
           console.info('[soroban-deploy]', explorerContractUrl(result.contractAddress, 'testnet'));
         } catch (sorobanErr) {
           // Não bloqueia: o usuário ainda tem o contrato salvo + ancoragem por hash.
@@ -1342,7 +1341,7 @@ async function buildSigningReviewParties(template: SmartContractTemplate, vars: 
     .filter((field) => Boolean(vars[field.name]))
     .map(async (field) => {
       const inputValue = vars[field.name];
-      let resolved: ResolvedHandle | null = null;
+      let resolved: ResolvedHandle | null;
       let verification: SigningReviewParty['verification'] = 'manual';
 
       if (inputValue.startsWith('@')) {

@@ -4,7 +4,7 @@ import { api } from '@/services/api';
 import { useAuthStore, useNotificationStore } from '@/stores';
 import { supabase } from '@/lib/supabase';
 
-function AuditTab({ orgId, isTeam, accent }: { orgId?: string; isTeam: boolean; accent: string }) {
+function AuditTab({ orgId, isTeam }: { orgId?: string; isTeam: boolean; accent: string }) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

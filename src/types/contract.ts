@@ -95,6 +95,8 @@ export interface Contract {
   parties: Party[];
   clauses: Clause[];
   status: ContractStatus;
+  value?: number | null;
+  currency?: string;
   createdAt: string;
   updatedAt: string;
   expiresAt: string;

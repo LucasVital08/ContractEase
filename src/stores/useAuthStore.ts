@@ -21,7 +21,7 @@ function subscribeToProfile(userId: string, onUpdate: (payload: any) => void) {
   profileChannel = supabase
     .channel(`profile:${userId}`)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, onUpdate)
-    .subscribe((status, err) => { if (err) console.warn('[realtime:profile]', err); });
+    .subscribe((_status, err) => { if (err) console.warn('[realtime:profile]', err); });
 }
 
 interface AuthStore {

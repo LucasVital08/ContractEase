@@ -25,8 +25,16 @@ const STROOP = 10_000_000n; // 1 unidade = 1e7 stroops (7 decimais Stellar)
  * Endereços oficiais (TODO: confirmar com Transfero antes de mainnet).
  * Em produção, isso virá de uma tabela no DB.
  */
-export const BRZ_TOKEN_ADDRESS: Record<'testnet' | 'mainnet', string> = {
+// Contrato nativo de XLM (Stellar Asset Contract) — endereços canônicos da rede.
+const NATIVE_XLM_ADDRESS: Record<'testnet' | 'mainnet', string> = {
   testnet: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
+  mainnet: 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA',
+};
+
+export const BRZ_TOKEN_ADDRESS: Record<'testnet' | 'mainnet', string> = {
+  // BRZ não tem emissão oficial na testnet — usamos o XLM nativo como
+  // substituto explícito para permitir testes ponta-a-ponta.
+  testnet: NATIVE_XLM_ADDRESS.testnet,
   mainnet: 'CAVXSXVMXOJUL7GBJVUO52CFEY6V7CDQUUWHV4VEHKCV4QGI6FYFKL66',
 };
 
@@ -41,23 +49,50 @@ function assetAddress(symbol: string, network: 'testnet' | 'mainnet'): string {
         ? 'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75'
         : 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA';
     case 'XLM':
-      return network === 'mainnet'
-        ? 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA'
-        : 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+      return NATIVE_XLM_ADDRESS[network];
     default:
       throw new Error(`Asset não suportado: ${symbol}`);
   }
 }
 
-/** Converte número decimal "2500" → bigint em stroops "25000000000". */
-function toStroops(value: string): bigint {
+/**
+ * Converte valor monetário digitado pelo usuário → bigint em stroops.
+ * Aceita formato brasileiro ("2.500,50") e internacional ("2,500.50" / "2500.50").
+ * O separador decimal é o ÚLTIMO '.' ou ',' seguido de 1-2 dígitos;
+ * um separador único seguido de exatamente 3 dígitos é tratado como milhar.
+ */
+export function toStroops(value: string): bigint {
   if (!value) return 0n;
-  // Aceita "2500", "2.500,50", "2500.50"
-  const cleaned = value.replace(/\./g, '').replace(',', '.');
-  const [int, dec = ''] = cleaned.split('.');
-  const intBig = BigInt(int || '0');
-  const decPadded = (dec + '0000000').slice(0, 7); // padding para 7 decimais
-  return intBig * STROOP + BigInt(decPadded);
+  const raw = value.trim();
+  if (!/^[\d.,\s]+$/.test(raw)) {
+    throw new Error(`Valor monetário inválido: "${value}"`);
+  }
+  const compact = raw.replace(/\s/g, '');
+  const lastDot = compact.lastIndexOf('.');
+  const lastComma = compact.lastIndexOf(',');
+  const sepIndex = Math.max(lastDot, lastComma);
+
+  let intPart = compact;
+  let decPart = '';
+  if (sepIndex !== -1) {
+    const digitsAfter = compact.length - sepIndex - 1;
+    const hasBothSeparators = lastDot !== -1 && lastComma !== -1;
+    const separatorCount = (compact.match(/[.,]/g) ?? []).length;
+    // "1.000" / "2,500" (separador único + 3 dígitos) = milhar, não decimal.
+    const isDecimal =
+      digitsAfter >= 1 && digitsAfter <= 2
+        ? true
+        : hasBothSeparators || separatorCount > 1
+          ? false
+          : digitsAfter !== 3;
+    if (isDecimal) {
+      intPart = compact.slice(0, sepIndex);
+      decPart = compact.slice(sepIndex + 1);
+    }
+  }
+  intPart = intPart.replace(/[.,]/g, '');
+  const decPadded = (decPart + '0000000').slice(0, 7); // 7 casas (stroops)
+  return BigInt(intPart || '0') * STROOP + BigInt(decPadded);
 }
 
 /** Hash placeholder 32-bytes para campos de hash (matrícula, produto, etc). */
@@ -66,14 +101,19 @@ function placeholderHash32(): string {
   return '0'.repeat(64);
 }
 
-/** Resolve uma data ISO (YYYY-MM-DD) → days from now (u32). Reservado para templates futuros. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _daysFromNow(isoDate: string | undefined, fallback = 90): number {
-  if (!isoDate) return fallback;
-  const target = new Date(isoDate).getTime();
-  const now = Date.now();
-  const days = Math.ceil((target - now) / (24 * 60 * 60 * 1000));
-  return Math.max(1, days);
+/**
+ * Divide o total em N parcelas de milestone, somando o resto (dust da divisão
+ * inteira) à última parcela para que a soma bata exatamente com o total.
+ */
+function splitMilestones(totalStroops: bigint, count: number): bigint[] {
+  if (!Number.isInteger(count) || count < 1) {
+    throw new Error(`Quantidade de milestones inválida: ${count} (mínimo 1).`);
+  }
+  const per = totalStroops / BigInt(count);
+  const remainder = totalStroops - per * BigInt(count);
+  const amounts = Array.from({ length: count }, () => per);
+  amounts[count - 1] += remainder;
+  return amounts;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -137,12 +177,7 @@ function buildEcommerceInitArgs({ vars, network }: BuildArgs): ScValPayload[] {
 function buildFreelancerInitArgs({ vars, network }: BuildArgs): ScValPayload[] {
   const count = Number(vars.milestoneCount || '4');
   const totalStroops = toStroops(vars.totalAmount || '0');
-  const perMilestone = totalStroops / BigInt(count);
-
-  const amounts: ScValPayload[] = [];
-  for (let i = 0; i < count; i++) {
-    amounts.push(sc.i128(perMilestone.toString()));
-  }
+  const amounts = splitMilestones(totalStroops, count).map((a) => sc.i128(a.toString()));
 
   return [
     sc.struct({
@@ -175,12 +210,7 @@ function buildLegalFeesInitArgs({ vars, network }: BuildArgs): ScValPayload[] {
 function buildConstructionInitArgs({ vars, network }: BuildArgs): ScValPayload[] {
   const count = Number(vars.milestonesCount || '5');
   const totalStroops = toStroops(vars.totalValue || '0');
-  const perMilestone = totalStroops / BigInt(count);
-
-  const amounts: ScValPayload[] = [];
-  for (let i = 0; i < count; i++) {
-    amounts.push(sc.i128(perMilestone.toString()));
-  }
+  const amounts = splitMilestones(totalStroops, count).map((a) => sc.i128(a.toString()));
 
   return [
     sc.struct({

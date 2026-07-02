@@ -40,13 +40,21 @@ export const useWalletStore = create<WalletStore>()(
       },
 
       disconnect: () => {
-        set({ isConnected: false, address: null });
+        set({ isConnected: false, address: null, network: null });
       },
     }),
     {
       name: 'contractease-wallet',
       // Não persistimos isInstalled/connecting — sempre re-verificar na inicialização
       partialize: (s) => ({ isConnected: s.isConnected, address: s.address, network: s.network }),
+      // O estado persistido pode estar obsoleto (extensão removida/trocada de
+      // conta). Revalida contra a Freighter assim que o store hidrata, para a
+      // UI não mostrar "conectado" com uma carteira que não está mais lá.
+      onRehydrateStorage: () => (state) => {
+        state?.refresh().catch(() => {
+          state.disconnect();
+        });
+      },
     },
   ),
 );

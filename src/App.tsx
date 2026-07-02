@@ -49,7 +49,16 @@ const queryClient = new QueryClient({
 // so the next user never sees stale data from the previous session.
 setSessionClearedCallback(() => queryClient.clear());
 
-const LoadingFallback = () => <div className="p-8 text-neutral-500">Carregando...</div>;
+const LoadingFallback = () => (
+  <div className="flex min-h-screen items-center justify-center gap-3 text-neutral-500">
+    <span
+      className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-700 border-t-emerald-500"
+      role="status"
+      aria-label="Carregando"
+    />
+    Carregando...
+  </div>
+);
 
 function PublicHandleRoute() {
   const { handle } = useParams<{ handle: string }>();

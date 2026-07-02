@@ -25,7 +25,7 @@ interface ContractPrefsStore {
 
 export const useContractPrefsStore = create<ContractPrefsStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // Favorites (Keeping as empty shell for backward compatibility if needed, or remove completely)
       favorites: [],
       toggleFavorite: () => {},

@@ -9,9 +9,11 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-import React from 'react';
+// React 19 removed the global JSX namespace, so custom elements must be
+// registered via module augmentation on 'react' instead of `declare global`.
+import 'react';
 
-declare global {
+declare module 'react' {
   namespace JSX {
     interface IntrinsicElements {
       'iconify-icon': React.DetailedHTMLProps<

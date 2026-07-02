@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useNotificationStore } from '@/stores';
 
@@ -12,7 +12,6 @@ const MOBILE_NAV_ITEMS = [
 ];
 
 export default function BottomNav() {
-  const location = useLocation();
   const unreadCount = useNotificationStore(state => {
     const notifications = state.notifications || [];
     return notifications.filter(n => !n.read).length;

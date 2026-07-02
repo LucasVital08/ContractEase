@@ -5,7 +5,6 @@ import { useAuthStore, useUIStore } from '@/stores';
 import { useInbox } from '@/hooks/useInbox';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
-import { animations, colors } from '@/tokens';
 import WalletConnectButton from '@/components/WalletConnectButton';
 
 const ROUTE_TITLES: Record<string, { title: string; icon?: string; breadcrumb?: string[] }> = {
