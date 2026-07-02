@@ -42,6 +42,7 @@ pub enum FreelError {
     NoStaleness = 105,
     ChangeAlreadyProposed = 106,
     NoChangeProposal = 107,
+    ChangeBlockedByReview = 108,
 }
 
 #[contracttype]
@@ -251,6 +252,10 @@ impl FreelancerContract {
     }
 
     /// Cliente recupera saldo se freelancer ficar inativo por stale_secs.
+    ///
+    /// Bloqueado enquanto houver entrega em revisão (`Submitted`): o cliente
+    /// deve aprovar ou rejeitar primeiro — senão poderia sacar o escrow de um
+    /// trabalho já entregue antes do `auto_approve` do freelancer vencer.
     pub fn withdraw_unspent(env: Env) {
         let mut p = load(&env);
         require_state(&env, p.status == ProjectStatus::InProgress);
@@ -259,6 +264,12 @@ impl FreelancerContract {
         let now = env.ledger().timestamp();
         if now < p.last_activity_ts + p.stale_secs {
             panic_with_error_freel(&env, FreelError::NoStaleness);
+        }
+
+        for i in 0..p.delivery_count {
+            if load_delivery(&env, i).status == DeliveryStatus::Submitted {
+                panic_with_error_freel(&env, FreelError::ChangeBlockedByReview);
+            }
         }
 
         let balance = token_balance(&env, &p.asset, &env.current_contract_address());
@@ -329,12 +340,19 @@ impl FreelancerContract {
             .publish((symbol_short!("chgprop"),), (proposer, new_total, new_count));
     }
 
-    /// Aceita a proposta de mudança. Ajusta o `total` do projeto.
-    /// Se `new_total > paid_out`, cliente precisa depositar o delta.
-    /// Se `new_total < paid_out`, freelancer já recebeu mais do que o novo total
-    /// → operação falha (precisaria de refund manual).
+    /// Aceita a proposta de mudança. Ajusta o `total` do projeto e
+    /// **redistribui os registros de milestone** para que a soma das
+    /// entregas em aberto seja exatamente `new_total - paid_out`.
+    ///
+    /// Regras:
+    /// - Entregas em revisão (`Submitted`) precisam ser aprovadas/rejeitadas
+    ///   antes — mudar o escopo com revisão pendente é ambíguo.
+    /// - Entregas já aprovadas são preservadas e precisam caber no novo escopo.
+    /// - Se `new_total > total`, cliente deposita o delta; se menor, recebe de volta.
+    /// - Se `new_total < paid_out`, a operação falha (precisaria de refund manual).
     pub fn accept_change(env: Env, acceptor: Address) {
         let mut p = load(&env);
+        require_state(&env, p.status == ProjectStatus::InProgress);
         let proposal: ChangeProposal = env
             .storage()
             .persistent()
@@ -350,6 +368,30 @@ impl FreelancerContract {
         acceptor.require_auth();
 
         if proposal.new_total < p.paid_out {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
+
+        let old_count = p.delivery_count;
+        for i in 0..old_count {
+            let d = load_delivery(&env, i);
+            match d.status {
+                DeliveryStatus::Submitted => {
+                    panic_with_error_freel(&env, FreelError::ChangeBlockedByReview)
+                }
+                DeliveryStatus::Approved => {
+                    if i >= proposal.new_count {
+                        panic_with_error_freel(&env, FreelError::InconsistentMilestones);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let open_slots = proposal.new_count - p.deliveries_approved;
+        let remaining = proposal.new_total - p.paid_out;
+        // Sem slots abertos não pode sobrar saldo; com slots abertos cada um
+        // precisa valer algo (> 0), como no init.
+        if (open_slots == 0 && remaining != 0) || (open_slots > 0 && remaining <= 0) {
             panic_with_error(&env, CommonError::InvalidAmount);
         }
 
@@ -374,8 +416,47 @@ impl FreelancerContract {
             );
         }
 
+        // Reescreve as entregas em aberto dividindo `remaining` igualmente;
+        // o resto da divisão inteira vai para o último slot aberto.
+        if open_slots > 0 {
+            let per = remaining / (open_slots as i128);
+            let mut last_open: u32 = 0;
+            for i in 0..proposal.new_count {
+                let keep = i < old_count
+                    && load_delivery(&env, i).status == DeliveryStatus::Approved;
+                if !keep {
+                    last_open = i;
+                }
+            }
+            let mut assigned: i128 = 0;
+            for i in 0..proposal.new_count {
+                let keep = i < old_count
+                    && load_delivery(&env, i).status == DeliveryStatus::Approved;
+                if keep {
+                    continue;
+                }
+                let amount = if i == last_open { remaining - assigned } else { per };
+                assigned += amount;
+                let d = Delivery {
+                    idx: i,
+                    amount,
+                    status: DeliveryStatus::Pending,
+                    submitted_ts: 0,
+                    last_proof_hash: BytesN::from_array(&env, &[0u8; 32]),
+                };
+                env.storage().persistent().set(&(DEL, i), &d);
+            }
+        }
+        // Remove registros além do novo escopo (nenhum é Approved — já validado).
+        for i in proposal.new_count..old_count {
+            env.storage().persistent().remove(&(DEL, i));
+        }
+
         p.total = proposal.new_total;
         p.delivery_count = proposal.new_count;
+        if p.deliveries_approved == p.delivery_count {
+            p.status = ProjectStatus::Completed;
+        }
         save(&env, &p);
 
         env.storage().persistent().remove(&CHG);

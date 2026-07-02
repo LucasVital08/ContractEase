@@ -72,9 +72,16 @@ impl RealEstateShare {
     }
 
     /// Admin define o contrato Vault como minter autorizado.
+    ///
+    /// Só pode ser chamado **uma vez**: se o minter fosse reatribuível, o
+    /// admin poderia se autonomear minter e usar `burn_by_minter` para
+    /// destruir cotas de qualquer holder após a captação.
     pub fn set_minter(env: Env, minter: Address) {
         let admin = admin_get(&env);
         admin.require_auth();
+        if env.storage().instance().has(&MINTER) {
+            panic_with_error(&env, CommonError::AlreadyInitialized);
+        }
         env.storage().instance().set(&MINTER, &minter);
     }
 
@@ -95,14 +102,18 @@ impl RealEstateShare {
         minter.require_auth();
 
         let current = balance_of(&env, &to);
+        let new_balance = current
+            .checked_add(amount)
+            .unwrap_or_else(|| panic_with_error(&env, CommonError::Overflow));
         env.storage()
             .persistent()
-            .set(&(BALANCE, to.clone()), &(current + amount));
+            .set(&(BALANCE, to.clone()), &new_balance);
 
         let supply: i128 = env.storage().instance().get(&SUPPLY).unwrap_or(0);
-        env.storage()
-            .instance()
-            .set(&SUPPLY, &supply.checked_add(amount).unwrap());
+        let new_supply = supply
+            .checked_add(amount)
+            .unwrap_or_else(|| panic_with_error(&env, CommonError::Overflow));
+        env.storage().instance().set(&SUPPLY, &new_supply);
 
         env.events().publish((symbol_short!("mint"), to), amount);
     }
@@ -156,6 +167,13 @@ impl RealEstateShare {
         expiration_ledger: u32,
     ) {
         from.require_auth();
+        if amount < 0 {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
+        // SEP-41: allowance positiva não pode nascer já expirada.
+        if amount > 0 && expiration_ledger < env.ledger().sequence() {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
         env.storage().temporary().set(
             &(ALLOW, from.clone(), spender.clone()),
             &AllowanceValue {
@@ -229,9 +247,12 @@ fn do_transfer(env: &Env, from: &Address, to: &Address, amount: i128) {
         .persistent()
         .set(&(BALANCE, from.clone()), &(from_bal - amount));
     let to_bal = balance_of(env, to);
+    let new_to_bal = to_bal
+        .checked_add(amount)
+        .unwrap_or_else(|| panic_with_error(env, CommonError::Overflow));
     env.storage()
         .persistent()
-        .set(&(BALANCE, to.clone()), &(to_bal + amount));
+        .set(&(BALANCE, to.clone()), &new_to_bal);
     env.events()
         .publish((symbol_short!("transfer"), from.clone(), to.clone()), amount);
 }

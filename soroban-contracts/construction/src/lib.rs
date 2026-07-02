@@ -40,6 +40,7 @@ pub enum ConstructionError {
     WarrantyNotPassed = 103,
     InvalidRetention = 104,
     NoWarrantyClaim = 105,
+    NoArbiter = 106,
 }
 
 #[contracttype]
@@ -315,10 +316,18 @@ impl ConstructionContract {
 
     /// Cliente reclama vício oculto dentro da warranty.
     /// Trava a retenção até arbitragem.
+    ///
+    /// Exige que o projeto tenha árbitro: sem ele, o estado `WarrantyClaim`
+    /// não teria saída via `arbitrate_warranty` e a retenção ficaria travada
+    /// para sempre (restaria apenas o acordo mútuo de `settle_warranty`).
     pub fn claim_warranty(env: Env, defect_hash: BytesN<32>) {
         let mut p = load(&env);
         require_state(&env, p.status == ProjectStatus::Warranty);
         p.client.require_auth();
+
+        if p.arbiter.is_none() {
+            panic_with_error_constr(&env, ConstructionError::NoArbiter);
+        }
 
         let now = env.ledger().timestamp();
         if now >= p.accepted_ts + p.warranty_secs {
@@ -330,6 +339,48 @@ impl ConstructionContract {
 
         env.events()
             .publish((symbol_short!("claim"),), defect_hash);
+    }
+
+    /// Acordo mútuo sobre a reclamação de garantia: cliente e construtora
+    /// assinam juntos o split da retenção, sem depender do árbitro.
+    pub fn settle_warranty(env: Env, client_share: i128) {
+        let mut p = load(&env);
+        require_state(&env, p.status == ProjectStatus::WarrantyClaim);
+        p.client.require_auth();
+        p.contractor.require_auth();
+
+        if client_share < 0 || client_share > p.retention_locked {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
+        let contractor_share = p.retention_locked - client_share;
+
+        if client_share > 0 {
+            token_transfer(
+                &env,
+                &p.asset,
+                &env.current_contract_address(),
+                &p.client,
+                client_share,
+            );
+        }
+        if contractor_share > 0 {
+            token_transfer(
+                &env,
+                &p.asset,
+                &env.current_contract_address(),
+                &p.contractor,
+                contractor_share,
+            );
+        }
+
+        p.retention_locked = 0;
+        p.status = ProjectStatus::Closed;
+        save(&env, &p);
+
+        env.events().publish(
+            (symbol_short!("settle"),),
+            (client_share, contractor_share),
+        );
     }
 
     /// Árbitro (CREA/CAU) decide o split da retenção.

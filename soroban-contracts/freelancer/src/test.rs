@@ -171,6 +171,10 @@ fn cancel_mutual_returns_remaining() {
 #[test]
 fn propose_and_accept_change_with_complement() {
     let fx = setup(&[1000 * STROOP, 1000 * STROOP]);
+    // O depósito complementar do cliente acontece DENTRO de accept_change
+    // (chamado pelo freelancer) — uma autorização aninhada não-raiz, que o
+    // mock padrão rejeita. Em produção o cliente pré-assina essa entrada.
+    fx.env.mock_all_auths_allowing_non_root_auth();
     fx.contract.fund_project();
 
     // Cliente propõe ampliar para 3000 com 3 entregas
@@ -183,6 +187,13 @@ fn propose_and_accept_change_with_complement() {
     assert_eq!(p.total, 3000 * STROOP);
     assert_eq!(p.delivery_count, 3);
     assert_eq!(fx.asset_token.balance(&fx.contract.address), 3000 * STROOP);
+
+    // As entregas em aberto somam exatamente o novo total (nada de dust).
+    let mut open_sum: i128 = 0;
+    for i in 0..3u32 {
+        open_sum += fx.contract.get_delivery(&i).unwrap().amount;
+    }
+    assert_eq!(open_sum, 3000 * STROOP);
 }
 
 #[test]

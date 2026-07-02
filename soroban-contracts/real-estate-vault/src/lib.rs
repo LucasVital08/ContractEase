@@ -52,6 +52,9 @@ pub enum VaultError {
     AlreadyVoted = 104,
     SaleNotApproved = 105,
     NotShareholder = 106,
+    VotingStillOpen = 107,
+    VotingClosed = 108,
+    NothingToReclaim = 109,
 }
 
 #[contracttype]
@@ -77,7 +80,18 @@ pub struct Vault {
     pub matricula_hash: BytesN<32>,
     pub fundraising_deadline_ts: u64,
     pub current_rent_period: u32,
+    /// Incrementado a cada `propose_sale` — isola os votos de cada proposta.
+    pub sale_nonce: u32,
     pub status: VaultStatus,
+}
+
+/// Registro de voto: peso escrowado + direção. As cotas ficam custodiadas
+/// no Vault até o fim da votação (ver `vote_sale`/`reclaim_vote_shares`).
+#[contracttype]
+#[derive(Clone)]
+pub struct VoteRecord {
+    pub weight: u32,
+    pub approve: bool,
 }
 
 #[contracttype]
@@ -144,6 +158,7 @@ impl RealEstateVault {
                 params.fundraising_days as u64,
             ),
             current_rent_period: 0,
+            sale_nonce: 0,
             status: VaultStatus::Fundraising,
         };
         env.storage().instance().set(&VAULT, &v);
@@ -319,6 +334,7 @@ impl RealEstateVault {
         };
         env.storage().instance().set(&SALE, &proposal);
 
+        v.sale_nonce += 1;
         v.status = VaultStatus::SaleProposed;
         save_vault(&env, &v);
 
@@ -327,6 +343,11 @@ impl RealEstateVault {
     }
 
     /// Holder vota (peso = nº de cotas). Cada wallet vota uma vez.
+    ///
+    /// As cotas do votante ficam **custodiadas no Vault** até o fim da
+    /// votação. Sem isso, seria possível votar, transferir as cotas para
+    /// outra wallet e votar de novo — inflando o resultado. Após o prazo
+    /// (ou a execução/cancelamento da venda), `reclaim_vote_shares` devolve.
     pub fn vote_sale(env: Env, voter: Address, approve: bool) {
         let v = load_vault(&env);
         require_state(&env, v.status == VaultStatus::SaleProposed);
@@ -342,7 +363,7 @@ impl RealEstateVault {
             panic_with_error(&env, CommonError::DeadlineExpired);
         }
 
-        let vote_key = (VOTE, voter.clone());
+        let vote_key = (VOTE, v.sale_nonce, voter.clone());
         if env.storage().persistent().has(&vote_key) {
             panic_with_error_vault(&env, VaultError::AlreadyVoted);
         }
@@ -356,23 +377,119 @@ impl RealEstateVault {
         if balance <= 0 {
             panic_with_error_vault(&env, VaultError::NotShareholder);
         }
+        if balance > v.total_shares as i128 {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
 
+        // Escrow das cotas no Vault durante a votação.
+        env.invoke_contract::<()>(
+            &v.share_token,
+            &soroban_sdk::Symbol::new(&env, "transfer"),
+            (
+                voter.clone(),
+                env.current_contract_address(),
+                balance,
+            )
+                .into_val(&env),
+        );
+
+        let weight = balance as u32;
         if approve {
             prop.votes_yes_shares = prop
                 .votes_yes_shares
-                .checked_add(balance as u32)
+                .checked_add(weight)
                 .unwrap_or_else(|| panic_with_error(&env, CommonError::Overflow));
         } else {
             prop.votes_no_shares = prop
                 .votes_no_shares
-                .checked_add(balance as u32)
+                .checked_add(weight)
                 .unwrap_or_else(|| panic_with_error(&env, CommonError::Overflow));
         }
         env.storage().instance().set(&SALE, &prop);
-        env.storage().persistent().set(&vote_key, &approve);
+        env.storage()
+            .persistent()
+            .set(&vote_key, &VoteRecord { weight, approve });
 
         env.events()
             .publish((symbol_short!("vote"), voter), (approve, balance));
+    }
+
+    /// Devolve as cotas escrowadas na votação `nonce` para o votante.
+    /// Só permitido quando a votação daquela proposta já encerrou
+    /// (prazo expirado, venda executada ou proposta cancelada).
+    pub fn reclaim_vote_shares(env: Env, voter: Address, nonce: u32) {
+        let v = load_vault(&env);
+        voter.require_auth();
+
+        if nonce == v.sale_nonce && v.status == VaultStatus::SaleProposed {
+            let prop: SaleProposal = env
+                .storage()
+                .instance()
+                .get(&SALE)
+                .unwrap_or_else(|| panic_with_error(&env, CommonError::NotInitialized));
+            if env.ledger().timestamp() <= prop.deadline_ts {
+                panic_with_error_vault(&env, VaultError::VotingStillOpen);
+            }
+        }
+
+        let vote_key = (VOTE, nonce, voter.clone());
+        let record: VoteRecord = env
+            .storage()
+            .persistent()
+            .get(&vote_key)
+            .unwrap_or_else(|| panic_with_error_vault(&env, VaultError::NothingToReclaim));
+        if record.weight == 0 {
+            panic_with_error_vault(&env, VaultError::NothingToReclaim);
+        }
+
+        env.invoke_contract::<()>(
+            &v.share_token,
+            &soroban_sdk::Symbol::new(&env, "transfer"),
+            (
+                env.current_contract_address(),
+                voter.clone(),
+                record.weight as i128,
+            )
+                .into_val(&env),
+        );
+
+        // Zera o peso mas mantém o registro (preserva o histórico do voto).
+        env.storage().persistent().set(
+            &vote_key,
+            &VoteRecord {
+                weight: 0,
+                approve: record.approve,
+            },
+        );
+
+        env.events()
+            .publish((symbol_short!("reclaim"), voter), record.weight);
+    }
+
+    /// Cancela uma proposta de venda reprovada ou expirada, devolvendo o
+    /// Vault ao estado `Operational`. Sem isso, uma votação que não atinge
+    /// quorum deixaria o Vault preso em `SaleProposed` para sempre.
+    /// Chamável por qualquer um após o prazo (cron) ou pelo sponsor.
+    pub fn cancel_sale(env: Env) {
+        let mut v = load_vault(&env);
+        require_state(&env, v.status == VaultStatus::SaleProposed);
+
+        let prop: SaleProposal = env
+            .storage()
+            .instance()
+            .get(&SALE)
+            .unwrap_or_else(|| panic_with_error(&env, CommonError::NotInitialized));
+
+        // Antes do prazo, apenas o sponsor pode retirar a proposta.
+        if env.ledger().timestamp() <= prop.deadline_ts {
+            v.sponsor.require_auth();
+        }
+
+        env.storage().instance().remove(&SALE);
+        v.status = VaultStatus::Operational;
+        save_vault(&env, &v);
+
+        env.events().publish((symbol_short!("salecan"),), v.sale_nonce);
     }
 
     /// Sponsor executa a venda. Valida quorum mínimo + maioria.
@@ -526,26 +643,33 @@ fn lock_share_minting(env: &Env, share_token: &Address) {
     );
 }
 
-/// Hash da folha: keccak(period || holder || amount)
+/// Prefixos de domínio: impedem que um nó interno da árvore seja
+/// reinterpretado como folha (ataque de segunda pré-imagem).
+const LEAF_PREFIX: u8 = 0x00;
+const NODE_PREFIX: u8 = 0x01;
+
+/// Hash da folha: keccak(0x00 || period || holder || amount)
 fn leaf_hash(env: &Env, period: u32, holder: &Address, amount: i128) -> BytesN<32> {
     let mut buf = Bytes::new(env);
+    buf.append(&Bytes::from_array(env, &[LEAF_PREFIX]));
     buf.append(&period.to_xdr(env));
     buf.append(&holder.to_xdr(env));
     buf.append(&amount.to_xdr(env));
     env.crypto().keccak256(&buf).into()
 }
 
-/// Hash da folha de venda: keccak(holder || amount || shares_to_burn)
+/// Hash da folha de venda: keccak(0x00 || holder || amount || shares_to_burn)
 fn leaf_hash_sale(env: &Env, holder: &Address, amount: i128, shares: u32) -> BytesN<32> {
     let mut buf = Bytes::new(env);
+    buf.append(&Bytes::from_array(env, &[LEAF_PREFIX]));
     buf.append(&holder.to_xdr(env));
     buf.append(&amount.to_xdr(env));
     buf.append(&shares.to_xdr(env));
     env.crypto().keccak256(&buf).into()
 }
 
-/// Verifica uma Merkle proof. Pares ordenados (menor || maior) para evitar
-/// problemas de segunda-imagem.
+/// Verifica uma Merkle proof. Pares ordenados (menor || maior) + prefixo de
+/// nó interno (0x01) para separar o domínio de folhas e nós.
 fn verify_merkle(
     env: &Env,
     leaf: &BytesN<32>,
@@ -560,6 +684,7 @@ fn verify_merkle(
             (sibling, computed.clone())
         };
         let mut buf = Bytes::new(env);
+        buf.append(&Bytes::from_array(env, &[NODE_PREFIX]));
         buf.append(&Bytes::from_array(env, &a.to_array()));
         buf.append(&Bytes::from_array(env, &b.to_array()));
         computed = env.crypto().keccak256(&buf).into();

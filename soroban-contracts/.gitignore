@@ -1,5 +1,6 @@
 target/
 Cargo.lock
+test_snapshots/
 *.wasm
 !dist/*.wasm
 .DS_Store
