@@ -189,15 +189,24 @@ export async function verifyOnStellar(txHash: string): Promise<{
   try {
     const server = new StellarSdk.Horizon.Server(TESTNET_HORIZON);
     const tx = await server.transactions().transaction(txHash).call();
-    
+
     return {
       verified: true,
       ledger: tx.ledger_attr as any,
       timestamp: tx.created_at,
       memo: tx.memo,
     };
-  } catch {
-    return { verified: false };
+  } catch (error: any) {
+    // 404 = a transação realmente não existe → não verificado.
+    // Qualquer outra falha (rede, 5xx) é indeterminada — propague em vez
+    // de reportar falsamente um contrato ancorado como "não verificado".
+    if (error?.response?.status === 404) {
+      return { verified: false };
+    }
+    throw new Error(
+      `Não foi possível consultar a rede Stellar agora. Tente novamente. (${error?.message ?? 'erro de rede'})`,
+      { cause: error },
+    );
   }
 }
 

@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "lint": "eslint . --report-unused-disable-directives",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
-    "prepare": "cd ../.. && husky install apps/contractease/.husky || true"
+    "prepare": "cd ../.. && husky install apps/contractease/.husky || true",
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

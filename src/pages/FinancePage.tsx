@@ -15,7 +15,6 @@ export default function FinancePage() {
   const [activeTab, setActiveTab] = useState<'plan' | 'credits' | 'history'>('plan');
   const [buyingCredits, setBuyingCredits] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'abacatepay' | 'stellar'>('abacatepay');
-  const [pixData, setPixData] = useState<{ brCode: string; brCodeBase64: string; id: string } | null>(null);
   const [stellarData, setStellarData] = useState<{ memo: string; walletAddress: string; instruction: string } | null>(null);
   const [error, setError] = useState('');
 

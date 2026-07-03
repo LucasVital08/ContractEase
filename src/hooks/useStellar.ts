@@ -8,7 +8,7 @@ import {
   getStellarExplorerUrl,
   type AnchorResult 
 } from '@/services/stellar';
-import { isConnected as checkFreighterConnected, requestAccess, getPublicKey } from '@stellar/freighter-api';
+import { isConnected as checkFreighterConnected, requestAccess } from '@stellar/freighter-api';
 import type { Contract } from '@/types';
 
 export interface UseStellarReturn {
@@ -33,18 +33,21 @@ export function useStellar(): UseStellarReturn {
 
   const connectWallet = useCallback(async () => {
     try {
-      const isFreighterConnected = await checkFreighterConnected();
-      if (!isFreighterConnected) {
+      // Freighter v6+ retorna objetos { isConnected } / { address, error },
+      // não valores diretos — por isso a checagem explícita dos campos.
+      const connection = await checkFreighterConnected();
+      if (!connection.isConnected) {
         alert('Por favor, instale a extensão Freighter Wallet.');
         return;
       }
-      
+
       const access = await requestAccess();
-      if (access) {
-        const pubKey = await getPublicKey();
-        setAddress(pubKey);
-        setIsConnected(true);
+      if (access.error || !access.address) {
+        console.error('Acesso à wallet negado', access.error);
+        return;
       }
+      setAddress(access.address);
+      setIsConnected(true);
     } catch (e) {
       console.error('Falha ao conectar wallet', e);
     }

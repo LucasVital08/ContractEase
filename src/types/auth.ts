@@ -10,6 +10,8 @@ export interface User {
   credits?: number;
   walletAddress?: string;
   plan?: 'free' | 'pro' | 'enterprise';
+  /** Preferências salvas em profiles.settings (JSON livre). */
+  settings?: Record<string, unknown>;
 }
 
 export interface Organization {

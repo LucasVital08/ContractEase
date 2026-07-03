@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { useCreateContract } from '@/hooks/useContractQueries';
 import { useNotificationStore } from '@/stores';
 import { signingService } from '@/services/supabaseService';
 import ModeSelectionModal from '@/components/ModeSelectionModal';
 import AdvancedDocumentEditor from '@/components/AdvancedDocumentEditor';
-import CreateContractForm from '@/components/CreateContractForm';
 import type { ContractType, Party, Clause } from '@/types';
 
 export default function CreateContractPage() {
@@ -17,7 +16,6 @@ export default function CreateContractPage() {
 
   const [showModeSelection, setShowModeSelection] = useState(true);
   const [selectedMode, setSelectedMode] = useState<'blank' | 'upload' | 'template' | null>(null);
-  const [documentContent, setDocumentContent] = useState('');
 
   // Se vier de /templates com estado, pré-popula o formulário
   useEffect(() => {
@@ -116,7 +114,7 @@ export default function CreateContractPage() {
         </div>
         <AdvancedDocumentEditor
           mode="upload"
-          onSave={async (content, tags) => {
+          onSave={async (content) => {
             // Aplica o conteúdo extraído ao formulário
             const lines = content.split('\n').filter(Boolean);
             if (lines[0]) setTitle(lines[0].replace(/^#+\s*/, '').trim());

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { api } from '@/services/api';
 import { useAuthStore, useNotificationStore } from '@/stores';
 
@@ -29,7 +29,7 @@ export function OTPModal({ isOpen, onClose, onSuccess, purpose, email, digits = 
   const handleGenerate = async () => {
     if (!user && !email) return;
     try {
-      const generatedCode = await api.otp.generate({ 
+      await api.otp.generate({
         userId: user?.id, 
         email: email, 
         purpose 
@@ -46,7 +46,7 @@ export function OTPModal({ isOpen, onClose, onSuccess, purpose, email, digits = 
     try {
       if (purpose === 'supabase_auth') {
         // Lógica específica para Supabase Auth (Magic Link/OTP)
-        const response = await api.auth.verifyOtp(email!, code);
+        await api.auth.verifyOtp(email!, code);
         // O onSuccess do LoginPage vai lidar com o login no store
         onSuccess();
         onClose();

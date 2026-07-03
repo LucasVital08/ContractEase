@@ -12,8 +12,6 @@
 
 import { supabase } from '@/lib/supabase';
 
-const ABACATE_API = 'https://api.abacatepay.com/v2';
-
 // ─── Types ───────────────────────────────────────────────────
 export interface AbacateProduct {
   id: string;

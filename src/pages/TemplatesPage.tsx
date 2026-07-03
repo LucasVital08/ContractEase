@@ -1,12 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { useNotificationStore } from '@/stores';
 import { api } from '@/services/api';
 import {
   TEMPLATE_CATEGORIES,
   mergeVariables,
-  formatValue,
   type ContractTemplate,
   type TemplateVariable,
 } from '@/services/templateEngine';
@@ -16,15 +14,12 @@ import {
   type SmartContractCategory,
   type SmartContractTemplate,
 } from '@/services/smartContractTemplates';
-import { useCreateContract } from '@/hooks/useContractQueries';
 
 type LibraryType = 'documents' | 'smart';
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const notify = useNotificationStore(s => s.add);
-  const createMutation = useCreateContract();
   const initialLibraryType = searchParams.get('library') === 'smart' ? 'smart' : 'documents';
 
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useAuthStore, useNotificationStore } from '@/stores';
+import { useNotificationStore } from '@/stores';
 import { supabase } from '@/lib/supabase';
 
 type ApiKey = { id: string; name: string; key_prefix: string; last_used_at: string | null; created_at: string };
@@ -23,7 +23,6 @@ const COMING_SOON = [
 ];
 
 export default function IntegrationsPage() {
-  const user = useAuthStore(s => s.user);
   const notify = useNotificationStore(s => s.add);
 
   // API Keys

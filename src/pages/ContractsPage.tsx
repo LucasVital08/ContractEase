@@ -375,7 +375,7 @@ export default function ContractsPage() {
 }
 
  function ContractRow({
-  contract, index, onToggleFav, folder, allFolders, onDelete,
+  contract, index, onToggleFav, folder, allFolders,
 }: {
   contract: Contract;
   index: number;

@@ -8,29 +8,31 @@
 
 use super::{RealEstateVault, RealEstateVaultClient, VaultInitParams, VaultStatus};
 use soroban_sdk::{
-    testutils::{Address as _, Ledger, LedgerInfo},
+    testutils::Address as _,
     token::StellarAssetClient,
     Address, Bytes, BytesN, Env, Vec,
 };
 
 const STROOP: i128 = 10_000_000;
 
-/// Computa hash da folha (period, holder, amount).
+/// Computa hash da folha (period, holder, amount) — prefixo 0x00 (folha).
 fn compute_leaf(env: &Env, period: u32, holder: &Address, amount: i128) -> BytesN<32> {
     use soroban_sdk::xdr::ToXdr;
     let mut buf = Bytes::new(env);
+    buf.append(&Bytes::from_array(env, &[0x00u8]));
     buf.append(&period.to_xdr(env));
     buf.append(&holder.to_xdr(env));
     buf.append(&amount.to_xdr(env));
     env.crypto().keccak256(&buf).into()
 }
 
-/// Combina dois nós para subir na árvore.
+/// Combina dois nós para subir na árvore — prefixo 0x01 (nó interno).
 fn combine(env: &Env, a: BytesN<32>, b: BytesN<32>) -> BytesN<32> {
     let aa = a.to_array();
     let bb = b.to_array();
     let (lo, hi) = if aa <= bb { (a, b) } else { (b, a) };
     let mut buf = Bytes::new(env);
+    buf.append(&Bytes::from_array(env, &[0x01u8]));
     buf.append(&Bytes::from_array(env, &lo.to_array()));
     buf.append(&Bytes::from_array(env, &hi.to_array()));
     env.crypto().keccak256(&buf).into()
@@ -85,14 +87,8 @@ fn fundraising_and_close() {
     let asset = env.register_stellar_asset_contract(asset_admin);
     let asset_admin_client = StellarAssetClient::new(&env, &asset);
 
-    // Share token (real-estate-share)
+    // Share token (real-estate-share) — registrado direto no env de teste
     let share_admin = Address::generate(&env);
-    let share_wasm = contractease_real_estate_share::WASM;
-    let share_id = env.deployer().with_current_contract([0u8; 32]).deploy(share_wasm);
-    // Como real_estate_share está no workspace, conseguimos referenciar; mas para deploy
-    // direto no env de teste precisamos do client gerado. Vamos usar register_contract.
-
-    // Fallback: usamos register_contract com o tipo do contrato share
     let share_id = env.register_contract(
         None,
         contractease_real_estate_share::RealEstateShare,
@@ -334,7 +330,8 @@ fn sale_proposal_voting_and_execution() {
 
     vault.buy_shares(&alice, &60);
     vault.buy_shares(&bob, &40);
-    vault.close_fundraising();
+    // 100/100 cotas vendidas → captação fecha automaticamente
+    assert_eq!(vault.get_status(), VaultStatus::Operational);
 
     vault.propose_sale(&(200_000 * STROOP), &7);
     assert_eq!(vault.get_status(), VaultStatus::SaleProposed);
@@ -342,8 +339,25 @@ fn sale_proposal_voting_and_execution() {
     vault.vote_sale(&alice, &true);
     vault.vote_sale(&bob, &false);
 
+    // Cotas ficam escrowadas no vault durante a votação (anti voto duplo)
+    assert_eq!(share.balance(&alice), 0);
+    assert_eq!(share.balance(&bob), 0);
+    assert_eq!(share.balance(&vault_id), 100);
+
+    // Votar de novo falha mesmo após transferência (não há mais cotas p/ mover)
+    assert!(vault.try_vote_sale(&alice, &true).is_err());
+
     // Alice tem 60 cotas (>50% quorum), votos yes > no → aprovado
     let proceeds_root = BytesN::from_array(&env, &[9u8; 32]);
     vault.execute_sale(&(200_000 * STROOP), &proceeds_root);
     assert_eq!(vault.get_status(), VaultStatus::SaleExecuted);
+
+    // Após a execução, cada votante resgata suas cotas escrowadas
+    vault.reclaim_vote_shares(&alice, &1);
+    vault.reclaim_vote_shares(&bob, &1);
+    assert_eq!(share.balance(&alice), 60);
+    assert_eq!(share.balance(&bob), 40);
+
+    // Resgatar duas vezes falha
+    assert!(vault.try_reclaim_vote_shares(&alice, &1).is_err());
 }

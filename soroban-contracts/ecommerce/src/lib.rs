@@ -16,8 +16,8 @@
 #![no_std]
 
 use contractease_common::{
-    add_days, panic_with_error, require_state, token_balance, token_transfer, CommonError,
-    SECONDS_PER_DAY,
+    add_days, bump_instance, panic_with_error, require_state, token_balance, token_transfer,
+    CommonError, SECONDS_PER_DAY,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
@@ -375,6 +375,7 @@ impl EcommerceEscrow {
 }
 
 fn load(env: &Env) -> OnlineSale {
+    bump_instance(env);
     env.storage()
         .instance()
         .get(&DATA)

@@ -10,7 +10,9 @@
 
 #![no_std]
 
-use contractease_common::{admin_get, admin_set, panic_with_error, CommonError};
+use contractease_common::{
+    admin_get, admin_set, bump_instance, bump_persistent, panic_with_error, CommonError,
+};
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String,
     Symbol,
@@ -72,14 +74,22 @@ impl RealEstateShare {
     }
 
     /// Admin define o contrato Vault como minter autorizado.
+    ///
+    /// Só pode ser chamado **uma vez**: se o minter fosse reatribuível, o
+    /// admin poderia se autonomear minter e usar `burn_by_minter` para
+    /// destruir cotas de qualquer holder após a captação.
     pub fn set_minter(env: Env, minter: Address) {
         let admin = admin_get(&env);
         admin.require_auth();
+        if env.storage().instance().has(&MINTER) {
+            panic_with_error(&env, CommonError::AlreadyInitialized);
+        }
         env.storage().instance().set(&MINTER, &minter);
     }
 
     /// Mint de novas cotas. Só o `minter` pode chamar.
     pub fn mint(env: Env, to: Address, amount: i128) {
+        bump_instance(&env);
         if env.storage().instance().get::<_, bool>(&LOCKED).unwrap_or(false) {
             panic_with_error_share(&env, ShareError::MintingLocked);
         }
@@ -95,14 +105,19 @@ impl RealEstateShare {
         minter.require_auth();
 
         let current = balance_of(&env, &to);
+        let new_balance = current
+            .checked_add(amount)
+            .unwrap_or_else(|| panic_with_error(&env, CommonError::Overflow));
         env.storage()
             .persistent()
-            .set(&(BALANCE, to.clone()), &(current + amount));
+            .set(&(BALANCE, to.clone()), &new_balance);
+        bump_persistent(&env, &(BALANCE, to.clone()));
 
         let supply: i128 = env.storage().instance().get(&SUPPLY).unwrap_or(0);
-        env.storage()
-            .instance()
-            .set(&SUPPLY, &supply.checked_add(amount).unwrap());
+        let new_supply = supply
+            .checked_add(amount)
+            .unwrap_or_else(|| panic_with_error(&env, CommonError::Overflow));
+        env.storage().instance().set(&SUPPLY, &new_supply);
 
         env.events().publish((symbol_short!("mint"), to), amount);
     }
@@ -156,6 +171,13 @@ impl RealEstateShare {
         expiration_ledger: u32,
     ) {
         from.require_auth();
+        if amount < 0 {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
+        // SEP-41: allowance positiva não pode nascer já expirada.
+        if amount > 0 && expiration_ledger < env.ledger().sequence() {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
         env.storage().temporary().set(
             &(ALLOW, from.clone(), spender.clone()),
             &AllowanceValue {
@@ -218,6 +240,7 @@ fn balance_of(env: &Env, id: &Address) -> i128 {
 }
 
 fn do_transfer(env: &Env, from: &Address, to: &Address, amount: i128) {
+    bump_instance(env);
     if amount <= 0 {
         panic_with_error(env, CommonError::InvalidAmount);
     }
@@ -228,10 +251,15 @@ fn do_transfer(env: &Env, from: &Address, to: &Address, amount: i128) {
     env.storage()
         .persistent()
         .set(&(BALANCE, from.clone()), &(from_bal - amount));
+    bump_persistent(env, &(BALANCE, from.clone()));
     let to_bal = balance_of(env, to);
+    let new_to_bal = to_bal
+        .checked_add(amount)
+        .unwrap_or_else(|| panic_with_error(env, CommonError::Overflow));
     env.storage()
         .persistent()
-        .set(&(BALANCE, to.clone()), &(to_bal + amount));
+        .set(&(BALANCE, to.clone()), &new_to_bal);
+    bump_persistent(env, &(BALANCE, to.clone()));
     env.events()
         .publish((symbol_short!("transfer"), from.clone(), to.clone()), amount);
 }
@@ -255,6 +283,7 @@ fn consume_allowance(env: &Env, from: &Address, spender: &Address, amount: i128)
 }
 
 fn burn_internal(env: &Env, from: &Address, amount: i128) {
+    bump_instance(env);
     if amount <= 0 {
         panic_with_error(env, CommonError::InvalidAmount);
     }
@@ -265,6 +294,7 @@ fn burn_internal(env: &Env, from: &Address, amount: i128) {
     env.storage()
         .persistent()
         .set(&(BALANCE, from.clone()), &(bal - amount));
+    bump_persistent(env, &(BALANCE, from.clone()));
 
     let supply: i128 = env.storage().instance().get(&SUPPLY).unwrap_or(0);
     env.storage()

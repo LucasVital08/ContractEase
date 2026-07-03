@@ -6,7 +6,6 @@ import { generateContractHash, serializeContract, anchorOnStellar, getStellarExp
 import { signAsContractParty, shortenAddress } from '@/services/stellarWallet';
 import { useWalletStore } from '@/stores';
 import { supabase } from '@/lib/supabase';
-import { animations } from '@/tokens';
 import SignerVerificationModal from '@/components/profile/SignerVerificationModal';
 
 type Step = 'verify' | 'form' | 'anchoring' | 'done';

@@ -126,6 +126,44 @@ pub fn require_any_caller(env: &Env, caller: &Address, allowed: &[&Address]) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// TTL / ARQUIVAMENTO DE STORAGE
+// ─────────────────────────────────────────────────────────────────────
+//
+// Na Stellar, toda entrada de storage tem um "time to live" (TTL) em ledgers.
+// Quando o TTL expira, a entrada é ARQUIVADA e deixa de ser acessível até ser
+// restaurada — o que, para contratos de longa duração (um aluguel de 30 meses,
+// por exemplo), significaria estado/fundos inacessíveis. Por isso todo método
+// que toca o contrato deve "renovar" o TTL das entradas que usa.
+//
+// A cada ~5s fecha um ledger, então ~17.280 ledgers = 1 dia.
+
+/// Ledgers em um dia (aprox., assumindo ledgers de 5s).
+pub const LEDGERS_PER_DAY: u32 = 17_280;
+/// Se o TTL cair abaixo disto (~30 dias), renovamos.
+pub const TTL_THRESHOLD: u32 = LEDGERS_PER_DAY * 30;
+/// Alvo de renovação (~90 dias). O host limita ao máximo permitido pela rede.
+pub const TTL_EXTEND_TO: u32 = LEDGERS_PER_DAY * 90;
+
+/// Renova o TTL do instance storage (onde vive o struct principal do contrato).
+/// Deve ser chamado no início de qualquer método que leia/escreva o estado.
+pub fn bump_instance(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
+/// Renova o TTL de uma entrada persistente específica (registros de mês,
+/// milestones, períodos de aluguel, saldos de token, etc).
+pub fn bump_persistent<K>(env: &Env, key: &K)
+where
+    K: soroban_sdk::IntoVal<Env, soroban_sdk::Val>,
+{
+    env.storage()
+        .persistent()
+        .extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // CONSTANTES DE TEMPO
 // ─────────────────────────────────────────────────────────────────────
 

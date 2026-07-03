@@ -21,8 +21,8 @@
 #![no_std]
 
 use contractease_common::{
-    add_days, admin_get, admin_set, panic_with_error, require_state, token_balance,
-    token_transfer, CommonError, SECONDS_PER_DAY,
+    add_days, admin_get, admin_set, bump_instance, bump_persistent, panic_with_error,
+    require_state, token_balance, token_transfer, CommonError, SECONDS_PER_DAY,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
@@ -213,8 +213,8 @@ impl RentalContract {
                 .monthly_rent
                 .checked_mul(d.late_fee_bps as i128)
                 .and_then(|x| x.checked_mul(days_late as i128))
-                .and_then(|x| x.checked_div(BPS_DENOMINATOR.checked_mul(30).unwrap()))
-                .unwrap_or(0);
+                .and_then(|x| x.checked_div(BPS_DENOMINATOR * 30))
+                .unwrap_or_else(|| panic_with_error(&env, CommonError::Overflow));
         }
 
         let total = d
@@ -239,6 +239,7 @@ impl RentalContract {
             late_fee_paid: late_fee,
         };
         env.storage().persistent().set(&(MONTH, month_idx), &record);
+        bump_persistent(&env, &(MONTH, month_idx));
 
         env.events()
             .publish((symbol_short!("paid"), month_idx), (d.monthly_rent, late_fee));
@@ -246,9 +247,18 @@ impl RentalContract {
 
     /// Marca a inadimplência do mês corrente. Chamável por qualquer um
     /// após o vencimento (ideal: cron job do indexer).
+    ///
+    /// A contagem de meses em atraso é derivada do tempo decorrido desde o
+    /// vencimento em aberto (1 + períodos de 30 dias). Isso permite que a
+    /// inadimplência acumule mês a mês mesmo com o contrato já em `Overdue` —
+    /// sem isso, `terminate_for_default` nunca seria alcançável para
+    /// `max_consecutive_overdue > 1`, travando a caução para sempre.
     pub fn mark_overdue(env: Env) {
         let mut d: RentalAgreement = load(&env);
-        require_state(&env, d.state == RentState::Active);
+        require_state(
+            &env,
+            d.state == RentState::Active || d.state == RentState::Overdue,
+        );
 
         let month_idx = d.months_paid;
         if month_idx >= d.duration_months {
@@ -261,7 +271,13 @@ impl RentalContract {
             panic_with_error_rent(&env, RentError::NotOverdue);
         }
 
-        d.consecutive_overdue += 1;
+        let months_overdue = (1 + (now - due_ts) / (30 * SECONDS_PER_DAY)) as u32;
+        if months_overdue <= d.consecutive_overdue {
+            // Nada novo a registrar neste período.
+            panic_with_error_rent(&env, RentError::NotOverdue);
+        }
+
+        d.consecutive_overdue = months_overdue;
         d.state = RentState::Overdue;
         save(&env, &d);
 
@@ -442,6 +458,7 @@ impl RentalContract {
 // ─── HELPERS PRIVADOS ────────────────────────────────────────────────
 
 fn load(env: &Env) -> RentalAgreement {
+    bump_instance(env);
     env.storage()
         .instance()
         .get(&DATA)

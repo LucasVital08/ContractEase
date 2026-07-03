@@ -6,7 +6,6 @@ import {
   searchHandles,
   isStellarAddress,
   isHandle,
-  normalizeHandle,
   lookupHandleByAddress,
   lookupProfileByAddress,
   type ResolvedHandle,
@@ -46,7 +45,6 @@ export default function HandleInput({ value, onChange, placeholder, required }: 
         : null;
   const resolved = asyncResolved ?? syncResolved;
   const isDirectAddress = Boolean(trimmed) && isStellarAddress(trimmed);
-  const isResolvedHandle = Boolean(trimmed && resolved && !isDirectAddress);
   const canSearch = focused && !isDirectAddress && (trimmed === '' || trimmed.length >= 2);
 
   useEffect(() => {

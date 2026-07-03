@@ -1,9 +1,8 @@
-import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { useUIStore, useAuthStore, useNotificationStore } from '@/stores';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { api } from '@/services/api';
-import { animations } from '@/tokens';
 import contracteaseLogo from '@/assets/contractease-logo.svg';
 
 const WorkspaceSetupWizard = lazy(() => import('@/components/WorkspaceSetupWizard'));
@@ -75,7 +74,6 @@ export default function Sidebar() {
   const { sidebarCollapsed, toggleCollapse } = useUIStore();
   const { user, organization, activeProfile, switchOrganization } = useAuthStore();
   const addNotification = useNotificationStore(state => state.add);
-  const navigate = useNavigate();
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const [isLibraryExpanded, setIsLibraryExpanded] = useState(true);
   const [showCreateFlow, setShowCreateFlow] = useState(false);

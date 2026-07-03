@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
+import { api } from '@/services/api';
 import type { Contract } from '@/types/contract';
 
 interface AIAssistantModalProps {

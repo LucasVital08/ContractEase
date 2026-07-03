@@ -9,16 +9,17 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  if (user && user.role !== 'admin' && user.role !== 'owner') {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   useEffect(() => {
     api.analytics.getAdminStats()
       .then(data => setStats(data))
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
   }, []);
+
+  // Redireciona não-admins DEPOIS dos hooks — hooks não podem ser condicionais.
+  if (user && user.role !== 'admin' && user.role !== 'owner') {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const kpis = [
     { label: 'Workspaces Ativos', value: stats?.total_workspaces ?? '—', sub: `+${stats?.users_this_week ?? 0} usuários esta semana`, icon: 'solar:buildings-bold-duotone', color: 'emerald' },
