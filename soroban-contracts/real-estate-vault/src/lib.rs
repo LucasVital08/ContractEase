@@ -25,8 +25,8 @@
 #![no_std]
 
 use contractease_common::{
-    add_days, panic_with_error, require_state, token_balance, token_transfer, CommonError,
-    SECONDS_PER_DAY,
+    add_days, bump_instance, bump_persistent, panic_with_error, require_state, token_balance,
+    token_transfer, CommonError, SECONDS_PER_DAY,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, xdr::ToXdr, Address,
@@ -261,6 +261,7 @@ impl RealEstateVault {
         env.storage()
             .persistent()
             .set(&(RENT, v.current_rent_period), &period);
+        bump_persistent(&env, &(RENT, v.current_rent_period));
         save_vault(&env, &v);
 
         env.events()
@@ -308,7 +309,9 @@ impl RealEstateVault {
             .checked_add(amount)
             .unwrap_or_else(|| panic_with_error(&env, CommonError::Overflow));
         env.storage().persistent().set(&(RENT, period), &rp);
+        bump_persistent(&env, &(RENT, period));
         env.storage().persistent().set(&claim_key, &true);
+        bump_persistent(&env, &claim_key);
 
         env.events()
             .publish((symbol_short!("rentcl"), period, holder), amount);
@@ -587,6 +590,7 @@ impl RealEstateVault {
         );
 
         env.storage().persistent().set(&claim_key, &true);
+        bump_persistent(&env, &claim_key);
 
         env.events()
             .publish((symbol_short!("salecl"), holder), (amount, shares_to_burn));
@@ -625,6 +629,7 @@ impl RealEstateVault {
 use soroban_sdk::IntoVal;
 
 fn load_vault(env: &Env) -> Vault {
+    bump_instance(env);
     env.storage()
         .instance()
         .get(&VAULT)

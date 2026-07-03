@@ -18,8 +18,8 @@
 #![no_std]
 
 use contractease_common::{
-    add_days, panic_with_error, require_state, token_balance, token_transfer, CommonError,
-    SECONDS_PER_DAY,
+    add_days, bump_instance, bump_persistent, panic_with_error, require_state, token_balance,
+    token_transfer, CommonError, SECONDS_PER_DAY,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
@@ -492,6 +492,7 @@ impl FreelancerContract {
 // ─── HELPERS PRIVADOS ────────────────────────────────────────────────
 
 fn load(env: &Env) -> FreelanceProject {
+    bump_instance(env);
     env.storage()
         .instance()
         .get(&PROJ)
@@ -503,10 +504,13 @@ fn save(env: &Env, p: &FreelanceProject) {
 }
 
 fn load_delivery(env: &Env, idx: u32) -> Delivery {
-    env.storage()
+    let d = env
+        .storage()
         .persistent()
         .get(&(DEL, idx))
-        .unwrap_or_else(|| panic_with_error(env, CommonError::IndexOutOfRange))
+        .unwrap_or_else(|| panic_with_error(env, CommonError::IndexOutOfRange));
+    bump_persistent(env, &(DEL, idx));
+    d
 }
 
 fn finalize_approval(env: &Env, p: &mut FreelanceProject, idx: u32) {

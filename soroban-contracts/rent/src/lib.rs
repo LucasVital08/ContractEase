@@ -21,8 +21,8 @@
 #![no_std]
 
 use contractease_common::{
-    add_days, admin_get, admin_set, panic_with_error, require_state, token_balance,
-    token_transfer, CommonError, SECONDS_PER_DAY,
+    add_days, admin_get, admin_set, bump_instance, bump_persistent, panic_with_error,
+    require_state, token_balance, token_transfer, CommonError, SECONDS_PER_DAY,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
@@ -239,6 +239,7 @@ impl RentalContract {
             late_fee_paid: late_fee,
         };
         env.storage().persistent().set(&(MONTH, month_idx), &record);
+        bump_persistent(&env, &(MONTH, month_idx));
 
         env.events()
             .publish((symbol_short!("paid"), month_idx), (d.monthly_rent, late_fee));
@@ -457,6 +458,7 @@ impl RentalContract {
 // ─── HELPERS PRIVADOS ────────────────────────────────────────────────
 
 fn load(env: &Env) -> RentalAgreement {
+    bump_instance(env);
     env.storage()
         .instance()
         .get(&DATA)

@@ -17,8 +17,8 @@
 #![no_std]
 
 use contractease_common::{
-    add_days, panic_with_error, require_state, token_balance, token_transfer, CommonError,
-    SECONDS_PER_DAY,
+    add_days, bump_instance, bump_persistent, panic_with_error, require_state, token_balance,
+    token_transfer, CommonError, SECONDS_PER_DAY,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
@@ -462,6 +462,7 @@ impl ConstructionContract {
 }
 
 fn load(env: &Env) -> ConstructionProject {
+    bump_instance(env);
     env.storage()
         .instance()
         .get(&PROJ)
@@ -473,10 +474,13 @@ fn save(env: &Env, p: &ConstructionProject) {
 }
 
 fn load_milestone(env: &Env, idx: u32) -> Milestone {
-    env.storage()
+    let m = env
+        .storage()
         .persistent()
         .get(&(MS, idx))
-        .unwrap_or_else(|| panic_with_error(env, CommonError::IndexOutOfRange))
+        .unwrap_or_else(|| panic_with_error(env, CommonError::IndexOutOfRange));
+    bump_persistent(env, &(MS, idx));
+    m
 }
 
 fn panic_with_error_constr(env: &Env, err: ConstructionError) -> ! {
