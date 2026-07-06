@@ -5,6 +5,7 @@ import { useCreateContract } from '@/hooks/useContractQueries';
 import { useNotificationStore } from '@/stores';
 import { signingService } from '@/services/supabaseService';
 import ModeSelectionModal from '@/components/ModeSelectionModal';
+import ContractKindModal, { type ContractKind } from '@/components/ContractKindModal';
 import AdvancedDocumentEditor from '@/components/AdvancedDocumentEditor';
 import type { ContractType, Party, Clause } from '@/types';
 
@@ -14,6 +15,8 @@ export default function CreateContractPage() {
   const createMutation = useCreateContract();
   const notify = useNotificationStore(s => s.add);
 
+  // Passo 1: tipo de contrato (documento × smart). Só depois vem o "como começar".
+  const [contractKind, setContractKind] = useState<ContractKind | null>(null);
   const [showModeSelection, setShowModeSelection] = useState(true);
   const [selectedMode, setSelectedMode] = useState<'blank' | 'upload' | 'template' | null>(null);
 
@@ -21,6 +24,8 @@ export default function CreateContractPage() {
   useEffect(() => {
     const state = location.state as any;
     if (state?.fromTemplate) {
+      // Template já implica documento contratual — pula o passo 1 e o "como começar".
+      setContractKind('document');
       setShowModeSelection(false);
       setSelectedMode('blank');
       if (state.title) setTitle(state.title);
@@ -84,6 +89,26 @@ export default function CreateContractPage() {
     setClauses(prev => prev.map((c, idx) => idx === i ? { ...c, ...patch } : c));
   };
 
+  // Passo 1 — tipo de contrato. Documento segue aqui; Smart Contract vai para o
+  // catálogo dedicado, que já cuida do fluxo próprio (catálogo → modo → editor).
+  if (!contractKind) {
+    return (
+      <AnimatePresence>
+        <ContractKindModal
+          onSelect={(kind) => {
+            if (kind === 'smart') {
+              navigate('/smart-contracts');
+              return;
+            }
+            setContractKind('document');
+          }}
+          onCancel={() => navigate(-1)}
+        />
+      </AnimatePresence>
+    );
+  }
+
+  // Passo 2 — como começar o documento contratual (branco/upload/template).
   if (showModeSelection && !selectedMode) {
     return (
       <AnimatePresence>
@@ -97,7 +122,7 @@ export default function CreateContractPage() {
             setSelectedMode(mode);
             setShowModeSelection(false);
           }}
-          onCancel={() => navigate(-1)}
+          onCancel={() => setContractKind(null)}
         />
       </AnimatePresence>
     );
