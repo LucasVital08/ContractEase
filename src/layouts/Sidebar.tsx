@@ -551,6 +551,18 @@ export default function Sidebar() {
       {/* Bottom section */}
       <div className="space-y-3 border-t border-white/8 px-3 py-3">
 
+        {/* Manual link */}
+        <a
+          href="/manual.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          title={sidebarCollapsed ? 'Manual de utilização' : ''}
+          className="w-full flex items-center gap-3 rounded-[20px] border border-white/8 px-3 py-2.5 text-sm text-neutral-500 transition-all hover:border-white/12 hover:bg-white/[0.03] hover:text-white"
+        >
+          <iconify-icon icon="solar:book-bookmark-bold-duotone" class="text-xl shrink-0" />
+          {!sidebarCollapsed && <span>Manual</span>}
+        </a>
+
         {/* Collapse toggle */}
         <button
           onClick={toggleCollapse}

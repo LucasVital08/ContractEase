@@ -28,6 +28,11 @@ export default defineConfig({
             type: 'image/svg+xml'
           }
         ]
+      },
+      workbox: {
+        // manual.html (2.4 MB) excede o limite de pré-cache do workbox;
+        // é servido sob demanda, sem necessidade de cache offline
+        globIgnores: ['**/manual.html'],
       }
     })
   ],
