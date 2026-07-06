@@ -8,13 +8,25 @@ Verifiable contracts and programmable escrow anchored on the Stellar network.
 - Issue a verifiable certificate with a public URL anyone can check
 - Create escrow via Stellar Claimable Balances — funds released only when conditions are met
 - Digital signature flow with multi-party support
+- Deploy Soroban smart contracts (rent, e-commerce, freelancer, legal fees, construction, real estate) straight from the app
 
 ## Stack
 
 - React 18 + Vite + TypeScript
 - Tailwind CSS
-- Supabase (Auth + PostgreSQL + Storage)
+- Supabase (Auth + PostgreSQL + Storage + Edge Functions)
 - Stellar SDK (`@stellar/stellar-sdk`)
+- Rust + Soroban SDK (smart contracts)
+
+## Repository layout
+
+```
+.
+├── src/                  # React app
+├── supabase/             # migrations + Edge Functions
+├── soroban-contracts/    # Soroban smart contracts (Rust workspace)
+└── .github/workflows/    # CI (app build + WASM build/upload)
+```
 
 ## Setup
 
@@ -37,6 +49,12 @@ npm run dev     # http://localhost:5173
 npm run build
 ```
 
-## Docs
+## Smart contracts (Soroban)
 
-Full architecture, API reference, and ADRs at `/doc/ai/contractease` on the landing page.
+The `soroban-contracts/` Cargo workspace contains the escrow contracts deployed by the app — see [soroban-contracts/README.md](soroban-contracts/README.md) for build, test, and deploy instructions.
+
+```bash
+cd soroban-contracts
+cargo test --workspace
+./scripts/build-all.sh
+```

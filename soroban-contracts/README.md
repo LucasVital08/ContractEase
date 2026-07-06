@@ -124,7 +124,7 @@ Adicione policy permitindo apenas service_role (Edge Function vai usar).
 ### 4. Deploy de Edge Function
 
 ```bash
-cd ../apps/contractease/supabase
+cd ../supabase
 supabase functions deploy deploy-soroban
 ```
 
