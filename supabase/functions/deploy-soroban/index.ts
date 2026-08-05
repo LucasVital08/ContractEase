@@ -17,8 +17,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import * as StellarSdk from 'https://esm.sh/@stellar/stellar-sdk@13.3.0';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  // Sem `*`: restringe às origens da aplicação (ALLOWED_ORIGINS ou APP_URL).
+  'Access-Control-Allow-Origin':
+    (Deno.env.get('ALLOWED_ORIGINS') ?? Deno.env.get('APP_URL') ?? '').split(',')[0].trim(),
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Vary': 'Origin',
 };
 
 // Map template_id → nome do arquivo WASM no bucket
@@ -55,15 +58,68 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // ── SUPABASE CLIENT ─────────────────────────────────────────────
+    stage = 'supabase_init';
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // ── AUTENTICAÇÃO ─────────────────────────────────────────────────
+    // [CRIT] Esta função era anônima. Como o sponsor (STELLAR_SECRET_KEY) paga
+    // TODAS as fees de upload+deploy+init, qualquer visitante conseguia drenar
+    // a conta custodial em looping. E, como o update no banco usa service_role,
+    // um `contractId` arbitrário sobrescrevia os campos soroban_* de contratos
+    // de terceiros.
+    stage = 'auth';
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+      return error(401, stage, 'missing_authorization', { hint: 'Header Authorization ausente.' });
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authData?.user) {
+      return error(401, stage, 'invalid_token', { hint: 'Token inválido ou expirado.' });
+    }
+    const caller = authData.user;
+
     // ── PARSE ────────────────────────────────────────────────────────
     stage = 'parse_body';
     const body = (await req.json()) as DeployRequest;
     const { contractId, templateId, initArgs } = body;
-    const isTestnet = body.network !== 'mainnet';
 
     if (!contractId || !templateId || !Array.isArray(initArgs)) {
       return error(400, stage, 'invalid_body', {
         hint: 'Body precisa de { contractId, templateId, initArgs[] }',
+      });
+    }
+
+    // Deploy em mainnet gasta XLM real: exige liberação explícita da operação.
+    const wantsMainnet = body.network === 'mainnet';
+    if (wantsMainnet && Deno.env.get('ALLOW_MAINNET_DEPLOY') !== 'true') {
+      return error(403, stage, 'mainnet_disabled', {
+        hint: 'Deploy em mainnet desabilitado nesta instância (ALLOW_MAINNET_DEPLOY).',
+      });
+    }
+    const isTestnet = !wantsMainnet;
+
+    // ── AUTORIZAÇÃO SOBRE O CONTRATO ─────────────────────────────────
+    stage = 'authorize_contract';
+    const { data: contractRow } = await supabase
+      .from('contracts')
+      .select('id, owner_id, soroban_contract_address')
+      .eq('id', contractId)
+      .maybeSingle();
+
+    if (!contractRow) {
+      return error(404, stage, 'contract_not_found', { hint: 'Contrato não encontrado.' });
+    }
+    if (contractRow.owner_id !== caller.id) {
+      return error(403, stage, 'forbidden', { hint: 'Apenas o dono do contrato pode publicá-lo.' });
+    }
+    // Impede redeploy: cada redeploy é um custo novo no sponsor e sobrescreveria
+    // o endereço já ancorado no documento.
+    if (contractRow.soroban_contract_address) {
+      return error(409, stage, 'already_deployed', {
+        hint: 'Este contrato já possui um endereço Soroban publicado.',
       });
     }
 
@@ -73,10 +129,6 @@ Deno.serve(async (req: Request) => {
         hint: `Template "${templateId}" não tem WASM mapeado. Compile e suba para o bucket.`,
       });
     }
-
-    // ── SUPABASE CLIENT ─────────────────────────────────────────────
-    stage = 'supabase_init';
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ── WASM DOWNLOAD ───────────────────────────────────────────────
     stage = 'wasm_download';

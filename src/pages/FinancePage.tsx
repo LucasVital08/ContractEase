@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '@/stores';
 import { useFinance } from '@/hooks/useFinance';
 import { PLANS, abacatePayService, type PlanId } from '@/services/abacatePay';
+import { CREDIT_PACKAGES, type CreditPackageView } from '@/services/creditPackages';
 import { supabase } from '@/lib/supabase';
 
 const PLAN_LIST = [PLANS.free, PLANS.pro, PLANS.enterprise];
@@ -18,25 +19,24 @@ export default function FinancePage() {
   const [stellarData, setStellarData] = useState<{ memo: string; walletAddress: string; instruction: string } | null>(null);
   const [error, setError] = useState('');
 
-  const handleBuyCredits = async (amount: number, price: number) => {
+  // Envia apenas o `packageId`: preço e quantidade de créditos vêm da tabela do
+  // servidor (`_shared/pricing.ts`). Mandar `amount`/`credits` daqui é o que
+  // permitia ao comprador escolher o próprio preço.
+  const handleBuyCredits = async (pkg: CreditPackageView) => {
     if (!user) {
       setError('Faça login para comprar créditos.');
       return;
     }
 
-    setBuyingCredits(amount);
+    setBuyingCredits(pkg.credits);
     setError('');
 
     try {
       if (paymentMethod === 'abacatepay') {
         const { data, error } = await supabase.functions.invoke('abacatepay-pix', {
-          body: {
-            amount: Math.round(price * 100),
-            description: `Recarga de ${amount} créditos - ContractEase`,
-            metadata: { userId: user.id, credits: amount }
-          }
+          body: { packageId: pkg.id }
         });
-        
+
         if (error || !data || data.success === false) {
           throw error || new Error(data?.error || 'Falha ao gerar checkout');
         }
@@ -45,32 +45,10 @@ export default function FinancePage() {
           window.open(data.data.url, '_blank');
         }
       } else {
-        // 1. Verificar se já existe um pagamento pendente para o mesmo valor e créditos
-        const { data: existingPayment } = await supabase
-          .from('payments')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'pending_stellar')
-          .eq('credits_added', amount)
-          .eq('method', 'STELLAR')
-          .maybeSingle();
-
-        if (existingPayment) {
-          // Mostra dados do pagamento pendente existente (endereço real virá da Edge Function abaixo)
-          setStellarData({
-            memo: existingPayment.stellar_memo,
-            walletAddress: '',
-            instruction: 'Aguardando transferência via rede Stellar.'
-          });
-        }
-
-        // Fluxo Stellar
+        // Fluxo Stellar — a própria Edge Function reaproveita uma intenção
+        // pendente do mesmo usuário e pacote, então não há consulta prévia aqui.
         const { data, error } = await supabase.functions.invoke('stellar-payment', {
-          body: {
-            amount: price,
-            credits: amount,
-            userId: user.id
-          }
+          body: { packageId: pkg.id }
         });
 
         if (error || !data || data.success === false) {
@@ -269,12 +247,8 @@ export default function FinancePage() {
               </div>
 
               <div className="space-y-4">
-                {[
-                  { amount: 50, price: 29.90, label: 'Pacote Básico' },
-                  { amount: 200, price: 99.90, label: 'Pacote Pro', popular: true },
-                  { amount: 1000, price: 399.90, label: 'Pacote Volume' },
-                ].map(pkg => (
-                  <div key={pkg.amount} className={`bg-black/50 border rounded-xl p-4 flex items-center justify-between ${pkg.popular ? 'border-emerald-500/50 relative overflow-hidden' : 'border-white/5'}`}>
+                {CREDIT_PACKAGES.map(pkg => (
+                  <div key={pkg.id} className={`bg-black/50 border rounded-xl p-4 flex items-center justify-between ${pkg.popular ? 'border-emerald-500/50 relative overflow-hidden' : 'border-white/5'}`}>
                     {pkg.popular && <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded-bl-lg">MAIS POPULAR</div>}
                     <div className="flex items-center gap-4">
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center ${paymentMethod === 'stellar' ? 'bg-blue-500/10' : 'bg-emerald-500/10'}`}>
@@ -284,7 +258,7 @@ export default function FinancePage() {
                         />
                       </div>
                       <div>
-                        <p className="text-lg font-bold text-white">+{pkg.amount} Créditos</p>
+                        <p className="text-lg font-bold text-white">+{pkg.credits} Créditos</p>
                         <p className="text-xs text-neutral-500">{pkg.label}</p>
                       </div>
                     </div>
@@ -292,10 +266,10 @@ export default function FinancePage() {
                       <p className="text-xl font-bricolage text-white">R$ {pkg.price.toFixed(2).replace('.', ',')}</p>
                       <button 
                         disabled={!!buyingCredits}
-                        onClick={() => handleBuyCredits(pkg.amount, pkg.price)}
+                        onClick={() => handleBuyCredits(pkg)}
                         className={`px-4 py-2 font-bold text-sm rounded-lg transition-colors disabled:opacity-50 ${paymentMethod === 'stellar' ? 'bg-blue-500 text-white hover:bg-blue-400' : 'bg-emerald-500 text-black hover:bg-emerald-400'}`}
                       >
-                        {buyingCredits === pkg.amount ? 'Processando...' : 'Comprar'}
+                        {buyingCredits === pkg.credits ? 'Processando...' : 'Comprar'}
                       </button>
                     </div>
                   </div>

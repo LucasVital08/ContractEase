@@ -152,18 +152,20 @@ impl EcommerceEscrow {
         require_state(&env, s.state == SaleState::Shipped);
         s.buyer.require_auth();
 
-        token_transfer(
-            &env,
-            &s.asset,
-            &env.current_contract_address(),
-            &s.seller,
-            s.paid_amount,
-        );
+        // Checks-Effects-Interactions: estado gravado antes da transferência.
+        // Com o `save` depois, o contrato de token em `s.asset` reentrava em
+        // `confirm_delivery` enquanto o estado ainda era `Shipped` e o escrow
+        // era pago ao vendedor várias vezes.
+        let asset = s.asset.clone();
+        let seller = s.seller.clone();
+        let amount = s.paid_amount;
+
         s.state = SaleState::Delivered;
         save(&env, &s);
 
-        env.events()
-            .publish((symbol_short!("delivered"),), s.paid_amount);
+        token_transfer(&env, &asset, &env.current_contract_address(), &seller, amount);
+
+        env.events().publish((symbol_short!("delivered"),), amount);
     }
 
     /// Auto-release após prazo expirar sem confirmação nem disputa.
@@ -176,18 +178,17 @@ impl EcommerceEscrow {
             panic_with_error(&env, CommonError::DeadlineNotReached);
         }
 
-        token_transfer(
-            &env,
-            &s.asset,
-            &env.current_contract_address(),
-            &s.seller,
-            s.paid_amount,
-        );
+        // Estado primeiro (CEI) — mesmo motivo de `confirm_delivery`.
+        let asset = s.asset.clone();
+        let seller = s.seller.clone();
+        let amount = s.paid_amount;
+
         s.state = SaleState::Delivered;
         save(&env, &s);
 
-        env.events()
-            .publish((symbol_short!("autorel"),), s.paid_amount);
+        token_transfer(&env, &asset, &env.current_contract_address(), &seller, amount);
+
+        env.events().publish((symbol_short!("autorel"),), amount);
     }
 
     /// Comprador abre disputa. Trava liberação até resolução manual ou árbitro.
@@ -210,18 +211,17 @@ impl EcommerceEscrow {
         require_state(&env, s.state == SaleState::Disputed);
         s.seller.require_auth();
 
-        token_transfer(
-            &env,
-            &s.asset,
-            &env.current_contract_address(),
-            &s.buyer,
-            s.paid_amount,
-        );
+        // Estado primeiro (CEI) — mesmo motivo de `confirm_delivery`.
+        let asset = s.asset.clone();
+        let buyer = s.buyer.clone();
+        let amount = s.paid_amount;
+
         s.state = SaleState::Refunded;
         save(&env, &s);
 
-        env.events()
-            .publish((symbol_short!("refund"),), s.paid_amount);
+        token_transfer(&env, &asset, &env.current_contract_address(), &buyer, amount);
+
+        env.events().publish((symbol_short!("refund"),), amount);
     }
 
     /// Reembolso parcial (produto com defeito menor). Vendedor recebe o restante.
@@ -236,22 +236,28 @@ impl EcommerceEscrow {
 
         let seller_amount = s.paid_amount - buyer_refund;
 
+        // Estado primeiro (CEI) — mesmo motivo de `confirm_delivery`.
+        let asset = s.asset.clone();
+        let buyer = s.buyer.clone();
+        let seller = s.seller.clone();
+
+        s.state = SaleState::PartiallyRefunded;
+        save(&env, &s);
+
         token_transfer(
             &env,
-            &s.asset,
+            &asset,
             &env.current_contract_address(),
-            &s.buyer,
+            &buyer,
             buyer_refund,
         );
         token_transfer(
             &env,
-            &s.asset,
+            &asset,
             &env.current_contract_address(),
-            &s.seller,
+            &seller,
             seller_amount,
         );
-        s.state = SaleState::PartiallyRefunded;
-        save(&env, &s);
 
         env.events()
             .publish((symbol_short!("partrf"),), (buyer_refund, seller_amount));
@@ -273,24 +279,10 @@ impl EcommerceEscrow {
         }
         let seller_amount = s.paid_amount - buyer_refund;
 
-        if buyer_refund > 0 {
-            token_transfer(
-                &env,
-                &s.asset,
-                &env.current_contract_address(),
-                &s.buyer,
-                buyer_refund,
-            );
-        }
-        if seller_amount > 0 {
-            token_transfer(
-                &env,
-                &s.asset,
-                &env.current_contract_address(),
-                &s.seller,
-                seller_amount,
-            );
-        }
+        // Estado primeiro (CEI) — mesmo motivo de `confirm_delivery`.
+        let asset = s.asset.clone();
+        let buyer = s.buyer.clone();
+        let seller = s.seller.clone();
 
         s.state = if buyer_refund == s.paid_amount {
             SaleState::Refunded
@@ -300,6 +292,25 @@ impl EcommerceEscrow {
             SaleState::PartiallyRefunded
         };
         save(&env, &s);
+
+        if buyer_refund > 0 {
+            token_transfer(
+                &env,
+                &asset,
+                &env.current_contract_address(),
+                &buyer,
+                buyer_refund,
+            );
+        }
+        if seller_amount > 0 {
+            token_transfer(
+                &env,
+                &asset,
+                &env.current_contract_address(),
+                &seller,
+                seller_amount,
+            );
+        }
 
         env.events().publish(
             (symbol_short!("ruling"),),
@@ -319,18 +330,17 @@ impl EcommerceEscrow {
             panic_with_error_ecom(&env, EcomError::DisputeTimeoutNotReached);
         }
 
-        token_transfer(
-            &env,
-            &s.asset,
-            &env.current_contract_address(),
-            &s.seller,
-            s.paid_amount,
-        );
+        // Estado primeiro (CEI) — mesmo motivo de `confirm_delivery`.
+        let asset = s.asset.clone();
+        let seller = s.seller.clone();
+        let amount = s.paid_amount;
+
         s.state = SaleState::Delivered;
         save(&env, &s);
 
-        env.events()
-            .publish((symbol_short!("dtimeout"),), s.paid_amount);
+        token_transfer(&env, &asset, &env.current_contract_address(), &seller, amount);
+
+        env.events().publish((symbol_short!("dtimeout"),), amount);
     }
 
     /// Comprador concede mais tempo ao vendedor (extensão do auto-release).

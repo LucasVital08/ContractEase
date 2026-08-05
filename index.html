@@ -4,8 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://code.iconify.design; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://images.unsplash.com https://ui-avatars.com https://*.supabase.co https://*.supabase.com blob:; connect-src 'self' https://api.iconify.design https://api.simplesvg.com https://api.unisvg.com https://*.supabase.co https://*.supabase.com wss://*.supabase.co wss://*.supabase.com https://api.ipify.org https://horizon-testnet.stellar.org;" />
+    <!--
+      CSP de fallback (dev / hospedagem sem cabeçalhos configurados).
+      A política que vale em produção é a enviada como CABEÇALHO HTTP em
+      vercel.json e nginx.conf: ela não tem 'unsafe-inline' em script-src e
+      inclui frame-ancestors 'none' — diretiva que <meta> simplesmente ignora,
+      e sem a qual a tela de assinatura fica exposta a clickjacking.
+      O navegador aplica todas as políticas presentes, então a mais restritiva
+      prevalece em produção, enquanto o dev server continua funcionando.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://code.iconify.design; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://images.unsplash.com https://ui-avatars.com https://*.supabase.co https://*.supabase.com; connect-src 'self' https://api.iconify.design https://api.simplesvg.com https://api.unisvg.com https://*.supabase.co https://*.supabase.com wss://*.supabase.co wss://*.supabase.com https://api.ipify.org https://horizon-testnet.stellar.org https://horizon.stellar.org https://soroban-testnet.stellar.org https://soroban-rpc.stellar.org; object-src 'none'; base-uri 'self'; form-action 'self'" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap&subset=latin,latin-ext" rel="stylesheet" />

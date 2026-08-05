@@ -1,62 +1,59 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// ───────────────────────────────────────────────────────────────────────
+// Lista os contratos em que o usuário autenticado figura como parte.
+//
+// [MED] Antes, o filtro era montado por interpolação de string:
+//   .or(`email.eq.${user.email},user_id.eq.${user.id}`)
+// O PostgREST interpreta vírgulas e parênteses como sintaxe do filtro, então
+// um e-mail com esses caracteres quebra a expressão e permite injetar condições
+// adicionais — e a função roda com service_role, sem RLS para conter o estrago.
+// Trocamos por duas consultas com filtros parametrizados.
+// ───────────────────────────────────────────────────────────────────────
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { handler, jsonResponse, requireUser, serviceClient, HttpError } from '../_shared/security.ts';
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+Deno.serve(handler(async (req) => {
+  const user = await requireUser(req);
+  const supabase = serviceClient();
+
+  const contractIds = new Set<string>();
+
+  // Partes vinculadas pelo user_id.
+  const { data: byUserId, error: userIdError } = await supabase
+    .from('contract_parties')
+    .select('contract_id')
+    .eq('user_id', user.id);
+
+  if (userIdError) {
+    throw new HttpError(500, 'parties_lookup_failed', userIdError.message);
   }
+  byUserId?.forEach((p) => contractIds.add(p.contract_id));
 
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    // Obter usuário autenticado via JWT
-    const authHeader = req.headers.get('Authorization')!;
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    // Buscar contratos onde o usuário é parte (via email ou ID)
-    // Nota: contract_parties pode ter email ou user_id. Vamos cobrir ambos.
-    const { data: parties, error: partiesError } = await supabase
+  // Partes vinculadas pelo e-mail do token (comparação case-insensitive).
+  if (user.email) {
+    const { data: byEmail, error: emailError } = await supabase
       .from('contract_parties')
       .select('contract_id')
-      .or(`email.eq.${user.email},user_id.eq.${user.id}`);
+      .ilike('email', user.email);
 
-    if (partiesError) throw partiesError;
-
-    if (!parties || parties.length === 0) {
-      return new Response(JSON.stringify([]), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (emailError) {
+      throw new HttpError(500, 'parties_lookup_failed', emailError.message);
     }
-
-    const contractIds = parties.map(p => p.contract_id);
-
-    // Buscar detalhes dos contratos
-    const { data: contracts, error: contractsError } = await supabase
-      .from('contracts')
-      .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)')
-      .in('id', contractIds);
-
-    if (contractsError) throw contractsError;
-
-    return new Response(JSON.stringify(contracts || []), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    byEmail?.forEach((p) => contractIds.add(p.contract_id));
   }
-});
+
+  if (contractIds.size === 0) {
+    return jsonResponse(req, 200, []);
+  }
+
+  const { data: contracts, error: contractsError } = await supabase
+    .from('contracts')
+    .select('*, contract_parties(*), contract_clauses(*), favorites:favorites(id)')
+    .in('id', Array.from(contractIds));
+
+  if (contractsError) {
+    throw new HttpError(500, 'contracts_lookup_failed', contractsError.message);
+  }
+
+  return jsonResponse(req, 200, contracts ?? []);
+}));

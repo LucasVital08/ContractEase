@@ -245,14 +245,10 @@ impl ConstructionContract {
             .unwrap_or(0);
         let pay = m.amount - retain;
 
-        token_transfer(
-            &env,
-            &p.asset,
-            &env.current_contract_address(),
-            &p.contractor,
-            pay,
-        );
-
+        // Checks-Effects-Interactions: o milestone vira `Paid` e o projeto é
+        // salvo ANTES do pagamento. Com a transferência primeiro, o contrato de
+        // token em `p.asset` reentrava em `client_release(idx)` com o milestone
+        // ainda em `EngineerApproved` e recebia a mesma medição várias vezes.
         m.status = MilestoneStatus::Paid;
         env.storage().persistent().set(&(MS, idx), &m);
 
@@ -266,7 +262,11 @@ impl ConstructionContract {
             p.status = ProjectStatus::AwaitingAcceptance;
         }
 
+        let asset = p.asset.clone();
+        let contractor = p.contractor.clone();
         save(&env, &p);
+
+        token_transfer(&env, &asset, &env.current_contract_address(), &contractor, pay);
 
         env.events()
             .publish((symbol_short!("release"), idx), (pay, retain));
@@ -297,19 +297,26 @@ impl ConstructionContract {
             panic_with_error_constr(&env, ConstructionError::WarrantyNotPassed);
         }
 
-        if p.retention_locked > 0 {
-            token_transfer(
-                &env,
-                &p.asset,
-                &env.current_contract_address(),
-                &p.contractor,
-                p.retention_locked,
-            );
-        }
+        // Estado primeiro (CEI): zera a retenção e fecha o projeto antes de
+        // pagar. Na ordem anterior, `release_retention` era reentrante e a
+        // retenção — ainda não zerada — podia ser sacada repetidamente.
         let released = p.retention_locked;
+        let asset = p.asset.clone();
+        let contractor = p.contractor.clone();
+
         p.retention_locked = 0;
         p.status = ProjectStatus::Closed;
         save(&env, &p);
+
+        if released > 0 {
+            token_transfer(
+                &env,
+                &asset,
+                &env.current_contract_address(),
+                &contractor,
+                released,
+            );
+        }
 
         env.events().publish((symbol_short!("retrel"),), released);
     }
@@ -354,28 +361,33 @@ impl ConstructionContract {
         }
         let contractor_share = p.retention_locked - client_share;
 
+        // Estado primeiro (CEI) — ver `release_retention`.
+        let asset = p.asset.clone();
+        let client = p.client.clone();
+        let contractor = p.contractor.clone();
+
+        p.retention_locked = 0;
+        p.status = ProjectStatus::Closed;
+        save(&env, &p);
+
         if client_share > 0 {
             token_transfer(
                 &env,
-                &p.asset,
+                &asset,
                 &env.current_contract_address(),
-                &p.client,
+                &client,
                 client_share,
             );
         }
         if contractor_share > 0 {
             token_transfer(
                 &env,
-                &p.asset,
+                &asset,
                 &env.current_contract_address(),
-                &p.contractor,
+                &contractor,
                 contractor_share,
             );
         }
-
-        p.retention_locked = 0;
-        p.status = ProjectStatus::Closed;
-        save(&env, &p);
 
         env.events().publish(
             (symbol_short!("settle"),),
@@ -400,28 +412,33 @@ impl ConstructionContract {
         }
         let contractor_share = p.retention_locked - client_share;
 
+        // Estado primeiro (CEI) — ver `release_retention`.
+        let asset = p.asset.clone();
+        let client = p.client.clone();
+        let contractor = p.contractor.clone();
+
+        p.retention_locked = 0;
+        p.status = ProjectStatus::Closed;
+        save(&env, &p);
+
         if client_share > 0 {
             token_transfer(
                 &env,
-                &p.asset,
+                &asset,
                 &env.current_contract_address(),
-                &p.client,
+                &client,
                 client_share,
             );
         }
         if contractor_share > 0 {
             token_transfer(
                 &env,
-                &p.asset,
+                &asset,
                 &env.current_contract_address(),
-                &p.contractor,
+                &contractor,
                 contractor_share,
             );
         }
-
-        p.retention_locked = 0;
-        p.status = ProjectStatus::Closed;
-        save(&env, &p);
 
         env.events().publish(
             (symbol_short!("ruling"),),

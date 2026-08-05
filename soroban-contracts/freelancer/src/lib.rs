@@ -519,21 +519,22 @@ fn finalize_approval(env: &Env, p: &mut FreelanceProject, idx: u32) {
         panic_with_error_freel(env, FreelError::DeliveryNotSubmitted);
     }
 
-    token_transfer(
-        env,
-        &p.asset,
-        &env.current_contract_address(),
-        &p.freelancer,
-        d.amount,
-    );
+    let amount = d.amount;
 
+    // Checks-Effects-Interactions: o milestone é marcado como Approved e o
+    // projeto é salvo ANTES do pagamento.
+    //
+    // Na ordem anterior (pagar → marcar), o contrato de token em `p.asset`
+    // podia reentrar em `approve_delivery(idx)` durante o `transfer`: a entrega
+    // ainda constava como `Submitted`, a checagem passava de novo e o mesmo
+    // milestone era pago repetidas vezes até esvaziar o escrow do cliente.
     d.status = DeliveryStatus::Approved;
     env.storage().persistent().set(&(DEL, idx), &d);
 
     p.deliveries_approved += 1;
     p.paid_out = p
         .paid_out
-        .checked_add(d.amount)
+        .checked_add(amount)
         .unwrap_or_else(|| panic_with_error(env, CommonError::Overflow));
     p.last_activity_ts = env.ledger().timestamp();
 
@@ -542,8 +543,16 @@ fn finalize_approval(env: &Env, p: &mut FreelanceProject, idx: u32) {
     }
     save(env, p);
 
+    token_transfer(
+        env,
+        &p.asset,
+        &env.current_contract_address(),
+        &p.freelancer,
+        amount,
+    );
+
     env.events()
-        .publish((symbol_short!("approved"), idx), d.amount);
+        .publish((symbol_short!("approved"), idx), amount);
 }
 
 fn panic_with_error_freel(env: &Env, err: FreelError) -> ! {

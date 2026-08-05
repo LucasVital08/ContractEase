@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import DOMPurify from 'dompurify';
 import { api } from '@/services/api';
 import { useNotificationStore } from '@/stores';
 
@@ -119,8 +120,15 @@ export function TwoFactorModal({ isOpen, onClose, onSuccess }: TwoFactorModalPro
                 <div className="bg-white p-2 rounded-[2rem] mx-auto shadow-2xl shadow-emerald-500/10 border-4 border-emerald-500/5 w-64 h-64 flex items-center justify-center overflow-hidden">
                   {enrollData?.totp?.qr_code ? (
                     enrollData.totp.qr_code.startsWith('<svg') ? (
-                      <div 
-                        dangerouslySetInnerHTML={{ __html: enrollData.totp.qr_code }} 
+                      // SVG vindo da API é sanitizado: um <svg> aceita <script>
+                      // e handlers on*, então injetá-lo cru daria XSS caso a
+                      // resposta fosse manipulada (proxy, MITM, bug no provedor).
+                      <div
+                        dangerouslySetInnerHTML={{
+                          __html: DOMPurify.sanitize(enrollData.totp.qr_code, {
+                            USE_PROFILES: { svg: true, svgFilters: true },
+                          }),
+                        }}
                         className="w-full h-full flex items-center justify-center [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-full [&>svg]:h-full [&>svg]:block"
                       />
                     ) : (

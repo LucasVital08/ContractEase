@@ -26,6 +26,7 @@ import QuestionnaireFlow from '@/components/QuestionnaireFlow';
 import { getQuestionsForTemplate } from '@/services/templateQuestions';
 import type { ContractType } from '@/types/contract';
 import { SmartContractGlyph, getSmartContractVisual } from '@/components/SmartContractVisual';
+import { renderInlineMarkdown } from '@/utils/safeHtml';
 
 type TabKey = 'document' | 'plain' | 'soroban' | 'states';
 export type EditorMode = 'chat' | 'questions';
@@ -950,10 +951,9 @@ function ChatBubble({ message }: { message: AIChatMessage }) {
           </span>
           {isUser ? 'Solicitação' : 'Resposta da IA'}
         </div>
+        {/* Saída da IA é conteúdo não confiável: escapada antes de virar HTML. */}
         <div className="whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{
-          __html: message.text
-            .replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
-            .replace(/\n/g, '<br>')
+          __html: renderInlineMarkdown(message.text)
         }} />
         {message.extractedFields && Object.keys(message.extractedFields).length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/8 pt-3">
@@ -1070,7 +1070,7 @@ function PlainLanguageView({ explanation, template }: { explanation: AIExplainRe
           O que este contrato faz
         </h4>
         <p className="text-sm text-neutral-200 leading-relaxed whitespace-pre-wrap" dangerouslySetInnerHTML={{
-          __html: explanation.summary.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white">$1</strong>')
+          __html: renderInlineMarkdown(explanation.summary, 'text-white')
         }} />
       </div>
 
@@ -1085,7 +1085,7 @@ function PlainLanguageView({ explanation, template }: { explanation: AIExplainRe
               <li key={i} className="text-sm text-neutral-300 flex gap-2 leading-relaxed">
                 <span className="text-emerald-400 mt-1">•</span>
                 <span dangerouslySetInnerHTML={{
-                  __html: b.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white">$1</strong>')
+                  __html: renderInlineMarkdown(b, 'text-white')
                 }} />
               </li>
             ))}

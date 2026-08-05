@@ -1,98 +1,84 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// ───────────────────────────────────────────────────────────────────────
+// Checkout PIX/Cartão via AbacatePay
+//
+// [CRIT] Antes: anônimo e com `amount` + `metadata` vindos do corpo. O cliente
+// criava um produto de R$ 0,01 com metadata `{ credits: 999999 }` e o webhook
+// creditava tudo. Preço e quantidade eram, na prática, escolhidos pelo comprador.
+//
+// Agora: exige JWT, o pacote vem da tabela de preços do servidor e o metadata
+// é montado aqui (userId do token), nunca reaproveitado do cliente.
+// ───────────────────────────────────────────────────────────────────────
 
-const ABACATE_API = "https://api.abacatepay.com/v2";
-const ABACATE_KEY = Deno.env.get("ABACATEPAY_API_KEY") || "";
-const APP_URL = Deno.env.get("APP_URL") || "https://contractease.com";
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { handler, jsonResponse, requireUser, HttpError } from '../_shared/security.ts';
+import { resolvePackage } from '../_shared/pricing.ts';
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const ABACATE_API = 'https://api.abacatepay.com/v2';
+const ABACATE_KEY = Deno.env.get('ABACATEPAY_API_KEY') || '';
+const APP_URL = Deno.env.get('APP_URL') || 'https://contractease.com';
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+Deno.serve(handler(async (req) => {
+  const user = await requireUser(req);
+
+  if (!ABACATE_KEY) {
+    throw new HttpError(500, 'abacate_not_configured', 'ABACATEPAY_API_KEY não configurada.');
   }
 
-  try {
-    const { amount, description, metadata } = await req.json();
-    console.log("🚀 Iniciando Fluxo de Pagamento V2:", { amount, description });
+  const { packageId } = await req.json();
+  const pkg = resolvePackage(packageId);
 
-    if (!ABACATE_KEY) {
-       throw new Error("ABACATEPAY_API_KEY não configurada no Supabase Secrets");
-    }
-
-    // PASSO 1: Criar o Produto Dinâmico (Necessário na V2 para Checkout Hospedado)
-    const productRes = await fetch(`${ABACATE_API}/products/create`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${ABACATE_KEY}`,
-      },
-      body: JSON.stringify({
-        externalId: `prod-${metadata?.credits || 'custom'}-${Date.now()}`,
-        name: description || `${metadata?.credits} Créditos - ContractEase`,
-        price: amount,
-        currency: "BRL"
-      }),
-    });
-
-    const productData = await productRes.json();
-    if (!productData.success) {
-      throw new Error(`Erro ao criar produto: ${productData.error || JSON.stringify(productData)}`);
-    }
-
-    const productId = productData.data.id;
-    console.log(`✅ Produto criado/localizado: ${productId}`);
-
-    // PASSO 2: Criar o Checkout usando o ID do produto
-    const checkoutRes = await fetch(`${ABACATE_API}/checkouts/create`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${ABACATE_KEY}`,
-      },
-      body: JSON.stringify({
-        frequency: "ONE_TIME",
-        methods: ["PIX", "CARD"],
-        items: [
-          {
-            id: productId,
-            quantity: 1
-          }
-        ],
-        returnUrl: `${APP_URL}/finance`,
-        completionUrl: `${APP_URL}/finance?success=true`,
-        metadata: metadata || undefined,
-      }),
-    });
-
-    const checkoutData = await checkoutRes.json();
-    console.log(`📥 Resposta Checkout (${checkoutRes.status}):`, JSON.stringify(checkoutData));
-
-    if (!checkoutData.success) {
-      throw new Error(`Erro ao criar checkout: ${checkoutData.error || JSON.stringify(checkoutData)}`);
-    }
-
-    return new Response(JSON.stringify({
-      success: true,
-      data: checkoutData.data
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro interno";
-    console.error("🔥 Erro Crítico na Função:", message);
-    return new Response(JSON.stringify({
-      success: false,
-      error: message,
-      context: "abacatepay-v2-flow",
-      timestamp: new Date().toISOString()
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (!pkg) {
+    throw new HttpError(400, 'invalid_package', 'packageId inválido.');
   }
-});
+
+  // PASSO 1: produto com o preço da tabela do servidor.
+  const productRes = await fetch(`${ABACATE_API}/products/create`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${ABACATE_KEY}`,
+    },
+    body: JSON.stringify({
+      externalId: `prod-${pkg.id}-${Date.now()}`,
+      name: `${pkg.label} - ContractEase`,
+      price: pkg.amountCents,
+      currency: 'BRL',
+    }),
+  });
+
+  const productData = await productRes.json();
+  if (!productData.success) {
+    console.error('[abacatepay-pix] falha ao criar produto:', productData);
+    throw new HttpError(502, 'product_create_failed', 'Não foi possível criar o produto de cobrança.');
+  }
+
+  // PASSO 2: checkout. O metadata é montado no servidor — o webhook confia
+  // nele para identificar o usuário, então ele não pode vir do browser.
+  const checkoutRes = await fetch(`${ABACATE_API}/checkouts/create`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${ABACATE_KEY}`,
+    },
+    body: JSON.stringify({
+      frequency: 'ONE_TIME',
+      methods: ['PIX', 'CARD'],
+      items: [{ id: productData.data.id, quantity: 1 }],
+      returnUrl: `${APP_URL}/finance`,
+      completionUrl: `${APP_URL}/finance?success=true`,
+      metadata: {
+        userId: user.id,
+        packageId: pkg.id,
+        credits: pkg.credits,
+      },
+    }),
+  });
+
+  const checkoutData = await checkoutRes.json();
+  if (!checkoutData.success) {
+    console.error('[abacatepay-pix] falha ao criar checkout:', checkoutData);
+    throw new HttpError(502, 'checkout_create_failed', 'Não foi possível criar o checkout.');
+  }
+
+  return jsonResponse(req, 200, { success: true, data: checkoutData.data });
+}));

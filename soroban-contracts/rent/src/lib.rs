@@ -132,6 +132,22 @@ impl RentalContract {
         if params.monthly_rent <= 0 {
             panic_with_error(&env, CommonError::InvalidAmount);
         }
+        // `deposit_months == 0` gerava caução 0. `pay_deposit` então chamava
+        // token_transfer com amount 0, que aborta com InvalidAmount — o contrato
+        // ficava travado em AwaitingDeposit para sempre, sem caminho de saída.
+        if params.deposit_months == 0 {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
+        // Multa de mora sem teto: com late_fee_bps arbitrário (ex.: 1_000_000)
+        // o valor devido explodia junto com os dias de atraso. Limita a 100%.
+        if params.late_fee_bps > BPS_DENOMINATOR as u32 {
+            panic_with_error(&env, CommonError::InvalidAmount);
+        }
+        // Sem um mínimo de 1, `terminate_for_default` fica inalcançável e a
+        // caução do inquilino nunca é liberada em caso de inadimplência.
+        if params.max_consecutive_overdue == 0 {
+            panic_with_error(&env, CommonError::InvalidState);
+        }
 
         admin_set(&env, &params.landlord);
 
@@ -305,27 +321,23 @@ impl RentalContract {
 
         let refund = d.deposit - owed;
 
-        if owed > 0 {
-            token_transfer(
-                &env,
-                &d.asset,
-                &env.current_contract_address(),
-                &d.landlord,
-                owed,
-            );
-        }
-        if refund > 0 {
-            token_transfer(
-                &env,
-                &d.asset,
-                &env.current_contract_address(),
-                &d.tenant,
-                refund,
-            );
-        }
+        // Checks-Effects-Interactions: fecha o estado antes de mover fundos.
+        // Com o `save` no fim, o token de `d.asset` podia reentrar em
+        // `terminate_for_default` durante a primeira transferência — o estado
+        // ainda era `Overdue`, a checagem passava e a caução era paga de novo.
+        let asset = d.asset.clone();
+        let landlord = d.landlord.clone();
+        let tenant = d.tenant.clone();
 
         d.state = RentState::Terminated;
         save(&env, &d);
+
+        if owed > 0 {
+            token_transfer(&env, &asset, &env.current_contract_address(), &landlord, owed);
+        }
+        if refund > 0 {
+            token_transfer(&env, &asset, &env.current_contract_address(), &tenant, refund);
+        }
 
         env.events()
             .publish((symbol_short!("terminate"),), (owed, refund));
@@ -353,19 +365,18 @@ impl RentalContract {
         require_state(&env, d.state == RentState::Evaluation);
         d.landlord.require_auth();
 
-        token_transfer(
-            &env,
-            &d.asset,
-            &env.current_contract_address(),
-            &d.tenant,
-            d.deposit,
-        );
+        // Estado primeiro (CEI): senão um token malicioso reentra e devolve a
+        // caução mais de uma vez enquanto o estado ainda é `Evaluation`.
+        let asset = d.asset.clone();
+        let tenant = d.tenant.clone();
+        let deposit = d.deposit;
 
         d.state = RentState::ClosedClean;
         save(&env, &d);
 
-        env.events()
-            .publish((symbol_short!("released"),), d.deposit);
+        token_transfer(&env, &asset, &env.current_contract_address(), &tenant, deposit);
+
+        env.events().publish((symbol_short!("released"),), deposit);
     }
 
     /// Locador retém parte da caução por danos comprovados.
@@ -385,25 +396,24 @@ impl RentalContract {
 
         let refund = d.deposit - retain_amount;
 
-        token_transfer(
-            &env,
-            &d.asset,
-            &env.current_contract_address(),
-            &d.landlord,
-            retain_amount,
-        );
-        if refund > 0 {
-            token_transfer(
-                &env,
-                &d.asset,
-                &env.current_contract_address(),
-                &d.tenant,
-                refund,
-            );
-        }
+        // Estado primeiro (CEI) — ver comentário em `terminate_for_default`.
+        let asset = d.asset.clone();
+        let landlord = d.landlord.clone();
+        let tenant = d.tenant.clone();
 
         d.state = RentState::ClosedDamaged;
         save(&env, &d);
+
+        token_transfer(
+            &env,
+            &asset,
+            &env.current_contract_address(),
+            &landlord,
+            retain_amount,
+        );
+        if refund > 0 {
+            token_transfer(&env, &asset, &env.current_contract_address(), &tenant, refund);
+        }
 
         env.events().publish(
             (symbol_short!("damage"),),

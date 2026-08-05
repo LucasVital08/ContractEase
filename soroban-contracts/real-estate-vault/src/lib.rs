@@ -296,14 +296,14 @@ impl RealEstateVault {
             panic_with_error_vault(&env, VaultError::InvalidMerkleProof);
         }
 
-        token_transfer(
-            &env,
-            &v.payout_asset,
-            &env.current_contract_address(),
-            &holder,
-            amount,
-        );
-
+        // Checks-Effects-Interactions: a marca de "já sacou" e o acumulado do
+        // período são gravados ANTES da transferência.
+        //
+        // Na ordem anterior (transferir → marcar), `payout_asset` — que é um
+        // contrato escolhido no init — podia reentrar em `claim_rent` durante o
+        // próprio `transfer`. Como `claim_key` ainda não existia, a checagem de
+        // AlreadyClaimed passava e a mesma prova Merkle era usada repetidas
+        // vezes, drenando todo o aluguel distribuído do vault.
         rp.claimed_amount = rp
             .claimed_amount
             .checked_add(amount)
@@ -312,6 +312,14 @@ impl RealEstateVault {
         bump_persistent(&env, &(RENT, period));
         env.storage().persistent().set(&claim_key, &true);
         bump_persistent(&env, &claim_key);
+
+        token_transfer(
+            &env,
+            &v.payout_asset,
+            &env.current_contract_address(),
+            &holder,
+            amount,
+        );
 
         env.events()
             .publish((symbol_short!("rentcl"), period, holder), amount);
@@ -573,6 +581,14 @@ impl RealEstateVault {
             panic_with_error_vault(&env, VaultError::InvalidMerkleProof);
         }
 
+        // Checks-Effects-Interactions: marca o saque ANTES de chamar qualquer
+        // contrato externo. Tanto `share_token` quanto `payout_asset` são
+        // endereços definidos no init; com a marca gravada só no fim, um deles
+        // podia reentrar aqui, encontrar `claim_key` ainda ausente e repetir o
+        // saque com a mesma prova — drenando o resultado da venda do imóvel.
+        env.storage().persistent().set(&claim_key, &true);
+        bump_persistent(&env, &claim_key);
+
         // Queima as cotas (Vault é o minter autorizado)
         env.invoke_contract::<()>(
             &v.share_token,
@@ -588,9 +604,6 @@ impl RealEstateVault {
             &holder,
             amount,
         );
-
-        env.storage().persistent().set(&claim_key, &true);
-        bump_persistent(&env, &claim_key);
 
         env.events()
             .publish((symbol_short!("salecl"), holder), (amount, shares_to_burn));
