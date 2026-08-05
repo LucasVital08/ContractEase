@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type { Contract, ContractDraft, Party } from '@/types';
 import { isHandle, normalizeHandle, resolveHandle } from './handleResolver';
+import { DEMO_TEMPLATES, IS_DEMO } from '@/lib/demo';
 
 function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -836,6 +837,11 @@ export const organizationService = {
 // ─── Templates ───────────────────────────────────────────
 export const templateService = {
   list: async (category?: string) => {
+    if (IS_DEMO) {
+      return category && category !== 'all'
+        ? DEMO_TEMPLATES.filter((t) => t.category === category)
+        : DEMO_TEMPLATES;
+    }
     let query = supabase.from('templates').select('*').order('usage_count', { ascending: false });
     if (category && category !== 'all') {
       query = query.eq('category', category);

@@ -109,11 +109,11 @@ export const metamaskProvider: WalletProvider = {
     recommended: true,
     steps: [
       'Clique em "Conectar MetaMask".',
-      'A MetaMask vai pedir para instalar o complemento Stellar. Clique em "Conectar" e depois em "Instalar".',
-      'Confirme. Pronto — o endereço Stellar aparece aqui na tela.',
+      'Aprove a instalação do complemento Stellar: "Conectar" e depois "Instalar".',
+      'Pronto — o endereço aparece aqui na tela.',
     ],
     caveat:
-      'A MetaMask não fala Stellar de fábrica. O complemento (Snap) é instalado uma única vez, dentro da própria MetaMask, e você continua guardando sua chave lá.',
+      'A MetaMask não fala Stellar de fábrica. O complemento (Snap) é instalado uma vez, dentro dela, e sua chave continua lá.',
   },
 
   async detect(): Promise<WalletAvailability> {

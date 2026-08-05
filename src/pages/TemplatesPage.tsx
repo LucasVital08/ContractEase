@@ -26,7 +26,11 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const [libraryType, setLibraryType] = useState<LibraryType>(initialLibraryType);
-  const [showLibraryChooser, setShowLibraryChooser] = useState(() => !searchParams.has('library'));
+  // A biblioteca abre direto nos documentos. As abas logo abaixo do título já
+  // permitem trocar para contratos inteligentes, então um modal perguntando a
+  // mesma coisa antes de mostrar qualquer template só atrasa quem chegou aqui
+  // para procurar um modelo.
+  const [showLibraryChooser, setShowLibraryChooser] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSmartCategory, setSelectedSmartCategory] = useState<SmartContractCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');

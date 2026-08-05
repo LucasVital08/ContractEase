@@ -37,6 +37,7 @@ const WalletPage = React.lazy(() => import('@/pages/WalletPage'));
 const StartPage = React.lazy(() => import('@/pages/StartPage'));
 const GuidedCreatePage = React.lazy(() => import('@/pages/GuidedCreatePage'));
 const WalletConnectPage = React.lazy(() => import('@/pages/WalletConnectPage'));
+const PainelPage = React.lazy(() => import('@/pages/PainelPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,11 +95,13 @@ export default function App() {
                 <Route path="inicio" element={<StartPage />} />
                 <Route path="criar" element={<GuidedCreatePage />} />
                 <Route path="carteira" element={<WalletConnectPage />} />
+                <Route path="painel" element={<PainelPage />} />
+                {/* O painel antigo, com todos os recortes, segue disponível. */}
+                <Route path="painel/completo" element={<DashboardPage />} />
 
                 {/* Rotas antigas continuam funcionando — links já compartilhados
                     não podem quebrar por causa de um redesenho. */}
-                <Route path="dashboard" element={<Navigate to="/inicio" replace />} />
-                <Route path="painel" element={<DashboardPage />} />
+                <Route path="dashboard" element={<Navigate to="/painel" replace />} />
                 <Route path="contracts" element={<ContractsPage />} />
                 <Route path="contracts/new" element={<Navigate to="/criar" replace />} />
                 <Route path="contracts/avancado" element={<CreateContractPage />} />

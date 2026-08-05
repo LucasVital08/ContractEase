@@ -190,6 +190,29 @@ export default function StartPage() {
         </Link>
       </section>
 
+      {/* Os três destinos que não cabem na barra do celular ficam sempre a um
+          toque daqui. */}
+      <section className="grid gap-3 sm:grid-cols-3">
+        <Shortcut
+          to="/templates"
+          icon="solar:copy-bold-duotone"
+          title="Modelos"
+          detail="Cláusulas prontas por tipo de contrato"
+        />
+        <Shortcut
+          to="/opportunities"
+          icon="solar:bolt-circle-bold-duotone"
+          title="Oportunidades"
+          detail="Demandas abertas que viram contrato"
+        />
+        <Shortcut
+          to="/painel"
+          icon="solar:chart-2-bold-duotone"
+          title="Painel"
+          detail="Evolução e o que precisa de atenção"
+        />
+      </section>
+
       {/* Estado da carteira, discreto. */}
       <section className="rounded-2xl border border-white/8 bg-white/[0.02] px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -262,6 +285,25 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   failed: { label: 'Falhou', className: 'border-red-400/25 text-red-300' },
   archived: { label: 'Arquivado', className: 'border-white/12 text-neutral-500' },
 };
+
+function Shortcut({ to, icon, title, detail }: { to: string; icon: string; title: string; detail: string }) {
+  return (
+    <Link
+      to={to}
+      className="group flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3.5 transition-colors hover:border-white/20 hover:bg-white/[0.04]"
+    >
+      <iconify-icon icon={icon} class="shrink-0 text-xl text-neutral-400" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-white">{title}</span>
+        <span className="mt-0.5 block truncate text-xs text-neutral-500">{detail}</span>
+      </span>
+      <iconify-icon
+        icon="solar:arrow-right-linear"
+        class="shrink-0 text-sm text-neutral-600 transition-transform group-hover:translate-x-0.5"
+      />
+    </Link>
+  );
+}
 
 function StatusPill({ status }: { status: string }) {
   const meta = STATUS_LABEL[status] ?? { label: status, className: 'border-white/12 text-neutral-400' };

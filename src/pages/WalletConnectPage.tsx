@@ -106,12 +106,12 @@ export default function WalletConnectPage() {
       </header>
 
       <Explain
-        what="Uma carteira é o seu carimbo digital. Ela guarda uma chave secreta que só você tem e que serve para assinar."
-        why="Sem ela, a assinatura seria só um clique dentro do nosso sistema — e valeria o quanto nosso sistema vale. Com ela, a assinatura fica registrada na blockchain e qualquer pessoa consegue conferir, mesmo que o ContractEase deixe de existir amanhã."
+        what="Seu carimbo digital: uma chave secreta que só você tem e que serve para assinar."
+        why="É o que permite qualquer pessoa conferir a assinatura na blockchain, sem depender do ContractEase."
         how={[
-          'Escolha uma das carteiras abaixo. Se você já usa MetaMask, fique com ela.',
-          'Clique em conectar e aprove a janela que a extensão abrir.',
-          'Na rede de testes, clique em "Liberar saldo de teste" para poder pagar as taxas (é dinheiro de mentira).',
+          'Escolha uma carteira abaixo. Se você já usa MetaMask, fique com ela.',
+          'Clique em conectar e aprove a janela da extensão.',
+          'Na rede de testes, libere o saldo grátis para pagar as taxas.',
         ]}
       />
 
@@ -137,10 +137,7 @@ export default function WalletConnectPage() {
           />
         </div>
         {targetNetwork === 'mainnet' && (
-          <Caveat>
-            Na rede real cada transação custa uma fração de XLM e não pode ser desfeita. Faça pelo menos um contrato
-            completo na rede de testes antes de vir para cá.
-          </Caveat>
+          <Caveat>Na rede real cada transação custa XLM de verdade e não pode ser desfeita.</Caveat>
         )}
       </section>
 

@@ -27,12 +27,11 @@ export const appWalletProvider: WalletProvider = {
     icon: 'solar:test-tube-bold-duotone',
     installUrl: '',
     steps: [
-      'Clique em "Criar carteira de teste" — ela é gerada dentro do navegador.',
-      'Peça o dinheiro de teste gratuito (Friendbot) na tela da carteira.',
+      'Clique em "Criar carteira de teste" — ela é gerada no navegador.',
+      'Libere o saldo de teste gratuito.',
       'Pronto: dá para percorrer o fluxo inteiro sem instalar nada.',
     ],
-    caveat:
-      'Serve só para testes. A chave fica salva neste navegador sem criptografia, então nunca use com dinheiro real.',
+    caveat: 'Só para testes: a chave fica neste navegador sem criptografia. Nunca use com dinheiro real.',
   },
 
   async detect(): Promise<WalletAvailability> {

@@ -14,7 +14,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useNotificationStore, useWalletStore } from '@/stores';
 import { useCreateContract } from '@/hooks/useContractQueries';
-import { Caveat, Explain } from '@/components/guide/Explain';
+import { Caveat } from '@/components/guide/Explain';
 import { Stepper, type StepDef } from '@/components/guide/Stepper';
 import { ChoiceCard, Field, StepShell, inputClass } from '@/components/guide/StepShell';
 import {
@@ -242,15 +242,23 @@ export default function GuidedCreatePage() {
                 />
               </div>
 
-              <Explain
-                what="Estas são as duas coisas que o ContractEase faz. Tudo o mais são variações destas duas."
-                why="Separar isso logo no começo evita que você preencha campos que não têm nada a ver com o seu caso."
-                how={[
-                  'Se você só precisa provar que um acordo existe e foi aceito, escolha a primeira.',
-                  'Se existe dinheiro envolvido e falta confiança entre as partes, escolha a segunda.',
-                  'Dá para mudar de ideia depois — nada é gravado até o último passo.',
-                ]}
-              />
+              {/* Atalho para a biblioteca: quem já sabe o que quer não deveria
+                  precisar preencher tudo do zero. */}
+              <button
+                onClick={() => navigate('/templates')}
+                className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 text-left transition-colors hover:border-white/20 hover:bg-white/[0.04]"
+              >
+                <iconify-icon icon="solar:copy-bold-duotone" class="shrink-0 text-xl text-neutral-400" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-white">Começar de um modelo pronto</span>
+                  <span className="mt-0.5 block text-xs text-neutral-500">
+                    Cláusulas já escritas para aluguel, freelancer, compra e venda e mais.
+                  </span>
+                </span>
+                <iconify-icon icon="solar:arrow-right-linear" class="shrink-0 text-sm text-neutral-600" />
+              </button>
+
+              <p className="text-xs text-neutral-600">Nada é gravado até o último passo.</p>
             </StepShell>
           )}
 
@@ -342,10 +350,9 @@ export default function GuidedCreatePage() {
               </div>
 
               {draft.goal === 'escrow' && (
-                <Caveat>
-                  O valor só sai da sua carteira no momento em que você confirmar o bloqueio, no passo de registro.
-                  Preencher aqui não movimenta nada.
-                </Caveat>
+                <p className="text-xs text-neutral-500">
+                  Preencher aqui não movimenta dinheiro. O bloqueio só acontece no passo de registro.
+                </p>
               )}
             </StepShell>
           )}
@@ -421,15 +428,10 @@ export default function GuidedCreatePage() {
                 </button>
               </div>
 
-              <Explain
-                what="A lista de quem precisa concordar com o acordo."
-                why="A prova registrada inclui exatamente estes nomes e e-mails. Se alguém for adicionado depois, a prova muda — e isso é intencional."
-                how={[
-                  'Coloque seu e-mail na primeira linha.',
-                  'Adicione uma linha para cada outra pessoa envolvida.',
-                  'Confira os e-mails: é para lá que o link de assinatura vai.',
-                ]}
-              />
+              <p className="text-xs leading-6 text-neutral-500">
+                Confira os e-mails: é para eles que o link de assinatura vai, e são esses nomes que entram na prova
+                registrada.
+              </p>
             </StepShell>
           )}
 
@@ -472,9 +474,9 @@ export default function GuidedCreatePage() {
                   {hash ?? 'calculando…'}
                 </p>
                 <p className="mt-3 text-xs leading-6 text-neutral-500">
-                  Esse código de 64 caracteres é gerado a partir do conteúdo acima, dentro do seu navegador. Mudar uma
-                  única letra do acordo gera um código completamente diferente — é assim que se prova que nada foi
-                  alterado depois. O texto do contrato nunca é enviado para a blockchain; só esse código.
+                  Gerado a partir do conteúdo acima, dentro do seu navegador. Mudar uma letra do acordo muda esse
+                  código inteiro — é assim que se prova que nada foi alterado depois. Só ele vai para a blockchain; o
+                  texto do contrato, não.
                 </p>
               </div>
             </StepShell>
@@ -497,16 +499,6 @@ export default function GuidedCreatePage() {
               }
             >
               <InlineWallet />
-
-              <Explain
-                what="A carteira guarda uma chave secreta que só você tem. Assinar é usar essa chave, sem nunca revelá-la."
-                why="Se a assinatura fosse só um registro no nosso banco de dados, ela valeria apenas enquanto você confiasse em nós. Com a carteira, a prova é independente do ContractEase."
-                how={[
-                  'Se você já usa MetaMask, clique em "Conectar MetaMask" — ela vai pedir para instalar um complemento Stellar uma única vez.',
-                  'Aprove as duas janelas que a MetaMask abrir (conectar e instalar).',
-                  'Na rede de testes, clique em "Liberar saldo de teste" para conseguir pagar as taxas.',
-                ]}
-              />
             </StepShell>
           )}
 
@@ -527,10 +519,10 @@ export default function GuidedCreatePage() {
                 <p className="text-sm font-semibold text-white">O que vai acontecer, nesta ordem</p>
                 <ol className="mt-3 space-y-2.5">
                   {[
-                    'Salvamos o acordo na sua conta do ContractEase.',
-                    'Sua carteira abre e pede para você assinar. Confira o valor da taxa — costuma ser menos de um centavo.',
-                    'A transação é enviada para a rede Stellar e confirmada em cerca de 5 segundos.',
-                    'Você recebe um link público de verificação, que funciona para qualquer pessoa, sem login.',
+                    'Salvamos o acordo na sua conta.',
+                    'Sua carteira abre e pede a assinatura. A taxa costuma ser menos de um centavo.',
+                    'A rede confirma em cerca de 5 segundos.',
+                    'Você recebe um link de verificação que abre sem login.',
                   ].map((line, i) => (
                     <li key={i} className="flex gap-3 text-sm leading-6 text-neutral-300">
                       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/12 bg-black/40 text-[10px] font-bold text-neutral-400">
@@ -544,9 +536,8 @@ export default function GuidedCreatePage() {
 
               {wallet.network === 'testnet' && (
                 <Caveat>
-                  Você está na <strong>rede de testes</strong>. O registro é real e verificável, mas usa dinheiro de
-                  mentira — perfeito para experimentar. Para valer de verdade, troque para a rede real na tela de
-                  Carteira.
+                  Você está na <strong>rede de testes</strong>: o registro é real e verificável, mas com dinheiro de
+                  mentira. Para valer, troque a rede em Carteira.
                 </Caveat>
               )}
 

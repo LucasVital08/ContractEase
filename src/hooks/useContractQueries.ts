@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import type { ContractDraft, Contract } from '@/types';
 import { useNotificationStore, useAuthStore } from '@/stores';
+import { DEMO_CONTRACTS, IS_DEMO } from '@/lib/demo';
 
 export const contractKeys = {
   all: ['contracts'] as const,
@@ -13,7 +14,9 @@ export function useContracts() {
   const initialized = useAuthStore(s => s.initialized);
   return useQuery({
     queryKey: [...contractKeys.all, org?.id ?? 'personal'],
-    queryFn: () => api.contracts.list(org?.id),
+    // Em modo demonstração não há back-end; servimos exemplos para o painel e
+    // o gráfico terem o que mostrar.
+    queryFn: () => (IS_DEMO ? Promise.resolve(DEMO_CONTRACTS) : api.contracts.list(org?.id)),
     // Never fire before the Supabase session is confirmed — prevents empty
     // results from unauthenticated requests racing the initialization flow.
     enabled: initialized,

@@ -1,19 +1,19 @@
 /**
- * Navegação no celular — espelha exatamente os quatro destinos do menu lateral.
+ * Navegação no celular.
  *
- * Antes eram seis ícones, dois deles ("Plano", "Menu") levando a lugares que
- * não correspondiam ao rótulo. Mesma navegação em todo tamanho de tela é
- * metade do trabalho de tornar o app previsível.
+ * Cinco destinos, todos tirados da mesma lista da barra lateral e na mesma
+ * ordem — mesmo ícone, mesmo rótulo, mesmo lugar. Modelos e Painel ficam
+ * de fora só por espaço; ambos têm atalho no Início.
  */
 
 import { NavLink } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { PRIMARY_NAV } from './Sidebar';
+import { MOBILE_NAV } from './Sidebar';
 
 export default function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-white/8 bg-neutral-950/95 px-1 py-1 backdrop-blur-xl sm:hidden">
-      {PRIMARY_NAV.map((item) => (
+    <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-white/8 bg-neutral-950/95 px-1 py-1 backdrop-blur-xl sm:hidden">
+      {MOBILE_NAV.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
