@@ -82,8 +82,11 @@ Runs the whole UI without a backend — useful for reviewing a branch or
 recording a walkthrough:
 
 ```bash
-VITE_DEMO_MODE=1 npm run dev
+npm run demo    # abre http://localhost:5173 já logado
 ```
+
+It loads `.env.demo` (`vite --mode demo`), so it works the same on macOS,
+Linux and Windows without extra dependencies.
 
 It signs in a fixed demo user and skips Supabase. The blockchain side stays
 real: the test wallet, Friendbot funding, and the on-chain registration all hit
