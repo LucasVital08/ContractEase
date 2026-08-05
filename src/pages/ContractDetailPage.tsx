@@ -138,6 +138,24 @@ export default function ContractDetailPage() {
     notify({ type: 'success', title: 'Anexo(s) enviado(s)' });
   };
 
+  // O bucket `attachments` é privado (ver migration 20260805120200). O link de
+  // download antes era montado com getPublicUrl(), que ignora o RLS do storage:
+  // se o bucket estivesse público, qualquer pessoa com o caminho baixaria o
+  // anexo sem autenticação. createSignedUrl passa pela autorização e devolve
+  // uma URL que expira — aqui, em 60 segundos, o suficiente para o download.
+  const downloadAttachment = async (attachment: any) => {
+    const { data, error } = await supabase.storage
+      .from('attachments')
+      .createSignedUrl(attachment.file_path, 60);
+
+    if (error || !data?.signedUrl) {
+      notify({ type: 'error', title: 'Não foi possível gerar o link de download' });
+      return;
+    }
+
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const deleteAttachment = async (attachment: any) => {
     await supabase.storage.from('attachments').remove([attachment.file_path]);
     await supabase.from('attachments').delete().eq('id', attachment.id);
@@ -804,10 +822,10 @@ export default function ContractDetailPage() {
                       <p className="text-xs text-neutral-500">{formatFileSize(att.size_bytes || 0)} • {new Date(att.created_at).toLocaleDateString('pt-BR')}</p>
                     </div>
                     <div className="flex gap-1.5">
-                      <a href={supabase.storage.from('attachments').getPublicUrl(att.file_path).data.publicUrl} target="_blank" rel="noopener noreferrer"
+                      <button type="button" onClick={() => downloadAttachment(att)}
                         className="p-1.5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-white transition-colors" title="Baixar">
                         <iconify-icon icon="solar:download-minimalistic-bold" />
-                      </a>
+                      </button>
                       <button type="button" onClick={() => deleteAttachment(att)} className="p-1.5 hover:bg-red-500/10 rounded-lg text-neutral-600 hover:text-red-400 transition-colors" title="Remover">
                         <iconify-icon icon="solar:trash-bin-bold" />
                       </button>

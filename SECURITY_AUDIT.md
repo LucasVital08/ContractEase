@@ -3,29 +3,45 @@
 **Data:** 05/08/2026
 **Escopo:** aplicação web (React/Vite), camada de dados (Supabase/PostgREST + RLS),
 10 Edge Functions (Deno) e 7 smart contracts Soroban (Rust).
-**Método:** revisão de código (SAST manual) de 100% da superfície de ataque do
-repositório — não houve teste dinâmico contra ambiente publicado (ver
-[Limitações](#limitações-do-que-foi-feito)).
+**Método:** revisão estática de todo o código versionado no repositório. **Não**
+houve teste dinâmico, nem acesso ao projeto Supabase implantado, à configuração
+de infraestrutura ou às dependências instaladas — ver
+[Limitações](#limitações-do-que-foi-feito). Isto é uma revisão de código, não uma
+certificação de ausência de vulnerabilidades.
 
 ---
 
 ## Sumário executivo
 
-Foram identificadas **35 vulnerabilidades**, sendo **9 críticas**. As mais graves
-formam três cadeias de ataque que comprometem o produto de ponta a ponta:
+Foram identificados **38 achados**: **31 vulnerabilidades** com caminho de
+exploração descrito e **7 riscos arquiteturais** (decisões de desenho que
+ampliam o impacto de uma falha, sem serem exploráveis por si sós). Nove são
+críticos. Os mais graves formam três cadeias:
 
-| # | Cadeia | Impacto |
-|---|--------|---------|
-| 1 | **Monetização quebrada** — qualquer pessoa cria créditos e planos do nada, sem pagar | Perda de 100% da receita |
-| 2 | **Tomada de conta e escalada a admin** — um usuário comum vira `admin` com uma requisição | Acesso total à base |
-| 3 | **Adulteração da prova de existência** — atacante anônimo reescreve o hash ancorado de contratos alheios | Destrói o valor jurídico do produto |
+| # | Cadeia | Impacto no pior caso |
+|---|--------|---------------------|
+| 1 | **Monetização contornável** — créditos e planos criados sem pagamento | Receita de créditos/assinaturas zerada enquanto a falha existir |
+| 2 | **Escalada a `role='admin'`** — usuário comum se promove com uma requisição | Acesso a tudo que a aplicação concede a admin, incluindo o RPC de estatísticas globais |
+| 3 | **Adulteração da prova de existência** — atacante anônimo reescreve o hash ancorado de contratos alheios | Compromete o valor probatório dos documentos |
+
+Duas ressalvas de calibragem, porque a diferença importa na hora de priorizar:
+
+- A **cadeia 2 não dá controle do PostgreSQL.** `role` é um campo da tabela
+  `profiles`, usado pela aplicação — não é o `service_role` do Supabase nem um
+  papel do banco. O atacante ganha o que a aplicação confia a um admin; não
+  ganha bypass de RLS. Ainda é crítico, mas o alcance é esse.
+- Os impactos acima são **cenários de pior caso derivados da leitura do código**,
+  não consequências medidas em produção.
 
 O denominador comum: **as Edge Functions rodam com `service_role` (que ignora RLS)
 mas quase nenhuma verificava quem estava chamando**, e o RLS de `profiles` permitia
 que o próprio usuário editasse as colunas que definem seus privilégios.
 
-**Status:** 28 das 35 corrigidas neste branch. As 7 restantes exigem decisão de
-produto ou infraestrutura e estão documentadas com o caminho recomendado.
+**Status:** 31 dos 38 achados foram corrigidos neste branch. "Corrigido" aqui
+significa **código alterado e compilando** — `typecheck`, `lint` e `build` passam
+e `cargo check` compila os contratos. Não significa correção validada por teste:
+a suíte Rust não executa neste ambiente (motivo em Limitações), então as
+mudanças nos contratos carecem de verificação dinâmica.
 
 ---
 
@@ -43,9 +59,15 @@ produto ou infraestrutura e estão documentadas com o caminho recomendado.
 | CRIT-06 | `anchor-on-stellar` anônima: adultera prova de contratos alheios | ✅ Corrigido |
 | CRIT-07 | `deploy-soroban` anônima: drena a conta sponsor | ✅ Corrigido |
 | CRIT-08 | OTP de 4 dígitos, sem rate limit e para qualquer `user_id` | ✅ Corrigido |
-| CRIT-09 | Chave secreta Stellar em `localStorage` sem criptografia | ⚠️ Documentado |
+| CRIT-09 | Chave secreta Stellar em `localStorage` sem criptografia — **bloqueador de mainnet** | ⚠️ Documentado |
 
-### Altas (7)
+> **Nota sobre CRIT-09:** a severidade depende do contexto. Hoje o código declara
+> a carteira como demonstração em testnet (`WalletPage.tsx:219`), onde o impacto é
+> baixo. Ela é classificada como crítica porque **nada no código impede o uso em
+> mainnet** — é um bloqueador absoluto antes de qualquer ativo real, não uma
+> emergência para o estado atual.
+
+### Altas (9)
 
 | ID | Achado | Status |
 |----|--------|--------|
@@ -56,6 +78,8 @@ produto ou infraestrutura e estão documentadas com o caminho recomendado.
 | HIGH-05 | Clickjacking na tela de assinatura (sem `frame-ancestors`) | ✅ Corrigido |
 | HIGH-06 | CSP com `'unsafe-inline'` em `script-src` | ✅ Corrigido |
 | HIGH-07 | Verificação de identidade do signatário só no cliente | ⚠️ Documentado |
+| HIGH-08 | Anexos de contrato servidos por URL pública (`getPublicUrl`) | ✅ Corrigido |
+| HIGH-09 | Trilha forense da assinatura (IP, geo, user-agent) forjada pelo cliente | ✅ Mitigado |
 
 ### Web3 / Smart contracts (6)
 
@@ -68,7 +92,7 @@ produto ou infraestrutura e estão documentadas com o caminho recomendado.
 | W3-05 | Centralização: locador/sponsor decide sozinho sobre fundos de terceiros | ⚠️ Documentado |
 | W3-06 | Contratos sem pausa de emergência nem caminho de upgrade | ⚠️ Documentado |
 
-### Médias e baixas (13)
+### Médias e baixas (14)
 
 | ID | Achado | Status |
 |----|--------|--------|
@@ -82,6 +106,7 @@ produto ou infraestrutura e estão documentadas com o caminho recomendado.
 | MED-08 | Ausência de HSTS, Referrer-Policy e Permissions-Policy | ✅ Corrigido |
 | MED-09 | Memo de pagamento gerado com `Math.random()` | ✅ Corrigido |
 | MED-10 | Scripts de CDN (iconify) sem Subresource Integrity | ⚠️ Documentado |
+| MED-11 | `webhooks.secret` em texto puro e devolvido ao browser a cada listagem | ✅ Corrigido |
 | LOW-01 | `/seed` acessível em produção | ⚠️ Documentado |
 | LOW-02 | `httpClient.ts`: padrão de token em `localStorage` (código morto) | ⚠️ Documentado |
 | LOW-03 | Ausência de rate limiting global nas Edge Functions | ⚠️ Parcial |
@@ -385,6 +410,88 @@ user-agent para trilha de auditoria, e revogar o `UPDATE` direto do cliente sobr
 as colunas de assinatura. O trigger de MED-01 já impede retrodatação, mas a
 verificação de identidade continua pendente de implementação server-side.
 
+### HIGH-08 — Anexos de contrato servidos por URL pública
+
+**Onde:** `src/pages/ContractDetailPage.tsx:807`
+
+```jsx
+<a href={supabase.storage.from('attachments').getPublicUrl(att.file_path).data.publicUrl}>
+```
+
+`getPublicUrl()` não valida nada: apenas concatena
+`/storage/v1/object/public/<bucket>/<path>`. Essa rota **não passa pelo RLS de
+`storage.objects`** — as policies "Owners can read attachments" simplesmente não
+se aplicam a ela. Se o bucket estiver marcado como público, os anexos de
+contrato (documentos com dados pessoais) ficam acessíveis sem autenticação.
+
+O flag `public` do bucket é configuração do projeto, não do repositório: o
+bucket `attachments` nunca foi criado por migration. Ou seja, **não dava para
+determinar pelo código se estava aberto** — exemplo concreto de por que revisar
+migrations não substitui auditar o ambiente implantado.
+
+**Correção:** migration `20260805120200` cria o bucket (se ausente) e força
+`public = false` de forma idempotente para `attachments` e `contracts`; o
+frontend passou a usar `createSignedUrl(path, 60)`, que respeita a autorização.
+
+> Pendente de decisão: `avatars` e `brand-kits` também são lidos via
+> `getPublicUrl` (`supabaseService.ts:244` e `:819`), enquanto a policy de
+> `avatars` diz "Authenticated users can read avatars" — sinais contraditórios.
+> Não alterei para não quebrar a exibição de avatares e logos.
+
+### HIGH-09 — Trilha forense da assinatura forjada pelo cliente
+
+**Onde:** `src/pages/PublicSignPage.tsx:203-215`, `src/services/pdfGenerator.ts:262`
+
+Os metadados que dão valor probatório à assinatura eram coletados **no
+navegador de quem assina** e gravados por `UPDATE` direto:
+
+```js
+ip_address:  clientIp,            // buscado em api.ipify.org PELO BROWSER
+geolocation: geoLoc,              // navigator.geolocation
+user_agent:  navigator.userAgent,
+```
+
+Todos triviais de forjar — e o `pdfGenerator` despeja esses campos no
+**certificado de assinatura**. A prova que sustenta o documento era escrita por
+quem tinha interesse em manipulá-la.
+
+**Correção (mitigação):** migration `20260805120300` deriva `ip_address` e
+`user_agent` dos headers da requisição (`request.headers` do PostgREST),
+descartando o que o cliente enviar; carimba `signed_at` com `now()`; torna todo
+o bloco de assinatura imutável depois de gravado — inclusive para o dono do
+contrato; e prefixa `geolocation` com `declarado:`, já que não há como validá-la
+no servidor. O frontend deixou de coletar IP (a chamada ao `api.ipify.org` saiu,
+e com ela a entrada correspondente no CSP).
+
+**Continua pendente:** enquanto o `UPDATE` partir do cliente, não há verificação
+de identidade real. Isto reduz a falsificação de metadados, não resolve HIGH-07.
+
+### MED-11 — Segredo de webhook em texto puro e exposto à API
+
+**Onde:** `supabase/migrations/20260516200000_create_api_keys_and_webhooks.sql`
+
+`api_keys` guarda `key_hash` corretamente, mas `webhooks.secret` ficava em texto
+puro. Pior: a policy é `FOR ALL ... USING (user_id = auth.uid())` e o frontend
+faz `select('*')` — o segredo de assinatura HMAC voltava para o browser a cada
+carregamento da página, além de ficar legível em qualquer dump do banco.
+
+**Correção:** migration `20260805120400` move o segredo para
+`public.webhook_secrets`, tabela com RLS habilitado e **nenhuma policy** (RLS sem
+policy nega tudo; só `service_role` alcança), cifrado com `pgp_sym_encrypt`. Um
+trigger `BEFORE INSERT/UPDATE` intercepta o valor antes de ele chegar à tupla —
+o texto puro não vai para disco nem para o WAL. A UI passou a exibir o segredo
+**uma única vez**, na criação.
+
+> Requer configuração antes de aplicar:
+> `ALTER DATABASE postgres SET app.webhook_secret_key = '<chave forte>';`
+> A migration falha de propósito se houver segredos a migrar e a chave não
+> estiver definida — preferível a apagá-los ou mantê-los em claro.
+>
+> Alcance honesto: a cifragem protege contra vazamento de dump/backup e acesso
+> somente-leitura ao SQL. Não protege contra comprometimento total do servidor,
+> onde a chave também cairia. O ganho principal é tirar o segredo de qualquer
+> caminho alcançável pelo cliente.
+
 ---
 
 ## Web3 — auditoria dos smart contracts
@@ -419,11 +526,23 @@ Funções corrigidas:
 
 Em todas, o estado passou a ser gravado antes da transferência.
 
-> **Nota de risco:** contratos SEP-41 comuns não reentram. O vetor se concretiza
-> quando o `asset`/`payout_asset` é escolhido por uma das partes — que é
-> exatamente o caso: o endereço vem dos `initArgs` montados no frontend. Um
-> "token" malicioso passado no init transforma cada uma dessas funções em
-> drenagem do escrow.
+> **Grau de confiança — leia antes de priorizar.** O que está **confirmado por
+> leitura** é a violação do padrão CEI: em todas essas funções o estado que
+> impede a repetição era gravado depois da transferência. Isso é um antipadrão
+> reconhecido e a correção é barata e sem contraindicação.
+>
+> O que **não está comprovado** é a exploração concreta. Ela depende de o
+> contrato de token conseguir reentrar dentro do `transfer`, o que no Soroban
+> passa pelo framework de autorização e pelo modelo de invocação — diferente do
+> EVM, onde a reentrância é trivial. Contratos SEP-41 comuns não reentram; o
+> vetor exige um token malicioso, e o `asset`/`payout_asset` **é** escolhido por
+> uma das partes (vem dos `initArgs` montados no frontend), o que torna o
+> cenário plausível.
+>
+> Sem `cargo test` rodando neste ambiente, não escrevi o teste com token
+> malicioso que fecharia a questão. **Trate como antipadrão confirmado com
+> exploração plausível e não comprovada** — corrija, mas escreva o teste antes
+> de declarar o assunto encerrado.
 
 ### W3-02 — `create` e `init` não são atômicos ⚠️ *não corrigido*
 
@@ -452,7 +571,11 @@ com os dias de atraso sem limite; `max_consecutive_overdue == 0` tornava
 `terminate_for_default` inalcançável, prendendo a caução.
 **Correção:** validações adicionadas no `init`.
 
-### W3-04 / W3-05 / W3-06 — Riscos de desenho ⚠️ *documentados*
+### W3-04 / W3-05 / W3-06 — Riscos arquiteturais ⚠️ *documentados*
+
+> Estes três **não são vulnerabilidades exploráveis** — são decisões de desenho
+> que ampliam o impacto de qualquer falha e reduzem as garantias que o produto
+> promete. Estão contados separadamente no sumário justamente por isso.
 
 - **`buy_shares` sem escrow:** o investidor paga **direto para o sponsor**
   (`token_transfer(..., &buyer, &v.sponsor, cost)`), não para o contrato. Se a
@@ -489,6 +612,26 @@ Para calibrar a confiança nos resultados:
   executados), configuração do projeto Supabase fora das migrations (políticas do
   painel, buckets criados manualmente, configuração de Auth), e a segurança
   operacional do provedor de e-mail e da AbacatePay.
+- **Migrations não são o estado real do banco.** Policies podem ter sido criadas,
+  alteradas ou removidas pelo painel sem passar por migration. Além disso,
+  policies permissivas se combinam por **OR**: criar uma policy restritiva não
+  neutraliza uma permissiva anterior com nome diferente — só o `DROP POLICY`
+  neutraliza. Antes do deploy, extraia as policies efetivas do banco implantado
+  (`SELECT * FROM pg_policies WHERE schemaname = 'public'`) e compare com o que
+  as migrations descrevem.
+- **"Corrigido" ≠ "validado".** Todas as correções compilam e passam
+  `typecheck`/`lint`/`build`, mas correções de RLS, autenticação e ordenação de
+  estado em contratos podem introduzir bloqueios de acesso legítimo ou fundos
+  presos. Revise o diff e teste em staging/testnet antes de promover.
+
+### Crédito
+
+Os achados HIGH-08 (anexos por URL pública), HIGH-09 (trilha forense forjável) e
+MED-11 (segredo de webhook) vieram de uma auditoria independente feita em
+paralelo, que os identificou antes desta revisão. As ressalvas de calibragem no
+sumário executivo — sobre o alcance real da escalada a `admin`, a severidade
+contextual de CRIT-09 e a distinção entre vulnerabilidade e risco arquitetural —
+também partiram dessa revisão cruzada.
 
 ---
 
@@ -504,8 +647,20 @@ As correções de código não bastam — estes passos são obrigatórios:
    - `ABACATEPAY_WEBHOOK_SECRET` — segredo HMAC, obtido no painel da AbacatePay.
    - `STELLAR_CHECKER_SECRET` — segredo do job de conferência (header `x-internal-secret`).
    - `ALLOW_MAINNET_ANCHOR` / `ALLOW_MAINNET_DEPLOY` — só `true` quando for a intenção.
-3. **Aplicar as migrations** `20260805120000` e `20260805120100`.
-4. **Auditar os dados existentes** — os furos estiveram abertos:
+3. **Definir a chave de cifragem de webhooks** antes de aplicar as migrations:
+   ```sql
+   ALTER DATABASE postgres SET app.webhook_secret_key = '<chave aleatória forte>';
+   ```
+   A migration `20260805120400` aborta de propósito se houver segredos a migrar
+   sem essa chave definida.
+4. **Aplicar as migrations** `20260805120000`, `20260805120100`, `20260805120200`,
+   `20260805120300` e `20260805120400`, nessa ordem.
+5. **Conferir o flag dos buckets** após a migration — e revisar `avatars`/`brand-kits`,
+   que continuam sendo lidos por URL pública:
+   ```sql
+   SELECT id, public FROM storage.buckets;
+   ```
+6. **Auditar os dados existentes** — os furos estiveram abertos:
    ```sql
    SELECT id, email, role, credits, plan FROM public.profiles
    WHERE role <> 'user' OR credits > 1000;
@@ -513,11 +668,9 @@ As correções de código não bastam — estes passos são obrigatórios:
    SELECT * FROM public.payments WHERE status = 'completed'
      AND abacate_checkout_id IS NULL;   -- créditos sem checkout correspondente
    ```
-5. **Atualizar o frontend** para o novo contrato das funções de pagamento: enviar
-   `{ packageId }` em vez de `{ amount, credits }` (ver `_shared/pricing.ts`).
-6. **Agendar `stellar-checker`** como cron enviando o header `x-internal-secret`
+7. **Agendar `stellar-checker`** como cron enviando o header `x-internal-secret`
    (a função não é mais pública).
-7. **Redeployar os contratos Soroban** — as correções de reentrância só valem para
+8. **Redeployar os contratos Soroban** — as correções de reentrância só valem para
    instâncias novas; contratos já publicados mantêm o bytecode vulnerável.
 
 ---
@@ -533,3 +686,5 @@ As correções de código não bastam — estes passos são obrigatórios:
 | MED-10 | SRI nos scripts do iconify | Requer os hashes dos assets; ideal é servir localmente via npm |
 | LOW-01 | `/seed` em produção | Confirmar se a rota deve ser removida ou gated por `import.meta.env.DEV` |
 | LOW-02 | `src/services/httpClient.ts` | Código morto (mock); recomenda-se apagar para não virar referência |
+| — | Teste de reentrância com token malicioso nos contratos | `cargo test` não compila neste ambiente (conflito pré-existente em `soroban-env-host`); é o teste que fecharia a questão de W3-01 |
+| — | Extrair `pg_policies` do banco implantado e comparar com as migrations | Requer acesso ao projeto Supabase; ver Limitações |

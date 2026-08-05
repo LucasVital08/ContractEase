@@ -42,12 +42,18 @@ export default function PublicSignPage() {
   const [showLivenessModal, setShowLivenessModal] = useState(false);
 
   // Metadata
-  const [clientIp, setClientIp] = useState('');
+  //
+  // `ip_address` e `user_agent` NÃO são mais coletados aqui: o servidor os
+  // deriva dos headers da requisição (ver migration 20260805120300). Buscar o
+  // IP no api.ipify.org pelo próprio navegador e mandá-lo junto era prova
+  // forjável — quem assina escolhia o IP que apareceria no certificado.
+  //
+  // A geolocalização só existe no navegador e não tem como ser validada no
+  // servidor; segue sendo coletada com consentimento, mas é gravada com o
+  // prefixo "declarado:" para não figurar como fato verificado.
   const [geoLoc, setGeoLoc] = useState('');
 
   useEffect(() => {
-    fetch('https://api.ipify.org?format=json')
-      .then(r => r.json()).then(d => setClientIp(d.ip)).catch(() => setClientIp(''));
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         pos => setGeoLoc(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`),
@@ -208,9 +214,9 @@ export default function PublicSignPage() {
           signature_image: signatureImage || null,
           lgpd_consent: lgpdConsent,
           cpf: cpf.replace(/\D/g, '') || null,
-          ip_address: clientIp || null,
           geolocation: geoLoc || null,
-          user_agent: navigator.userAgent,
+          // ip_address e user_agent são preenchidos pelo servidor a partir dos
+          // headers; qualquer valor enviado daqui seria descartado.
         })
         .eq('id', partyId!);
       if (signError) throw signError;

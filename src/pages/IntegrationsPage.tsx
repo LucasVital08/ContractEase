@@ -38,6 +38,9 @@ export default function IntegrationsPage() {
   const [showWhForm, setShowWhForm] = useState(false);
   const [whForm, setWhForm] = useState({ name: '', url: '', events: ['contract.completed', 'contract.signed'] });
   const [savingWh, setSavingWh] = useState(false);
+  // Exibido uma única vez, logo após a criação — depois disso o segredo só
+  // existe cifrado no banco, fora do alcance da API do cliente.
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null);
   const [selectedWh, setSelectedWh] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
 
@@ -91,7 +94,12 @@ export default function IntegrationsPage() {
     if (error) {
       notify({ type: 'error', title: 'Erro ao criar webhook', message: error.message });
     } else {
-      notify({ type: 'success', title: 'Webhook criado!' });
+      // O segredo é gravado cifrado numa tabela sem acesso pelo cliente, então
+      // esta é a única oportunidade de exibi-lo. Antes ele voltava no
+      // `select('*')` da listagem — cômodo, mas significava trafegar o segredo
+      // de assinatura para o browser a cada carregamento da página.
+      setCreatedSecret(secret);
+      notify({ type: 'success', title: 'Webhook criado!', message: 'Copie o segredo agora — ele não será exibido novamente.' });
       setShowWhForm(false);
       setWhForm({ name: '', url: '', events: ['contract.completed', 'contract.signed'] });
       loadWebhooks();
@@ -333,6 +341,37 @@ export default function IntegrationsPage() {
                 </AnimatePresence>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Segredo recém-criado — exibição única */}
+        {createdSecret && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4">
+            <p className="text-xs font-bold text-amber-300 mb-1">Segredo de assinatura — copie agora</p>
+            <p className="text-[10px] text-neutral-400 mb-2">
+              Por segurança, ele fica cifrado no servidor e não pode ser consultado depois.
+              Se perder, gere um novo webhook.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-black/40 px-2 py-1.5 rounded text-[11px] font-mono text-amber-200 break-all">{createdSecret}</code>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(createdSecret);
+                  notify({ type: 'success', title: 'Segredo copiado' });
+                }}
+                className="px-3 py-1.5 text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded transition-colors"
+              >
+                Copiar
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreatedSecret(null)}
+                className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
+              >
+                Ocultar
+              </button>
+            </div>
           </div>
         )}
 
