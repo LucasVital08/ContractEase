@@ -1,26 +1,37 @@
 /**
- * Stellar Wallet Service — Freighter integration
+ * Camada de compatibilidade.
  *
- * Abstrai a comunicação com a Freighter Wallet (extensão do browser).
- * Quando o usuário conecta a wallet, ele passa a poder:
- *   - Assinar a transação de deploy do contrato (em vez de usar a custodial)
- *   - Assinar como parte (Lucas/Gabriel) com sua própria carteira
- *   - Pagar parcelas em USDC/BRZ direto do navegador
- *
- * Toda a chave privada permanece na extensão — só XDR vai e volta.
+ * Antes este arquivo falava direto com a Freighter. Agora ele apenas delega
+ * para a carteira ativa (`services/wallet`), que pode ser MetaMask, Freighter
+ * ou a carteira de teste do app. As assinaturas das funções foram mantidas
+ * para não quebrar as telas que já as consomem.
  */
 
-import * as freighter from '@stellar/freighter-api';
-import * as StellarSdk from '@stellar/stellar-sdk';
+import {
+  anchorDocumentHash,
+  getAccountStatus,
+  getProvider,
+  signDocumentOnChain,
+  WALLET_PROVIDERS,
+  WalletError,
+} from '@/services/wallet';
+import {
+  clearActiveWallet,
+  getActiveAddress,
+  getActiveNetwork,
+  getActiveProviderId,
+  setActiveWallet,
+} from '@/services/wallet/active';
+import type { StellarNetwork, WalletProviderId } from '@/services/wallet/types';
 
-const TESTNET_HORIZON = 'https://horizon-testnet.stellar.org';
-const TESTNET_PASSPHRASE = StellarSdk.Networks.TESTNET;
+export { friendbotUrl, shortenAddress, explorerAccountUrl, explorerTxUrl } from '@/services/wallet';
 
 export interface WalletState {
   isInstalled: boolean;
   isConnected: boolean;
   address: string | null;
   network: string | null;
+  provider: WalletProviderId | null;
 }
 
 export interface SignedTxResult {
@@ -28,272 +39,136 @@ export interface SignedTxResult {
   txHash?: string;
   ledger?: number;
   error?: string;
+  /** O que o usuário deve fazer para destravar. */
+  fix?: string;
 }
 
-/**
- * Lê o estado atual da Freighter. Não dispara prompt de permissão.
- */
+/** Lê o estado da carteira ativa sem abrir nenhum popup. */
 export async function getWalletState(): Promise<WalletState> {
-  try {
-    const installed = await freighter.isConnected();
-    const isInstalled = !!installed?.isConnected;
-    if (!isInstalled) {
-      return { isInstalled: false, isConnected: false, address: null, network: null };
-    }
+  const providerId = getActiveProviderId();
+  const network = getActiveNetwork();
 
-    // isAllowed = usuário já autorizou este origin
-    const allowed = await freighter.isAllowed();
-    if (!allowed?.isAllowed) {
-      return { isInstalled: true, isConnected: false, address: null, network: null };
-    }
-
-    const addr = await freighter.getAddress();
-    const net = await freighter.getNetwork();
+  if (!providerId) {
+    // Nenhuma carteira escolhida ainda — informamos se ao menos existe alguma
+    // disponível, para a UI decidir entre "conectar" e "instalar".
+    const detections = await Promise.all(WALLET_PROVIDERS.map((p) => p.detect().catch(() => ({ installed: false }))));
     return {
-      isInstalled: true,
-      isConnected: !!addr?.address,
-      address: addr?.address ?? null,
-      network: net?.network ?? null,
+      isInstalled: detections.some((d) => d.installed),
+      isConnected: false,
+      address: null,
+      network: null,
+      provider: null,
     };
-  } catch (err) {
-    console.error('[stellarWallet] getWalletState error:', err);
-    return { isInstalled: false, isConnected: false, address: null, network: null };
+  }
+
+  try {
+    const provider = getProvider(providerId);
+    const availability = await provider.detect();
+    const account = availability.installed ? await provider.getAccount(network) : null;
+    return {
+      isInstalled: availability.installed,
+      isConnected: Boolean(account),
+      address: account?.address ?? null,
+      network: account?.network ?? null,
+      provider: providerId,
+    };
+  } catch {
+    return { isInstalled: false, isConnected: false, address: null, network: null, provider: providerId };
   }
 }
 
 /**
- * Pede ao usuário para conectar a Freighter (dispara prompt).
+ * Conecta uma carteira. Sem argumento, reconecta a que já estava ativa;
+ * se não houver nenhuma, tenta a recomendada (MetaMask).
  */
-export async function connectWallet(): Promise<WalletState> {
-  const installed = await freighter.isConnected();
-  if (!installed?.isConnected) {
-    throw new Error(
-      'Freighter não está instalada. Instale em https://freighter.app/ para continuar.',
-    );
-  }
-  // Pede permissão (abre prompt se ainda não autorizou)
-  const access = await freighter.requestAccess();
-  if (!access?.address) {
-    throw new Error('Permissão de carteira negada pelo usuário.');
-  }
-  const net = await freighter.getNetwork();
+export async function connectWallet(
+  providerId?: WalletProviderId,
+  network: StellarNetwork = getActiveNetwork(),
+): Promise<WalletState> {
+  const id = providerId ?? getActiveProviderId() ?? 'metamask';
+  const provider = getProvider(id);
+  const account = await provider.connect(network);
+  setActiveWallet(id, account.address, account.network);
   return {
     isInstalled: true,
     isConnected: true,
-    address: access.address,
-    network: net?.network ?? null,
+    address: account.address,
+    network: account.network,
+    provider: id,
   };
 }
 
-/**
- * Assina e submete uma transação de "ancoragem" do hash do contrato
- * usando a carteira do usuário (não a custodial).
- *
- * O usuário precisa ter saldo de XLM na testnet — friendbot resolve.
- */
+export function disconnectWallet() {
+  clearActiveWallet();
+}
+
+function requireActive(): { providerId: WalletProviderId; address: string; network: StellarNetwork } {
+  const providerId = getActiveProviderId();
+  const address = getActiveAddress();
+  if (!providerId || !address) {
+    throw new WalletError('metamask', 'Nenhuma carteira conectada.', 'Abra "Carteira" no menu e conecte uma carteira.');
+  }
+  return { providerId, address, network: getActiveNetwork() };
+}
+
+function toResult(err: unknown): SignedTxResult {
+  if (err instanceof WalletError) {
+    return { success: false, error: err.message, fix: err.fix };
+  }
+  return { success: false, error: (err as Error)?.message ?? String(err) };
+}
+
+/** Grava o hash do contrato na blockchain usando a carteira ativa. */
 export async function anchorContractHashWithWallet(contractHash: string): Promise<SignedTxResult> {
   try {
-    const state = await getWalletState();
-    if (!state.isConnected || !state.address) {
-      return { success: false, error: 'Conecte sua carteira Freighter primeiro.' };
-    }
-
-    // Network mismatch guard — Freighter must be on Testnet
-    const walletNet = (state.network ?? '').toLowerCase();
-    const onTestnet = walletNet.includes('test') || walletNet === 'testnet';
-    if (!onTestnet) {
-      return {
-        success: false,
-        error: `Sua carteira Freighter está na ${state.network ?? 'Main Net'}. Troque para Test Net nas configurações do Freighter e tente novamente.`,
-      };
-    }
-
-    const server = new StellarSdk.Horizon.Server(TESTNET_HORIZON);
-    let account;
-    try {
-      account = await server.loadAccount(state.address);
-    } catch {
-      return {
-        success: false,
-        error: `Conta ${state.address.slice(0, 8)}...${state.address.slice(-4)} não existe na testnet. Faça friendbot: https://friendbot.stellar.org/?addr=${state.address}`,
-      };
-    }
-
-    const tx = new StellarSdk.TransactionBuilder(account, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: TESTNET_PASSPHRASE,
-    })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination: state.address,
-          asset: StellarSdk.Asset.native(),
-          amount: '0.0000001',
-        }),
-      )
-      .addMemo(StellarSdk.Memo.hash(contractHash))
-      .setTimeout(120)
-      .build();
-
-    const signed = await freighter.signTransaction(tx.toXDR(), {
-      networkPassphrase: TESTNET_PASSPHRASE,
-      address: state.address,
-    });
-
-    const signedXdr = typeof signed === 'string' ? signed : (signed as any)?.signedTxXdr;
-    if (!signedXdr) {
-      return { success: false, error: 'Transação rejeitada na carteira.' };
-    }
-
-    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, TESTNET_PASSPHRASE);
-    const result = await server.submitTransaction(signedTx);
-
-    return {
-      success: true,
-      txHash: (result as any).hash,
-      ledger: (result as any).ledger,
-    };
-  } catch (err: any) {
-    const horizonError = err?.response?.data;
-    const codes = horizonError?.extras?.result_codes;
-    const detail = codes ? JSON.stringify(codes) : err?.message ?? String(err);
-    return { success: false, error: `Falha ao assinar transação: ${detail}` };
+    const { providerId, address, network } = requireActive();
+    const { hash, ledger } = await anchorDocumentHash(providerId, address, contractHash, network);
+    return { success: true, txHash: hash, ledger };
+  } catch (err) {
+    return toResult(err);
   }
 }
 
-/**
- * Assina apenas a "intenção" de aprovar o contrato como parte signatária.
- * Faz uma transação manage-data com o hash do contrato no key — leve e
- * suficiente para registrar on-chain "carteira X assinou hash Y em data Z".
- */
-export async function signAsContractParty(contractHash: string, role: 'signer' | 'witness' = 'signer'): Promise<SignedTxResult> {
+/** Registra on-chain que a carteira ativa assinou o documento. */
+export async function signAsContractParty(
+  contractHash: string,
+  role: 'signer' | 'witness' = 'signer',
+): Promise<SignedTxResult> {
   try {
-    const state = await getWalletState();
-    if (!state.isConnected || !state.address) {
-      return { success: false, error: 'Conecte sua carteira Freighter primeiro.' };
-    }
+    const { providerId, address, network } = requireActive();
+    const { hash, ledger } = await signDocumentOnChain(providerId, address, contractHash, role, network);
+    return { success: true, txHash: hash, ledger };
+  } catch (err) {
+    return toResult(err);
+  }
+}
 
-    const walletNet = (state.network ?? '').toLowerCase();
-    const onTestnet = walletNet.includes('test') || walletNet === 'testnet';
-    if (!onTestnet) {
-      return {
-        success: false,
-        error: `Freighter está na ${state.network ?? 'Main Net'}. Troque para Test Net nas configurações e tente novamente.`,
-      };
-    }
+// ─── Helpers usados pelo sorobanDeploy ─────────────────────────────────
 
-    const server = new StellarSdk.Horizon.Server(TESTNET_HORIZON);
-    let account;
-    try {
-      account = await server.loadAccount(state.address);
-    } catch {
-      return {
-        success: false,
-        error: `Sua conta Stellar ainda não está ativa na testnet. Fund via friendbot: https://friendbot.stellar.org/?addr=${state.address}`,
-      };
-    }
-
-    // ManageData operation: key = "ce:<role>", value = primeiros 32 bytes do hash
-    const valueBytes = new Uint8Array(
-      contractHash
-        .slice(0, 64)
-        .match(/.{1,2}/g)
-        ?.map((b) => parseInt(b, 16)) ?? [],
+/** Endereço da carteira ativa (qualquer provedor). */
+export async function getWalletPublicKey(): Promise<string> {
+  const { address } = requireActive();
+  const status = await getAccountStatus(address, getActiveNetwork()).catch(() => null);
+  if (status && !status.exists) {
+    throw new WalletError(
+      getActiveProviderId() ?? 'metamask',
+      'A conta desta carteira ainda não existe na blockchain.',
+      'Abra "Carteira" e libere o saldo de teste — isso cria a conta na rede.',
     );
-
-    const tx = new StellarSdk.TransactionBuilder(account, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: TESTNET_PASSPHRASE,
-    })
-      .addOperation(
-        StellarSdk.Operation.manageData({
-          name: `ce:${role}:${Date.now().toString(36)}`,
-          value: Buffer.from(valueBytes),
-        }),
-      )
-      .addMemo(StellarSdk.Memo.text(`ContractEase:sign:${role}`))
-      .setTimeout(120)
-      .build();
-
-    const signed = await freighter.signTransaction(tx.toXDR(), {
-      networkPassphrase: TESTNET_PASSPHRASE,
-      address: state.address,
-    });
-
-    const signedXdr = typeof signed === 'string' ? signed : (signed as any)?.signedTxXdr;
-    if (!signedXdr) {
-      return { success: false, error: 'Assinatura cancelada pelo usuário.' };
-    }
-
-    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, TESTNET_PASSPHRASE);
-    const result = await server.submitTransaction(signedTx);
-
-    return {
-      success: true,
-      txHash: (result as any).hash,
-      ledger: (result as any).ledger,
-    };
-  } catch (err: any) {
-    const horizonError = err?.response?.data;
-    const codes = horizonError?.extras?.result_codes;
-    const detail = codes ? JSON.stringify(codes) : err?.message ?? String(err);
-    return { success: false, error: `Falha ao registrar assinatura: ${detail}` };
   }
+  return address;
 }
 
-/**
- * Atalho para abrir o friendbot da testnet com o endereço do usuário pronto.
- */
-export function friendbotUrl(address: string): string {
-  return `https://friendbot.stellar.org/?addr=${address}`;
-}
-
-/**
- * Encurta um endereço Stellar para exibição (GA1B...XYZ4).
- */
-export function shortenAddress(address: string, prefix = 4, suffix = 4): string {
-  if (!address || address.length <= prefix + suffix + 3) return address;
-  return `${address.slice(0, prefix)}...${address.slice(-suffix)}`;
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// Helpers de baixo nível (usados pelo sorobanDeploy.ts)
-// ─────────────────────────────────────────────────────────────────────
-
-/**
- * Retorna o publicKey da Freighter se a wallet estiver conectada e autorizada.
- * Lança erro caso contrário (mensagem em português).
- */
-export async function getFreighterPublicKey(): Promise<string> {
-  const state = await getWalletState();
-  if (!state.isInstalled) {
-    throw new Error('Freighter Wallet não está instalada. Instale em https://www.freighter.app/');
-  }
-  if (!state.isConnected || !state.address) {
-    throw new Error('Conecte sua carteira Freighter antes de invocar o contrato.');
-  }
-  return state.address;
-}
-
-/**
- * Pede à Freighter para assinar uma transação Soroban serializada em XDR.
- * Retorna o XDR assinado, pronto para `sendTransaction`.
- */
-export async function signTransactionWithFreighter(
+/** Assina um XDR com a carteira ativa. */
+export async function signTransactionWithWallet(
   txXdr: string,
-  networkPassphrase: string,
+  _networkPassphrase?: string,
 ): Promise<string> {
-  const state = await getWalletState();
-  if (!state.isConnected || !state.address) {
-    throw new Error('Carteira Freighter não conectada.');
-  }
-  const signed = await freighter.signTransaction(txXdr, {
-    networkPassphrase,
-    address: state.address,
-  });
-  // freighter v3 retorna objeto { signedTxXdr, signerAddress }; v2 retorna string
-  if (typeof signed === 'string') return signed;
-  if (typeof (signed as { signedTxXdr?: string }).signedTxXdr === 'string') {
-    return (signed as { signedTxXdr: string }).signedTxXdr;
-  }
-  throw new Error('Freighter retornou formato inesperado ao assinar transação.');
+  const { providerId, network } = requireActive();
+  return getProvider(providerId).signXdr(txXdr, network);
 }
+
+/** @deprecated use `getWalletPublicKey` — mantido para compatibilidade. */
+export const getFreighterPublicKey = getWalletPublicKey;
+/** @deprecated use `signTransactionWithWallet` — mantido para compatibilidade. */
+export const signTransactionWithFreighter = signTransactionWithWallet;

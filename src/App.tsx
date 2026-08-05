@@ -33,6 +33,10 @@ const DocumentAuthPage = React.lazy(() => import('@/pages/DocumentAuthPage'));
 const PartnersPage = React.lazy(() => import('@/pages/PartnersPage'));
 const AffiliatesPage = React.lazy(() => import('@/pages/AffiliatesPage'));
 const WalletPage = React.lazy(() => import('@/pages/WalletPage'));
+// Fluxo simplificado — as três telas do caminho principal.
+const StartPage = React.lazy(() => import('@/pages/StartPage'));
+const GuidedCreatePage = React.lazy(() => import('@/pages/GuidedCreatePage'));
+const WalletConnectPage = React.lazy(() => import('@/pages/WalletConnectPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -85,10 +89,19 @@ export default function App() {
               {/* Feed público — visível sem login, interações redirecionam p/ login */}
               <Route path="opportunities" element={<OpportunitiesPage />} />
               <Route element={<AuthGuard />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<DashboardPage />} />
+                {/* Caminho principal: Início → Criar → Contratos → Carteira. */}
+                <Route index element={<Navigate to="/inicio" replace />} />
+                <Route path="inicio" element={<StartPage />} />
+                <Route path="criar" element={<GuidedCreatePage />} />
+                <Route path="carteira" element={<WalletConnectPage />} />
+
+                {/* Rotas antigas continuam funcionando — links já compartilhados
+                    não podem quebrar por causa de um redesenho. */}
+                <Route path="dashboard" element={<Navigate to="/inicio" replace />} />
+                <Route path="painel" element={<DashboardPage />} />
                 <Route path="contracts" element={<ContractsPage />} />
-                <Route path="contracts/new" element={<CreateContractPage />} />
+                <Route path="contracts/new" element={<Navigate to="/criar" replace />} />
+                <Route path="contracts/avancado" element={<CreateContractPage />} />
                 <Route path="contracts/:id" element={<ContractDetailPage />} />
                 <Route path="templates" element={<TemplatesPage />} />
                 <Route path="smart-contracts" element={<SmartContractsPage />} />

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, Organization } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { DEMO_ORG, DEMO_USER, IS_DEMO } from '@/lib/demo';
 
 const PROFILE_BOOTSTRAP_SELECT = 'id, name, handle, role, avatar_url, organization_id, credits, wallet_address, plan';
 const ORGANIZATION_BOOTSTRAP_SELECT = 'id, name, plan, created_at';
@@ -78,6 +79,19 @@ export const useAuthStore = create<AuthStore>()(
 
       initialize: async () => {
         if (get().initialized) return;
+
+        // Modo demonstração: entra direto, sem back-end. Ligado só por
+        // VITE_DEMO_MODE=1 em tempo de build.
+        if (IS_DEMO) {
+          set({
+            user: DEMO_USER,
+            organization: DEMO_ORG,
+            isAuthenticated: true,
+            isLoading: false,
+            initialized: true,
+          });
+          return;
+        }
 
         try {
           const { data: { session } } = await supabase.auth.getSession();

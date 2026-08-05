@@ -1,67 +1,36 @@
+/**
+ * Navegação no celular — espelha exatamente os quatro destinos do menu lateral.
+ *
+ * Antes eram seis ícones, dois deles ("Plano", "Menu") levando a lugares que
+ * não correspondiam ao rótulo. Mesma navegação em todo tamanho de tela é
+ * metade do trabalho de tornar o app previsível.
+ */
+
 import { NavLink } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { useNotificationStore } from '@/stores';
-
-const MOBILE_NAV_ITEMS = [
-  { to: '/dashboard', icon: 'solar:widget-5-bold-duotone', label: 'Início' },
-  { to: '/opportunities', icon: 'solar:bolt-circle-bold-duotone', label: 'Feed' },
-  { to: '/contracts', icon: 'solar:folder-with-files-bold-duotone', label: 'Meus' },
-  { to: '/contracts/new', icon: 'solar:add-circle-bold-duotone', label: 'Novo', highlight: true },
-  { to: '/finance', icon: 'solar:card-bold-duotone', label: 'Plano' },
-  { to: '/settings', icon: 'solar:settings-bold-duotone', label: 'Menu' },
-];
+import { PRIMARY_NAV } from './Sidebar';
 
 export default function BottomNav() {
-  const unreadCount = useNotificationStore(state => {
-    const notifications = state.notifications || [];
-    return notifications.filter(n => !n.read).length;
-  });
-
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-6 bg-neutral-950/95 backdrop-blur-xl border-t border-white/5 pb-safe px-1 py-1 sm:hidden">
-      {MOBILE_NAV_ITEMS.map((item) => (
+    <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-white/8 bg-neutral-950/95 px-1 py-1 backdrop-blur-xl sm:hidden">
+      {PRIMARY_NAV.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
-          className={({ isActive }) => {
-            const baseClass = 'flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all relative group';
-            const activeClass = isActive
-              ? 'bg-emerald-500/10 text-emerald-400'
-              : 'text-neutral-500 hover:text-white hover:bg-white/5';
-            return `${baseClass} ${activeClass}`;
-          }}
+          className={({ isActive }) =>
+            `relative flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 transition-colors ${
+              isActive ? 'text-emerald-300' : 'text-neutral-500'
+            }`
+          }
         >
           {({ isActive }) => (
             <>
-              <div className="relative">
-                <motion.div
-                  animate={{ scale: isActive ? 1.1 : 1 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                >
-                  <iconify-icon
-                    icon={item.icon}
-                    class={`text-2xl transition-transform ${isActive ? 'scale-110' : 'scale-100'}`}
-                  />
-                </motion.div>
-
-                {/* Badge for notifications on settings */}
-                {item.to === '/settings' && unreadCount > 0 && (
-                  <motion.span
-                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                  >
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </motion.span>
-                )}
-              </div>
-              <span className="mt-1 px-0.5 text-center text-[9px] font-medium leading-tight">{item.label}</span>
-
-              {/* Active indicator */}
+              <iconify-icon icon={item.icon} class="text-2xl" />
+              <span className="text-center text-[10px] font-medium leading-tight">{item.label}</span>
               {isActive && (
-                <motion.div
+                <motion.span
                   layoutId="bottom-nav-indicator"
-                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1 rounded-full bg-emerald-500"
+                  className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-emerald-400"
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 />
               )}

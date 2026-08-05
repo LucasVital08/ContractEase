@@ -23,8 +23,8 @@ export default function AppLayout() {
       <Sidebar />
 
       <div
-        className="transition-all duration-300 sm:ml-0 md:ml-[var(--sidebar-width)] pb-20 sm:pb-0"
-        style={{ '--sidebar-width': sidebarCollapsed ? '72px' : '260px' } as any}
+        className="pb-20 transition-all duration-300 sm:ml-[var(--sidebar-width)] sm:pb-0"
+        style={{ '--sidebar-width': sidebarCollapsed ? '76px' : '248px' } as any}
       >
         <Topbar />
         <main className="p-4 sm:p-8">

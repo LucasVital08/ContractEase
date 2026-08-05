@@ -27,7 +27,7 @@ import {
   rpc as sorobanRpc,
 } from '@stellar/stellar-sdk';
 import { supabase } from '@/lib/supabase';
-import { getFreighterPublicKey, signTransactionWithFreighter } from '@/services/stellarWallet';
+import { getWalletPublicKey, signTransactionWithWallet } from '@/services/stellarWallet';
 
 // ─── CONSTANTES ────────────────────────────────────────────────────────
 
@@ -154,9 +154,9 @@ export async function invokeAction(params: InvokeParams): Promise<InvokeResult> 
   const rpc = rpcServer(network);
   const net = passphrase(network);
 
-  const caller = params.caller ?? (await getFreighterPublicKey());
+  const caller = params.caller ?? (await getWalletPublicKey());
   if (!caller) {
-    throw new Error('Carteira Freighter não conectada. Conecte para invocar o contrato.');
+    throw new Error('Nenhuma carteira conectada. Abra "Carteira" no menu e conecte para executar o contrato.');
   }
 
   const account = await rpc.getAccount(caller);
@@ -174,7 +174,7 @@ export async function invokeAction(params: InvokeParams): Promise<InvokeResult> 
 
   const prepared = await rpc.prepareTransaction(tx);
 
-  const signedXdr = await signTransactionWithFreighter(prepared.toXDR(), net);
+  const signedXdr = await signTransactionWithWallet(prepared.toXDR(), net);
   const signedTx = TransactionBuilder.fromXDR(signedXdr, net);
 
   const sent = await rpc.sendTransaction(signedTx);

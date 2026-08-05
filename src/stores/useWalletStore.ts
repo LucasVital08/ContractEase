@@ -1,60 +1,110 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { connectWallet, getWalletState, type WalletState } from '@/services/stellarWallet';
+import {
+  connectWallet,
+  disconnectWallet,
+  getWalletState,
+  type WalletState,
+} from '@/services/stellarWallet';
+import {
+  getAccountStatus,
+  fundTestnetAccount,
+  WALLET_PROVIDERS,
+  type StellarNetwork,
+  type WalletProviderId,
+} from '@/services/wallet';
+import { getActiveNetwork } from '@/services/wallet/active';
+
+export interface DetectedWallet {
+  id: WalletProviderId;
+  installed: boolean;
+  reason?: string;
+}
 
 interface WalletStore extends WalletState {
-  /** True enquanto a conexão está acontecendo (prompt aberto) */
   connecting: boolean;
-  /** Carrega o estado atual da extensão (sem disparar prompt) */
+  /** Saldo em XLM da conta ativa — `null` enquanto não foi lido. */
+  xlm: string | null;
+  /** A conta existe na rede? Em Stellar, uma conta só passa a existir com saldo. */
+  accountExists: boolean;
+  /** Quais carteiras estão presentes neste navegador. */
+  detected: DetectedWallet[];
+
+  /** Relê tudo sem abrir popup. */
   refresh: () => Promise<void>;
-  /** Pede conexão à carteira (dispara prompt) */
-  connect: () => Promise<WalletState>;
-  /** Desconecta apenas no app — a Freighter mantém a permissão */
+  /** Descobre quais carteiras estão instaladas. */
+  detect: () => Promise<DetectedWallet[]>;
+  /** Conecta uma carteira específica (abre popup). */
+  connect: (provider?: WalletProviderId, network?: StellarNetwork) => Promise<WalletState>;
+  /** Libera saldo de teste (só testnet). */
+  fund: () => Promise<void>;
   disconnect: () => void;
 }
 
-export const useWalletStore = create<WalletStore>()(
-  persist(
-    (set) => ({
-      isInstalled: false,
-      isConnected: false,
-      address: null,
-      network: null,
-      connecting: false,
+const EMPTY: WalletState = {
+  isInstalled: false,
+  isConnected: false,
+  address: null,
+  network: null,
+  provider: null,
+};
 
-      refresh: async () => {
-        const state = await getWalletState();
-        set(state);
-      },
+export const useWalletStore = create<WalletStore>()((set, get) => ({
+  ...EMPTY,
+  connecting: false,
+  xlm: null,
+  accountExists: false,
+  detected: [],
 
-      connect: async () => {
-        set({ connecting: true });
-        try {
-          const state = await connectWallet();
-          set({ ...state, connecting: false });
-          return state;
-        } catch (err) {
-          set({ connecting: false });
-          throw err;
-        }
-      },
+  detect: async () => {
+    const detected = await Promise.all(
+      WALLET_PROVIDERS.map(async (p) => {
+        const availability = await p.detect().catch(() => ({ installed: false, reason: 'Falha ao detectar' }));
+        return { id: p.meta.id, installed: availability.installed, reason: availability.reason };
+      }),
+    );
+    set({ detected });
+    return detected;
+  },
 
-      disconnect: () => {
-        set({ isConnected: false, address: null, network: null });
-      },
-    }),
-    {
-      name: 'contractease-wallet',
-      // Não persistimos isInstalled/connecting — sempre re-verificar na inicialização
-      partialize: (s) => ({ isConnected: s.isConnected, address: s.address, network: s.network }),
-      // O estado persistido pode estar obsoleto (extensão removida/trocada de
-      // conta). Revalida contra a Freighter assim que o store hidrata, para a
-      // UI não mostrar "conectado" com uma carteira que não está mais lá.
-      onRehydrateStorage: () => (state) => {
-        state?.refresh().catch(() => {
-          state.disconnect();
-        });
-      },
-    },
-  ),
-);
+  refresh: async () => {
+    const [state] = await Promise.all([getWalletState(), get().detect()]);
+    set(state);
+
+    if (state.address) {
+      try {
+        const status = await getAccountStatus(state.address, (state.network as StellarNetwork) ?? getActiveNetwork());
+        set({ xlm: status.xlm, accountExists: status.exists });
+      } catch {
+        set({ xlm: null, accountExists: false });
+      }
+    } else {
+      set({ xlm: null, accountExists: false });
+    }
+  },
+
+  connect: async (provider, network) => {
+    set({ connecting: true });
+    try {
+      const state = await connectWallet(provider, network);
+      set({ ...state, connecting: false });
+      // Saldo é informativo: a conexão não deve falhar se o Horizon estiver lento.
+      void get().refresh();
+      return state;
+    } catch (err) {
+      set({ connecting: false });
+      throw err;
+    }
+  },
+
+  fund: async () => {
+    const { address } = get();
+    if (!address) throw new Error('Conecte uma carteira antes de pedir saldo de teste.');
+    await fundTestnetAccount(address);
+    await get().refresh();
+  },
+
+  disconnect: () => {
+    disconnectWallet();
+    set({ ...EMPTY, xlm: null, accountExists: false });
+  },
+}));

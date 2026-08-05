@@ -3,6 +3,10 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_ANON_KEY: string;
+  readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
+  readonly VITE_STELLAR_NETWORK?: 'testnet' | 'mainnet';
+  /** '1' entra em modo demonstração, sem back-end. Só para builds locais. */
+  readonly VITE_DEMO_MODE?: string;
 }
 
 interface ImportMeta {
