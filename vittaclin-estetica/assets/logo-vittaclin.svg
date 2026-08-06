@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 900" role="img" aria-labelledby="tituloLogo">
+  <title id="tituloLogo">VittaClin Estética</title>
+  <g transform="translate(139 40)">
+    <path fill="#A9DCCB" d="M0 230 241 471 482 230 431 179 241 369 51 179Z"/>
+    <path fill="#D62B6B" d="M241 0 383 142 241 284 99 142Z"/>
+    <path fill="none" stroke="#FFFFFF" stroke-width="7" d="M241 38 345 142 241 246 137 142Z"/>
+  </g>
+  <text x="380" y="700" text-anchor="middle" fill="#D62B6B"
+        font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-weight="300"
+        font-size="140" letter-spacing="2">VITTACLIN</text>
+  <text x="380" y="800" text-anchor="middle" fill="#2A2724"
+        font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-weight="400"
+        font-size="52" letter-spacing="15">ESTÉTICA</text>
+</svg>

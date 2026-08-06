@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 482 471" role="img" aria-labelledby="tituloSimbolo">
+  <title id="tituloSimbolo">Símbolo VittaClin Estética: losango magenta sobre chevron verde-menta</title>
+  <!-- Chevron verde-menta. Braços a 45 graus, pontas cortadas perpendicularmente ao eixo. -->
+  <path fill="#A9DCCB" d="M0 230 241 471 482 230 431 179 241 369 51 179Z"/>
+  <!-- Losango magenta: quadrado girado 45 graus, meia-diagonal 142. -->
+  <path fill="#D62B6B" d="M241 0 383 142 241 284 99 142Z"/>
+  <!-- Linha branca inset, a 73,4% do raio do losango. -->
+  <path fill="none" stroke="#FFFFFF" stroke-width="7" d="M241 38 345 142 241 246 137 142Z"/>
+</svg>

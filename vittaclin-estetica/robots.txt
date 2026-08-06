@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://vittaclinestetica.com.br/sitemap.xml

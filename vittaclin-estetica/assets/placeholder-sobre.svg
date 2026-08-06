@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" width="800" height="1000" role="img" aria-label="Espaço reservado para a foto da Denise atendendo na clínica">
+  <rect width="800" height="1000" fill="#FFFFFF"/>
+  <rect x="18" y="18" width="764" height="964" fill="none" stroke="#F0D8E2" stroke-width="3" stroke-dasharray="14 12"/>
+  <g opacity=".55">
+    <path fill="#A9DCCB" d="M239 508 400 669 561 508 527 474 400 601 273 474Z"/>
+    <path fill="#D62B6B" d="M400 380 495 475 400 570 305 475Z"/>
+    <path fill="none" stroke="#FFF" stroke-width="4.7" d="M400 405 470 475 400 545 330 475Z"/>
+  </g>
+  <text x="400" y="742" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="600" font-size="30" letter-spacing="1" fill="#2E6B4F">FOTO PENDENTE</text>
+  <text x="400" y="790" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="400" font-size="25" fill="#2A2724">Denise atendendo na clínica</text>
+  <text x="400" y="832" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="400" font-size="25" fill="#2A2724">(retrato, vertical)</text>
+  <text x="400" y="892" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="600" font-size="34" fill="#B01F55">800 × 1000 px</text>
+  <text x="400" y="932" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="400" font-size="21" fill="#2A2724">proporção 4:5 · JPG ou PNG · mínimo 800 px de largura</text>
+</svg>

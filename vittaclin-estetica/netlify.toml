@@ -1,0 +1,32 @@
+# Configuração do Netlify.
+# Você não precisa mexer neste arquivo — ele só ajusta detalhes técnicos
+# de segurança e de cache. Pode deixar como está.
+
+[build]
+  publish = "."
+
+# Cabeçalhos de segurança para todas as páginas
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# Imagens e fontes podem ficar muito tempo no cache do navegador
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# CSS e JS revalidam mais rápido, para suas edições aparecerem logo
+[[headers]]
+  for = "/styles.css"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/script.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
